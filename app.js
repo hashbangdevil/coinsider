@@ -13,7 +13,8 @@ const state = {
     user: null,
     categories: [],
     transactions: [],
-    summary: null
+    summary: null,
+    spendingSummary: null
 };
 
 // Reset state to defaults
@@ -22,6 +23,7 @@ function resetState() {
     state.categories = [];
     state.transactions = [];
     state.summary = null;
+    state.spendingSummary = null;
 }
 
 // ========================================
@@ -112,10 +114,19 @@ const elements = {
     
     // Chart
     chartContainer: document.getElementById('chart-container'),
+    chartWithLegend: document.getElementById('chart-with-legend'),
     noChart: document.getElementById('no-chart'),
     expenseChart: document.getElementById('expense-chart'),
-    categoryLegend: document.getElementById('category-legend'),
-    
+    legendLeft: document.getElementById('legend-left'),
+    legendRight: document.getElementById('legend-right'),
+    chartHeader: document.getElementById('chart-header'),
+    chartWrapper: document.getElementById('chart-wrapper'),
+
+    // Spending Modal
+    spendingModal: document.getElementById('spending-modal'),
+    spendingPeriodSelector: document.getElementById('spending-period-selector'),
+    spendingTableBody: document.getElementById('spending-table-body'),
+
     // Toast
     toast: document.getElementById('toast')
 };
@@ -529,11 +540,11 @@ async function loadSummary() {
 // Category Functions
 // ========================================
 
-async function createCategory(name, type, icon, color, monthlyBudget) {
+async function createCategory(name, type, icon, monthlyBudget) {
     try {
         const category = await api('api.php?resource=categories', {
             method: 'POST',
-            body: { name, type, icon, color, monthly_budget: monthlyBudget }
+            body: { name, type, icon, monthly_budget: monthlyBudget }
         });
 
         state.categories.push(category);
@@ -546,9 +557,9 @@ async function createCategory(name, type, icon, color, monthlyBudget) {
     }
 }
 
-async function updateCategory(id, name, icon, color, monthlyBudget, type = null) {
+async function updateCategory(id, name, icon, monthlyBudget, type = null) {
     try {
-        const body = { name, icon, color, monthly_budget: monthlyBudget };
+        const body = { name, icon, monthly_budget: monthlyBudget };
         if (type) body.type = type;
 
         const category = await api(`api.php?resource=categories&id=${id}`, {
@@ -734,7 +745,6 @@ function openEditCategoryModal(categoryId) {
     document.getElementById('budget-name').value = category.name;
     document.getElementById('budget-amount').value = category.monthly_budget || 0;
     document.getElementById('category-icon').value = category.icon;
-    document.getElementById('category-color').value = category.color;
 
     // Update emoji picker selection
     updateEmojiPickerSelection(category.icon);
@@ -940,28 +950,23 @@ function renderChart() {
 
     if (!state.summary || categoriesWithSpending.length === 0) {
         elements.noChart.style.display = 'flex';
-        elements.expenseChart.style.display = 'none';
-        elements.categoryLegend.innerHTML = '';
+        elements.chartWithLegend.style.display = 'none';
         return;
     }
 
     elements.noChart.style.display = 'none';
-    elements.expenseChart.style.display = 'block';
+    elements.chartWithLegend.style.display = 'flex';
 
     // Defer drawing to next frame so layout is calculated
     requestAnimationFrame(() => drawChart(categoriesWithSpending));
 }
 
 function drawChart(categoriesWithSpending) {
-
-    const labels = [];
     const data = [];
     const colors = [];
     const icons = [];
 
     categoriesWithSpending.forEach(item => {
-        // Use category data directly from summary (now includes name, icon, color, spent)
-        labels.push(item.name);
         data.push(parseFloat(item.spent));
         colors.push(item.color || '#64748b');
         icons.push(item.icon || '📦');
@@ -969,23 +974,22 @@ function drawChart(categoriesWithSpending) {
 
     const total = data.reduce((sum, val) => sum + val, 0);
 
-    // Draw donut chart
+    // Draw donut chart - fixed size
     const canvas = elements.expenseChart;
     const ctx = canvas.getContext('2d');
+    const size = 160;
 
     const dpr = window.devicePixelRatio || 1;
-    const rect = canvas.parentElement.getBoundingClientRect();
-    const canvasWidth = rect.width > 0 ? rect.width : 300;
-    canvas.width = canvasWidth * dpr;
-    canvas.height = 200 * dpr;
-    canvas.style.width = canvasWidth + 'px';
-    canvas.style.height = '200px';
+    canvas.width = size * dpr;
+    canvas.height = size * dpr;
+    canvas.style.width = size + 'px';
+    canvas.style.height = size + 'px';
     ctx.scale(dpr, dpr);
 
-    const centerX = canvasWidth / 2;
-    const centerY = 100;
-    const radius = 70;
-    const innerRadius = 45;
+    const centerX = size / 2;
+    const centerY = size / 2;
+    const radius = 65;
+    const innerRadius = 42;
 
     let currentAngle = -Math.PI / 2;
 
@@ -1011,28 +1015,98 @@ function drawChart(categoriesWithSpending) {
 
     // Draw total in center
     ctx.fillStyle = '#f8fafc';
-    ctx.font = 'bold 16px DM Sans';
+    ctx.font = 'bold 14px DM Sans';
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
-    ctx.fillText(formatCurrency(total), centerX, centerY - 8);
+    ctx.fillText(formatCurrency(total), centerX, centerY - 6);
 
     ctx.fillStyle = '#94a3b8';
-    ctx.font = '11px DM Sans';
-    ctx.fillText('Total Spent', centerX, centerY + 12);
+    ctx.font = '10px DM Sans';
+    ctx.fillText('Total', centerX, centerY + 10);
 
-    // Render legend
-    elements.categoryLegend.innerHTML = categoriesWithSpending
-        .map((item, index) => {
-            const percentage = ((parseFloat(item.spent) / total) * 100).toFixed(0);
-            return `
-                <div class="legend-item">
-                    <div class="legend-color" style="background: ${colors[index]}"></div>
-                    <span class="legend-label">${icons[index]} ${item.name}</span>
-                    <span class="legend-value">${percentage}%</span>
-                </div>
-            `;
-        })
-        .join('');
+    // Split legend items between left and right columns
+    const midpoint = Math.ceil(categoriesWithSpending.length / 2);
+    const leftItems = categoriesWithSpending.slice(0, midpoint);
+    const rightItems = categoriesWithSpending.slice(midpoint);
+
+    const renderLegendItem = (item, index) => {
+        const percentage = ((parseFloat(item.spent) / total) * 100).toFixed(0);
+        return `
+            <div class="legend-item">
+                <div class="legend-color" style="background: ${colors[index]}"></div>
+                <span class="legend-label">${icons[index]} ${item.name}</span>
+                <span class="legend-value">${percentage}%</span>
+            </div>
+        `;
+    };
+
+    elements.legendLeft.innerHTML = leftItems.map((item, i) => renderLegendItem(item, i)).join('');
+    elements.legendRight.innerHTML = rightItems.map((item, i) => renderLegendItem(item, i + midpoint)).join('');
+}
+
+function renderSpendingTable(sortKey = 'spent', sortDir = 'desc') {
+    const summary = state.spendingSummary || state.summary;
+    if (!summary || !summary.categories) {
+        elements.spendingTableBody.innerHTML = '<tr><td colspan="4" style="text-align: center; padding: 2rem;">No data available</td></tr>';
+        return;
+    }
+
+    // Get all expense categories (not just those with spending)
+    let categories = summary.categories.map(c => ({
+        ...c,
+        spent: parseFloat(c.spent) || 0,
+        budget: parseFloat(c.monthly_budget) || 0,
+        percent: c.monthly_budget > 0 ? (parseFloat(c.spent) / parseFloat(c.monthly_budget)) * 100 : 0
+    }));
+
+    // Sort
+    categories.sort((a, b) => {
+        let valA, valB;
+        switch (sortKey) {
+            case 'name':
+                valA = a.name.toLowerCase();
+                valB = b.name.toLowerCase();
+                return sortDir === 'asc' ? valA.localeCompare(valB) : valB.localeCompare(valA);
+            case 'spent':
+                valA = a.spent;
+                valB = b.spent;
+                break;
+            case 'budget':
+                valA = a.budget;
+                valB = b.budget;
+                break;
+            case 'percent':
+                valA = a.percent;
+                valB = b.percent;
+                break;
+            default:
+                valA = a.spent;
+                valB = b.spent;
+        }
+        return sortDir === 'asc' ? valA - valB : valB - valA;
+    });
+
+    elements.spendingTableBody.innerHTML = categories.map(cat => {
+        const percentClass = cat.percent >= 100 ? 'over-budget' :
+                            cat.percent >= 80 ? 'near-budget' :
+                            'under-budget';
+        const percentDisplay = cat.budget > 0 ? `${cat.percent.toFixed(0)}%` : '—';
+
+        return `
+            <tr>
+                <td>
+                    <div class="category-cell">
+                        <span class="category-color" style="background: ${cat.color}"></span>
+                        <span class="category-icon">${cat.icon}</span>
+                        ${cat.name}
+                    </div>
+                </td>
+                <td class="amount-cell">${formatCurrency(cat.spent)}</td>
+                <td class="amount-cell">${cat.budget > 0 ? formatCurrency(cat.budget) : '—'}</td>
+                <td class="percent-cell ${percentClass}">${percentDisplay}</td>
+            </tr>
+        `;
+    }).join('');
 }
 
 // ========================================
@@ -1110,11 +1184,9 @@ function setupModals() {
             btn.classList.toggle('active', btn.dataset.type === 'expense');
         });
 
-        // Set default values for icon and color
+        // Set default icon value
         const iconInput = document.getElementById('category-icon');
-        const colorInput = document.getElementById('category-color');
         if (iconInput) iconInput.value = '📦';
-        if (colorInput) colorInput.value = '#64748b';
         updateEmojiPickerSelection('📦');
 
         openModal(elements.categoryModal);
@@ -1143,17 +1215,16 @@ function setupModals() {
         const name = document.getElementById('budget-name').value;
         const amount = parseFloat(document.getElementById('budget-amount').value) || 0;
         const icon = document.getElementById('category-icon')?.value || '📦';
-        const color = document.getElementById('category-color')?.value || '#64748b';
         const type = document.querySelector('.category-type-toggle .type-btn.active')?.dataset.type || 'expense';
 
         const wasEditing = editingCategoryId !== null;
 
         if (editingCategoryId) {
             // Update existing category (pass type in case it was changed)
-            await updateCategory(editingCategoryId, name, icon, color, amount, type);
+            await updateCategory(editingCategoryId, name, icon, amount, type);
         } else {
             // Create new category with selected type
-            await createCategory(name, type, icon, color, amount);
+            await createCategory(name, type, icon, amount);
         }
 
         editingCategoryId = null;
@@ -1260,12 +1331,55 @@ function setupModals() {
         });
 
         const iconInput = document.getElementById('category-icon');
-        const colorInput = document.getElementById('category-color');
         if (iconInput) iconInput.value = '📦';
-        if (colorInput) colorInput.value = '#64748b';
         updateEmojiPickerSelection('📦');
 
         openModal(elements.categoryModal, elements.categoriesListModal);
+    });
+
+    // Chart click handlers - open spending details modal
+    const openSpendingModal = () => {
+        if (!state.summary || !state.summary.categories) return;
+
+        // Sync period selector with main period selector
+        elements.spendingPeriodSelector.value = elements.periodSelector.value;
+        renderSpendingTable();
+        openModal(elements.spendingModal);
+    };
+
+    elements.chartHeader?.addEventListener('click', openSpendingModal);
+    elements.chartWrapper?.addEventListener('click', openSpendingModal);
+
+    // Spending period selector change
+    elements.spendingPeriodSelector?.addEventListener('change', async () => {
+        const period = elements.spendingPeriodSelector.value;
+        try {
+            const summary = await api(`api.php?resource=summary&period=${period}`);
+            state.spendingSummary = summary;
+            renderSpendingTable();
+        } catch (error) {
+            showToast('Failed to load data');
+        }
+    });
+
+    // Spending table sorting
+    document.querySelectorAll('.spending-table th.sortable').forEach(th => {
+        th.addEventListener('click', () => {
+            const sortKey = th.dataset.sort;
+            const currentDir = th.classList.contains('sorted-asc') ? 'asc' :
+                              th.classList.contains('sorted-desc') ? 'desc' : null;
+
+            // Remove sort classes from all headers
+            document.querySelectorAll('.spending-table th').forEach(h => {
+                h.classList.remove('sorted-asc', 'sorted-desc');
+            });
+
+            // Set new sort direction
+            const newDir = currentDir === 'asc' ? 'desc' : 'asc';
+            th.classList.add(`sorted-${newDir}`);
+
+            renderSpendingTable(sortKey, newDir);
+        });
     });
 
     // Close modal handlers - close only the specific modal

@@ -5,6 +5,22 @@
 
 require_once __DIR__ . '/config.php';
 
+// Distinct color palette for auto-assigning category colors
+const CATEGORY_COLORS = [
+    '#6366f1', // Indigo
+    '#f43f5e', // Rose
+    '#10b981', // Emerald
+    '#f59e0b', // Amber
+    '#3b82f6', // Blue
+    '#8b5cf6', // Violet
+    '#ec4899', // Pink
+    '#14b8a6', // Teal
+    '#f97316', // Orange
+    '#06b6d4', // Cyan
+    '#84cc16', // Lime
+    '#a855f7', // Purple
+];
+
 class Database {
     private static $instance = null;
     private $pdo;
@@ -321,8 +337,15 @@ function getCategory($userId, $categoryId) {
     return $stmt->fetch();
 }
 
-function createCategory($userId, $name, $type, $icon, $color, $monthlyBudget = 0) {
+function createCategory($userId, $name, $type, $icon, $color = null, $monthlyBudget = 0) {
     $pdo = Database::getInstance()->getPdo();
+
+    // Auto-assign color from palette based on category count
+    $stmt = $pdo->prepare("SELECT COUNT(*) as count FROM categories WHERE user_id = ?");
+    $stmt->execute([$userId]);
+    $count = $stmt->fetch()['count'];
+    $color = CATEGORY_COLORS[$count % count(CATEGORY_COLORS)];
+
     $stmt = $pdo->prepare("
         INSERT INTO categories (user_id, name, type, icon, color, monthly_budget)
         VALUES (?, ?, ?, ?, ?, ?)
@@ -331,7 +354,7 @@ function createCategory($userId, $name, $type, $icon, $color, $monthlyBudget = 0
     return getCategory($userId, $pdo->lastInsertId());
 }
 
-function updateCategory($userId, $categoryId, $name, $icon, $color, $monthlyBudget, $type = null) {
+function updateCategory($userId, $categoryId, $name, $icon, $monthlyBudget, $type = null) {
     $pdo = Database::getInstance()->getPdo();
 
     // If type is being changed, check if category has transactions
@@ -344,20 +367,21 @@ function updateCategory($userId, $categoryId, $name, $icon, $color, $monthlyBudg
         }
     }
 
+    // Color is auto-assigned and not editable
     if ($type !== null) {
         $stmt = $pdo->prepare("
             UPDATE categories
-            SET name = ?, icon = ?, color = ?, monthly_budget = ?, type = ?, updated_at = CURRENT_TIMESTAMP
+            SET name = ?, icon = ?, monthly_budget = ?, type = ?, updated_at = CURRENT_TIMESTAMP
             WHERE id = ? AND user_id = ?
         ");
-        $stmt->execute([trim($name), $icon, $color, $monthlyBudget, $type, $categoryId, $userId]);
+        $stmt->execute([trim($name), $icon, $monthlyBudget, $type, $categoryId, $userId]);
     } else {
         $stmt = $pdo->prepare("
             UPDATE categories
-            SET name = ?, icon = ?, color = ?, monthly_budget = ?, updated_at = CURRENT_TIMESTAMP
+            SET name = ?, icon = ?, monthly_budget = ?, updated_at = CURRENT_TIMESTAMP
             WHERE id = ? AND user_id = ?
         ");
-        $stmt->execute([trim($name), $icon, $color, $monthlyBudget, $categoryId, $userId]);
+        $stmt->execute([trim($name), $icon, $monthlyBudget, $categoryId, $userId]);
     }
 
     return getCategory($userId, $categoryId);

@@ -799,6 +799,25 @@ body {
    Chart & Reports
    ======================================== */
 
+.section-header.clickable {
+    cursor: pointer;
+    transition: opacity var(--transition-fast);
+}
+
+.section-header.clickable:hover {
+    opacity: 0.8;
+}
+
+.section-chevron {
+    width: 20px;
+    height: 20px;
+    color: var(--text-tertiary);
+}
+
+.chart-wrapper.clickable {
+    cursor: pointer;
+}
+
 .chart-container {
     background: var(--bg-card);
     border-radius: var(--radius-lg);
@@ -808,33 +827,47 @@ body {
     display: flex;
     align-items: center;
     justify-content: center;
+    transition: border-color var(--transition-fast);
+}
+
+.chart-wrapper.clickable:hover .chart-container {
+    border-color: var(--color-primary);
+}
+
+.chart-with-legend {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: var(--space-md);
+    width: 100%;
 }
 
 #expense-chart {
-    max-height: 250px;
+    flex-shrink: 0;
+    width: 160px;
+    height: 160px;
 }
 
-.category-legend {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
-    gap: var(--space-sm);
-    margin-top: var(--space-md);
+.legend-column {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-xs);
+    flex: 1;
+    min-width: 0;
 }
 
 .legend-item {
     display: flex;
     align-items: center;
     gap: var(--space-sm);
-    padding: var(--space-sm) var(--space-md);
-    background: var(--bg-secondary);
-    border-radius: var(--radius-md);
-    font-size: 0.875rem;
+    padding: var(--space-xs) 0;
+    font-size: 0.75rem;
 }
 
 .legend-color {
-    width: 12px;
-    height: 12px;
-    border-radius: var(--radius-sm);
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
     flex-shrink: 0;
 }
 
@@ -843,11 +876,97 @@ body {
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
+    color: var(--text-secondary);
 }
 
 .legend-value {
     font-weight: 600;
+    color: var(--text-primary);
+}
+
+/* Spending Table Modal */
+.spending-table-container {
+    margin-top: var(--space-md);
+    overflow-x: auto;
+}
+
+.spending-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.875rem;
+}
+
+.spending-table th,
+.spending-table td {
+    padding: var(--space-sm) var(--space-md);
+    text-align: left;
+    border-bottom: 1px solid var(--border-color);
+}
+
+.spending-table th {
+    font-weight: 600;
     color: var(--text-secondary);
+    text-transform: uppercase;
+    font-size: 0.75rem;
+    letter-spacing: 0.05em;
+}
+
+.spending-table th.sortable {
+    cursor: pointer;
+    user-select: none;
+    transition: color var(--transition-fast);
+}
+
+.spending-table th.sortable:hover {
+    color: var(--color-primary);
+}
+
+.spending-table th.sorted-asc::after {
+    content: ' ↑';
+}
+
+.spending-table th.sorted-desc::after {
+    content: ' ↓';
+}
+
+.spending-table tbody tr:hover {
+    background: var(--bg-tertiary);
+}
+
+.spending-table .category-cell {
+    display: flex;
+    align-items: center;
+    gap: var(--space-sm);
+}
+
+.spending-table .category-icon {
+    font-size: 1.25rem;
+}
+
+.spending-table .category-color {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+}
+
+.spending-table .amount-cell {
+    font-weight: 500;
+}
+
+.spending-table .percent-cell {
+    font-weight: 600;
+}
+
+.spending-table .percent-cell.over-budget {
+    color: var(--color-danger);
+}
+
+.spending-table .percent-cell.near-budget {
+    color: var(--color-warning);
+}
+
+.spending-table .percent-cell.under-budget {
+    color: var(--color-success);
 }
 
 /* ========================================
@@ -932,16 +1051,6 @@ input[type="color"] {
     padding: var(--space-sm);
     height: 48px;
     cursor: pointer;
-}
-
-.icon-color-row {
-    display: flex;
-    gap: var(--space-md);
-    align-items: flex-end;
-}
-
-.icon-color-row .input-group {
-    margin: 0;
 }
 
 .emoji-preview {

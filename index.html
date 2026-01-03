@@ -24,7 +24,7 @@
     <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Fraunces:opsz,wght@9..144,400;9..144,600;9..144,700&display=swap" rel="stylesheet">
     
     <!-- Centralized CSS -->
-    <link rel="stylesheet" href="styles.css?v=7">
+    <link rel="stylesheet" href="styles.css?v=9">
 </head>
 <body>
     <!-- Auth Screen (Login/Signup/Forgot Password) -->
@@ -306,21 +306,29 @@
 
         <!-- Reports Section -->
         <section class="section">
-            <div class="section-header">
+            <div class="section-header clickable" id="chart-header">
                 <h3 class="section-title">Spending by Category</h3>
+                <svg class="section-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <polyline points="9 18 15 12 9 6"/>
+                </svg>
             </div>
-            <div class="chart-container" id="chart-container">
-                <div class="empty-state" id="no-chart">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
-                        <path d="M21.21 15.89A10 10 0 1 1 8 2.83"/>
-                        <path d="M22 12A10 10 0 0 0 12 2v10z"/>
-                    </svg>
-                    <p>No data to display</p>
-                    <span>Add transactions to see reports</span>
+            <div class="chart-wrapper clickable" id="chart-wrapper">
+                <div class="chart-container" id="chart-container">
+                    <div class="empty-state" id="no-chart">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                            <path d="M21.21 15.89A10 10 0 1 1 8 2.83"/>
+                            <path d="M22 12A10 10 0 0 0 12 2v10z"/>
+                        </svg>
+                        <p>No data to display</p>
+                        <span>Add transactions to see reports</span>
+                    </div>
+                    <div class="chart-with-legend" id="chart-with-legend" style="display: none;">
+                        <div class="legend-column" id="legend-left"></div>
+                        <canvas id="expense-chart"></canvas>
+                        <div class="legend-column" id="legend-right"></div>
+                    </div>
                 </div>
-                <canvas id="expense-chart" style="display: none;"></canvas>
             </div>
-            <div class="category-legend" id="category-legend"></div>
         </section>
 
         <!-- Bottom Spacer -->
@@ -349,16 +357,10 @@
                     <label for="budget-name">Category Name</label>
                     <input type="text" id="budget-name" placeholder="e.g., Groceries" required>
                 </div>
-                <div class="icon-color-row">
-                    <div class="input-group">
-                        <label>Icon</label>
-                        <input type="hidden" id="category-icon" value="📦">
-                        <div class="emoji-preview" id="emoji-preview">📦</div>
-                    </div>
-                    <div class="input-group" style="flex: 1;">
-                        <label for="category-color">Color</label>
-                        <input type="color" id="category-color" value="#64748b">
-                    </div>
+                <div class="input-group">
+                    <label>Icon</label>
+                    <input type="hidden" id="category-icon" value="📦">
+                    <div class="emoji-preview" id="emoji-preview">📦</div>
                 </div>
                 <div class="emoji-picker" id="emoji-picker">
                     <button type="button" class="emoji-option" data-emoji="🍕">🍕</button>
@@ -527,12 +529,51 @@
         </div>
     </div>
 
+    <!-- Spending Details Modal -->
+    <div class="modal" id="spending-modal">
+        <div class="modal-backdrop"></div>
+        <div class="modal-content modal-large">
+            <div class="modal-header">
+                <h3>Spending by Category</h3>
+                <button class="btn-icon modal-close">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <line x1="18" y1="6" x2="6" y2="18"/>
+                        <line x1="6" y1="6" x2="18" y2="18"/>
+                    </svg>
+                </button>
+            </div>
+            <div class="modal-body">
+                <select class="period-selector" id="spending-period-selector">
+                    <option value="this-month">This Month</option>
+                    <option value="last-month">Last Month</option>
+                    <option value="this-year">This Year</option>
+                    <option value="last-year">Last Year</option>
+                    <option value="all-time">All Time</option>
+                </select>
+                <div class="spending-table-container">
+                    <table class="spending-table" id="spending-table">
+                        <thead>
+                            <tr>
+                                <th class="sortable" data-sort="name">Category</th>
+                                <th class="sortable" data-sort="spent">Spent</th>
+                                <th class="sortable" data-sort="budget">Budget</th>
+                                <th class="sortable" data-sort="percent">% Used</th>
+                            </tr>
+                        </thead>
+                        <tbody id="spending-table-body">
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <!-- Toast Notification -->
     <div class="toast" id="toast">
         <span class="toast-message"></span>
     </div>
 
     <!-- App JavaScript -->
-    <script src="app.js?v=8"></script>
+    <script src="app.js?v=11"></script>
 </body>
 </html>

@@ -73,9 +73,8 @@ function handleCategories($method, $id) {
         case 'POST':
             $data = json_decode(file_get_contents('php://input'), true);
 
-            if (empty($data['name']) || empty($data['type']) ||
-                empty($data['icon']) || empty($data['color'])) {
-                errorResponse('Name, type, icon, and color are required');
+            if (empty($data['name']) || empty($data['type']) || empty($data['icon'])) {
+                errorResponse('Name, type, and icon are required');
             }
 
             if (!in_array($data['type'], ['income', 'expense'])) {
@@ -85,12 +84,13 @@ function handleCategories($method, $id) {
             $monthlyBudget = isset($data['monthly_budget']) ? floatval($data['monthly_budget']) : 0;
 
             try {
+                // Color is auto-assigned by createCategory
                 $category = createCategory(
                     $userId,
                     trim($data['name']),
                     $data['type'],
                     trim($data['icon']),
-                    trim($data['color']),
+                    null,
                     $monthlyBudget
                 );
                 $category['spent'] = 0;
@@ -110,8 +110,8 @@ function handleCategories($method, $id) {
 
             $data = json_decode(file_get_contents('php://input'), true);
 
-            if (empty($data['name']) || empty($data['icon']) || empty($data['color'])) {
-                errorResponse('Name, icon, and color are required');
+            if (empty($data['name']) || empty($data['icon'])) {
+                errorResponse('Name and icon are required');
             }
 
             $monthlyBudget = isset($data['monthly_budget']) ? floatval($data['monthly_budget']) : 0;
@@ -122,12 +122,12 @@ function handleCategories($method, $id) {
                 errorResponse('Type must be "income" or "expense"');
             }
 
+            // Color is preserved (not editable)
             $category = updateCategory(
                 $userId,
                 $id,
                 trim($data['name']),
                 trim($data['icon']),
-                trim($data['color']),
                 $monthlyBudget,
                 $type
             );
