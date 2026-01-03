@@ -1,0 +1,526 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="theme-color" content="#1a1a2e">
+    <meta name="description" content="Simple Budget Manager - Track your finances with ease">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="Budget">
+    
+    <title>Budget Manager</title>
+    
+    <!-- PWA Manifest -->
+    <link rel="manifest" href="manifest.json">
+    
+    <!-- Favicon -->
+    <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>💰</text></svg>">
+    <link rel="apple-touch-icon" href="icons/icon-192.png">
+    
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Fraunces:opsz,wght@9..144,400;9..144,600;9..144,700&display=swap" rel="stylesheet">
+    
+    <!-- Centralized CSS -->
+    <link rel="stylesheet" href="styles.css?v=4">
+</head>
+<body>
+    <!-- Auth Screen (Login/Signup/Forgot Password) -->
+    <div id="auth-screen" class="screen active">
+        <div class="login-container">
+            <div class="login-header">
+                <div class="logo-icon">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <circle cx="12" cy="12" r="10"/>
+                        <path d="M12 6v12M9 9h6M9 15h6"/>
+                    </svg>
+                </div>
+                <h1 class="login-title">Budget</h1>
+                <p class="login-subtitle">Take control of your finances</p>
+            </div>
+            
+            <!-- Login Form -->
+            <form id="login-form" class="auth-form active">
+                <div class="input-group">
+                    <label for="login-email">Email</label>
+                    <input type="email" id="login-email" placeholder="you@example.com" required autocomplete="email">
+                </div>
+                
+                <div class="input-group">
+                    <label for="login-password">Password</label>
+                    <input type="password" id="login-password" placeholder="Your password" required autocomplete="current-password">
+                </div>
+                
+                <button type="submit" class="btn btn-primary btn-full">
+                    <span>Sign In</span>
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M5 12h14M12 5l7 7-7 7"/>
+                    </svg>
+                </button>
+                
+                <div class="auth-links">
+                    <button type="button" class="link-btn" data-show="forgot">Forgot password?</button>
+                    <span class="separator">•</span>
+                    <button type="button" class="link-btn" data-show="signup">Create account</button>
+                </div>
+            </form>
+            
+            <!-- Signup Form -->
+            <form id="signup-form" class="auth-form">
+                <div class="input-group">
+                    <label for="signup-name">Name</label>
+                    <input type="text" id="signup-name" placeholder="Your name" required autocomplete="name">
+                </div>
+                
+                <div class="input-group">
+                    <label for="signup-email">Email</label>
+                    <input type="email" id="signup-email" placeholder="you@example.com" required autocomplete="email">
+                </div>
+                
+                <div class="input-group">
+                    <label for="signup-password">Password</label>
+                    <input type="password" id="signup-password" placeholder="At least 6 characters" required autocomplete="new-password" minlength="6">
+                </div>
+                
+                <button type="submit" class="btn btn-primary btn-full">
+                    <span>Create Account</span>
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/>
+                        <circle cx="8.5" cy="7" r="4"/>
+                        <line x1="20" y1="8" x2="20" y2="14"/>
+                        <line x1="23" y1="11" x2="17" y2="11"/>
+                    </svg>
+                </button>
+                
+                <div class="auth-links">
+                    <button type="button" class="link-btn" data-show="login">Already have an account? Sign in</button>
+                </div>
+            </form>
+            
+            <!-- Forgot Password Form -->
+            <form id="forgot-form" class="auth-form">
+                <p class="form-description">Enter your email and we'll send you a link to reset your password.</p>
+                
+                <div class="input-group">
+                    <label for="forgot-email">Email</label>
+                    <input type="email" id="forgot-email" placeholder="you@example.com" required autocomplete="email">
+                </div>
+                
+                <button type="submit" class="btn btn-primary btn-full">
+                    <span>Send Reset Link</span>
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/>
+                        <polyline points="22,6 12,13 2,6"/>
+                    </svg>
+                </button>
+                
+                <div class="auth-links">
+                    <button type="button" class="link-btn" data-show="login">Back to sign in</button>
+                </div>
+            </form>
+            
+            <!-- Reset Password Form -->
+            <form id="reset-form" class="auth-form">
+                <p class="form-description">Enter your new password below.</p>
+                
+                <div class="input-group">
+                    <label for="reset-password">New Password</label>
+                    <input type="password" id="reset-password" placeholder="At least 6 characters" required autocomplete="new-password" minlength="6">
+                </div>
+                
+                <div class="input-group">
+                    <label for="reset-password-confirm">Confirm Password</label>
+                    <input type="password" id="reset-password-confirm" placeholder="Confirm your password" required autocomplete="new-password" minlength="6">
+                </div>
+                
+                <input type="hidden" id="reset-token">
+                
+                <button type="submit" class="btn btn-primary btn-full">
+                    <span>Reset Password</span>
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>
+                        <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
+                    </svg>
+                </button>
+                
+                <div class="auth-links">
+                    <button type="button" class="link-btn" data-show="login">Back to sign in</button>
+                </div>
+            </form>
+            
+            <!-- Success Message -->
+            <div id="reset-success" class="auth-form success-message">
+                <div class="success-icon">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/>
+                        <polyline points="22 4 12 14.01 9 11.01"/>
+                    </svg>
+                </div>
+                <h3>Check Your Email</h3>
+                <p>If an account exists with that email, you'll receive password reset instructions.</p>
+                <button type="button" class="btn btn-primary btn-full" data-show="login">Back to Sign In</button>
+            </div>
+        </div>
+        
+        <div class="login-decoration">
+            <div class="decoration-circle circle-1"></div>
+            <div class="decoration-circle circle-2"></div>
+            <div class="decoration-circle circle-3"></div>
+        </div>
+    </div>
+
+    <!-- Loading Screen -->
+    <div id="loading-screen" class="screen">
+        <div class="loading-container">
+            <div class="loading-spinner"></div>
+            <p>Loading...</p>
+        </div>
+    </div>
+
+    <!-- Main App Screen -->
+    <div id="app-screen" class="screen">
+        <!-- Header -->
+        <header class="app-header">
+            <div class="header-content">
+                <div class="header-left">
+                    <div class="user-info">
+                        <div class="user-avatar-placeholder">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/>
+                                <circle cx="12" cy="7" r="4"/>
+                            </svg>
+                        </div>
+                        <div>
+                            <h2 class="greeting">Hello, <span id="user-name">User</span></h2>
+                            <p class="date" id="current-date"></p>
+                        </div>
+                    </div>
+                </div>
+                <button class="btn-icon" id="settings-btn" title="Settings">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <circle cx="12" cy="12" r="3"/>
+                        <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/>
+                    </svg>
+                </button>
+                <button class="btn-icon" id="logout-btn" title="Logout">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/>
+                        <polyline points="16,17 21,12 16,7"/>
+                        <line x1="21" y1="12" x2="9" y2="12"/>
+                    </svg>
+                </button>
+            </div>
+        </header>
+
+        <!-- Balance Overview -->
+        <section class="balance-card">
+            <div class="balance-header">
+                <span class="balance-label">Total Balance</span>
+                <span class="balance-period" id="balance-period">This Month</span>
+            </div>
+            <div class="balance-amount" id="total-balance">$0.00</div>
+            <div class="balance-stats">
+                <div class="stat stat-income">
+                    <div class="stat-icon">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <polyline points="23,6 13.5,15.5 8.5,10.5 1,18"/>
+                            <polyline points="17,6 23,6 23,12"/>
+                        </svg>
+                    </div>
+                    <div class="stat-info">
+                        <span class="stat-label">Income</span>
+                        <span class="stat-value" id="total-income">$0.00</span>
+                    </div>
+                </div>
+                <div class="stat stat-expense">
+                    <div class="stat-icon">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <polyline points="23,18 13.5,8.5 8.5,13.5 1,6"/>
+                            <polyline points="17,18 23,18 23,12"/>
+                        </svg>
+                    </div>
+                    <div class="stat-info">
+                        <span class="stat-label">Expenses</span>
+                        <span class="stat-value" id="total-expenses">$0.00</span>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Budget Categories Section (hidden, managed via settings) -->
+        <section class="section" id="categories-section" style="display: none;">
+            <div class="section-header">
+                <h3 class="section-title">Budget Categories</h3>
+                <button class="btn btn-small" id="add-budget-btn">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <line x1="12" y1="5" x2="12" y2="19"/>
+                        <line x1="5" y1="12" x2="19" y2="12"/>
+                    </svg>
+                    <span>Add</span>
+                </button>
+            </div>
+            <div class="budgets-list" id="budgets-list">
+                <div class="empty-state" id="no-budgets">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                        <rect x="3" y="3" width="18" height="18" rx="2"/>
+                        <line x1="3" y1="9" x2="21" y2="9"/>
+                        <line x1="9" y1="21" x2="9" y2="9"/>
+                    </svg>
+                    <p>No categories yet</p>
+                    <span>Create your first category to get started</span>
+                </div>
+            </div>
+        </section>
+
+        <!-- Transactions Section -->
+        <section class="section">
+            <div class="section-header">
+                <h3 class="section-title">Recent Transactions</h3>
+                <button class="btn btn-small" id="add-transaction-btn">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <line x1="12" y1="5" x2="12" y2="19"/>
+                        <line x1="5" y1="12" x2="19" y2="12"/>
+                    </svg>
+                    <span>Add</span>
+                </button>
+            </div>
+            <div class="transactions-list" id="transactions-list">
+                <div class="empty-state" id="no-transactions">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                        <line x1="12" y1="1" x2="12" y2="23"/>
+                        <path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/>
+                    </svg>
+                    <p>No transactions yet</p>
+                    <span>Add your first transaction</span>
+                </div>
+            </div>
+        </section>
+
+        <!-- Reports Section -->
+        <section class="section">
+            <div class="section-header">
+                <h3 class="section-title">Spending by Category</h3>
+            </div>
+            <div class="chart-container" id="chart-container">
+                <div class="empty-state" id="no-chart">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                        <path d="M21.21 15.89A10 10 0 1 1 8 2.83"/>
+                        <path d="M22 12A10 10 0 0 0 12 2v10z"/>
+                    </svg>
+                    <p>No data to display</p>
+                    <span>Add transactions to see reports</span>
+                </div>
+                <canvas id="expense-chart" style="display: none;"></canvas>
+            </div>
+            <div class="category-legend" id="category-legend"></div>
+        </section>
+
+        <!-- Bottom Spacer -->
+        <div class="bottom-spacer"></div>
+    </div>
+
+    <!-- Add/Edit Category Modal -->
+    <div class="modal" id="budget-modal">
+        <div class="modal-backdrop"></div>
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>Add Category</h3>
+                <button class="btn-icon modal-close">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <line x1="18" y1="6" x2="6" y2="18"/>
+                        <line x1="6" y1="6" x2="18" y2="18"/>
+                    </svg>
+                </button>
+            </div>
+            <form id="budget-form" class="modal-form">
+                <div class="input-group">
+                    <label for="budget-name">Category Name</label>
+                    <input type="text" id="budget-name" placeholder="e.g., Groceries" required>
+                </div>
+                <div class="input-group">
+                    <label>Icon</label>
+                    <input type="hidden" id="category-icon" value="📦">
+                    <div class="emoji-preview" id="emoji-preview">📦</div>
+                    <div class="emoji-picker" id="emoji-picker">
+                        <button type="button" class="emoji-option" data-emoji="🍕">🍕</button>
+                        <button type="button" class="emoji-option" data-emoji="🍔">🍔</button>
+                        <button type="button" class="emoji-option" data-emoji="🛒">🛒</button>
+                        <button type="button" class="emoji-option" data-emoji="🚗">🚗</button>
+                        <button type="button" class="emoji-option" data-emoji="⛽">⛽</button>
+                        <button type="button" class="emoji-option" data-emoji="🏠">🏠</button>
+                        <button type="button" class="emoji-option" data-emoji="💡">💡</button>
+                        <button type="button" class="emoji-option" data-emoji="📱">📱</button>
+                        <button type="button" class="emoji-option" data-emoji="🎮">🎮</button>
+                        <button type="button" class="emoji-option" data-emoji="🎬">🎬</button>
+                        <button type="button" class="emoji-option" data-emoji="🎵">🎵</button>
+                        <button type="button" class="emoji-option" data-emoji="👕">👕</button>
+                        <button type="button" class="emoji-option" data-emoji="💊">💊</button>
+                        <button type="button" class="emoji-option" data-emoji="🏥">🏥</button>
+                        <button type="button" class="emoji-option" data-emoji="📚">📚</button>
+                        <button type="button" class="emoji-option" data-emoji="✈️">✈️</button>
+                        <button type="button" class="emoji-option" data-emoji="🏋️">🏋️</button>
+                        <button type="button" class="emoji-option" data-emoji="💰">💰</button>
+                        <button type="button" class="emoji-option" data-emoji="💵">💵</button>
+                        <button type="button" class="emoji-option" data-emoji="💳">💳</button>
+                        <button type="button" class="emoji-option" data-emoji="🎁">🎁</button>
+                        <button type="button" class="emoji-option" data-emoji="☕">☕</button>
+                        <button type="button" class="emoji-option" data-emoji="🐕">🐕</button>
+                        <button type="button" class="emoji-option" data-emoji="📦">📦</button>
+                    </div>
+                </div>
+                <div class="input-group">
+                    <label for="category-color">Color</label>
+                    <input type="color" id="category-color" value="#64748b">
+                </div>
+                <div class="input-group">
+                    <label for="budget-amount">Monthly Budget (optional)</label>
+                    <div class="input-with-prefix">
+                        <span class="input-prefix">R</span>
+                        <input type="number" id="budget-amount" placeholder="0.00" step="0.01" min="0" value="0">
+                    </div>
+                </div>
+                <div class="modal-actions">
+                    <button type="button" class="btn btn-secondary modal-cancel">Cancel</button>
+                    <button type="submit" class="btn btn-primary">Save Category</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Add Transaction Modal -->
+    <div class="modal" id="transaction-modal">
+        <div class="modal-backdrop"></div>
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>Add Transaction</h3>
+                <button class="btn-icon modal-close">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <line x1="18" y1="6" x2="6" y2="18"/>
+                        <line x1="6" y1="6" x2="18" y2="18"/>
+                    </svg>
+                </button>
+            </div>
+            <form id="transaction-form" class="modal-form">
+                <div class="transaction-type-toggle">
+                    <button type="button" class="type-btn active" data-type="expense">Expense</button>
+                    <button type="button" class="type-btn" data-type="income">Income</button>
+                </div>
+                <div class="input-group">
+                    <label for="transaction-description">Description</label>
+                    <input type="text" id="transaction-description" placeholder="What was this for?" required>
+                </div>
+                <div class="input-group">
+                    <label for="transaction-amount">Amount</label>
+                    <div class="input-with-prefix">
+                        <span class="input-prefix">R</span>
+                        <input type="number" id="transaction-amount" placeholder="0.00" step="0.01" min="0" required>
+                    </div>
+                </div>
+                <div class="input-group">
+                    <label for="transaction-category">Category</label>
+                    <select id="transaction-category" required>
+                        <option value="">Select category</option>
+                        <!-- Categories populated dynamically by JavaScript -->
+                    </select>
+                </div>
+                <div class="input-group">
+                    <label for="transaction-date">Date</label>
+                    <input type="date" id="transaction-date" required>
+                </div>
+                <div class="modal-actions">
+                    <button type="button" class="btn btn-secondary modal-cancel">Cancel</button>
+                    <button type="submit" class="btn btn-primary">Add Transaction</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Settings Modal -->
+    <div class="modal" id="settings-modal">
+        <div class="modal-backdrop"></div>
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>Settings</h3>
+                <button class="btn-icon modal-close">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <line x1="18" y1="6" x2="6" y2="18"/>
+                        <line x1="6" y1="6" x2="18" y2="18"/>
+                    </svg>
+                </button>
+            </div>
+            <div class="settings-section">
+                <button type="button" class="btn btn-secondary btn-full" id="manage-categories-btn">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width: 20px; height: 20px; margin-right: 8px;">
+                        <rect x="3" y="3" width="18" height="18" rx="2"/>
+                        <line x1="3" y1="9" x2="21" y2="9"/>
+                        <line x1="9" y1="21" x2="9" y2="9"/>
+                    </svg>
+                    Manage Budget Categories
+                </button>
+            </div>
+            <form id="settings-form" class="modal-form">
+                <div class="input-group">
+                    <label for="settings-currency">Currency</label>
+                    <select id="settings-currency" required>
+                        <option value="ZAR">🇿🇦 ZAR - South African Rand</option>
+                        <option value="USD">🇺🇸 USD - US Dollar</option>
+                        <option value="EUR">🇪🇺 EUR - Euro</option>
+                        <option value="GBP">🇬🇧 GBP - British Pound</option>
+                        <option value="AUD">🇦🇺 AUD - Australian Dollar</option>
+                        <option value="CAD">🇨🇦 CAD - Canadian Dollar</option>
+                        <option value="JPY">🇯🇵 JPY - Japanese Yen</option>
+                        <option value="CHF">🇨🇭 CHF - Swiss Franc</option>
+                        <option value="CNY">🇨🇳 CNY - Chinese Yuan</option>
+                        <option value="INR">🇮🇳 INR - Indian Rupee</option>
+                        <option value="BRL">🇧🇷 BRL - Brazilian Real</option>
+                        <option value="KES">🇰🇪 KES - Kenyan Shilling</option>
+                        <option value="NGN">🇳🇬 NGN - Nigerian Naira</option>
+                    </select>
+                </div>
+                <div class="modal-actions">
+                    <button type="button" class="btn btn-secondary modal-cancel">Cancel</button>
+                    <button type="submit" class="btn btn-primary">Save Settings</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Categories List Modal -->
+    <div class="modal" id="categories-list-modal">
+        <div class="modal-backdrop"></div>
+        <div class="modal-content modal-large">
+            <div class="modal-header">
+                <h3>Budget Categories</h3>
+                <button class="btn-icon modal-close">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <line x1="18" y1="6" x2="6" y2="18"/>
+                        <line x1="6" y1="6" x2="18" y2="18"/>
+                    </svg>
+                </button>
+            </div>
+            <div class="modal-body">
+                <div class="categories-list-container" id="categories-list-container">
+                    <!-- Categories will be rendered here by JavaScript -->
+                </div>
+                <button type="button" class="btn btn-primary btn-full" id="add-category-from-list-btn">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width: 20px; height: 20px; margin-right: 8px;">
+                        <line x1="12" y1="5" x2="12" y2="19"/>
+                        <line x1="5" y1="12" x2="19" y2="12"/>
+                    </svg>
+                    Add New Category
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Toast Notification -->
+    <div class="toast" id="toast">
+        <span class="toast-message"></span>
+    </div>
+
+    <!-- App JavaScript -->
+    <script src="app.js?v=4"></script>
+</body>
+</html>

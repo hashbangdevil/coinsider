@@ -1,0 +1,9 @@
+services:
+  php:
+    build: .
+    user: "${UID:?Set UID in .env}:${GID:?Set GID in .env}"
+    container_name: budget-manager
+    ports:
+      - "8888:80"
+    volumes:
+      - ./:/var/www/html
