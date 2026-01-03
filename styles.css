@@ -624,12 +624,14 @@ body {
     border-radius: var(--radius-lg);
     padding: var(--space-lg);
     border: 1px solid var(--border-color);
-    transition: transform var(--transition-fast), box-shadow var(--transition-fast);
+    transition: transform var(--transition-fast), box-shadow var(--transition-fast), border-color var(--transition-fast);
+    cursor: pointer;
 }
 
 .budget-item:hover {
     transform: translateY(-2px);
     box-shadow: var(--shadow-md);
+    border-color: var(--color-primary);
 }
 
 .budget-header {
@@ -726,11 +728,21 @@ body {
     background: var(--bg-card);
     border-radius: var(--radius-md);
     border: 1px solid var(--border-color);
-    transition: background var(--transition-fast);
+    transition: background var(--transition-fast), border-color var(--transition-fast);
 }
 
 .transaction-item:hover {
     background: var(--bg-card-hover);
+    border-color: var(--color-primary);
+}
+
+.transaction-content {
+    display: flex;
+    align-items: center;
+    gap: var(--space-md);
+    flex: 1;
+    min-width: 0;
+    cursor: pointer;
 }
 
 .transaction-icon {
@@ -1381,6 +1393,14 @@ select option {
     background: var(--bg-tertiary);
     border-radius: var(--radius-md);
     gap: var(--space-md);
+    cursor: pointer;
+    border: 1px solid transparent;
+    transition: background var(--transition-fast), border-color var(--transition-fast);
+}
+
+.category-list-item:hover {
+    background: var(--bg-card);
+    border-color: var(--color-primary);
 }
 
 .category-list-info {
