@@ -711,8 +711,8 @@ function openEditCategoryModal(categoryId) {
     const category = state.categories.find(c => c.id === categoryId);
     if (!category) return;
 
-    // Close the categories list modal first
-    closeModal(elements.categoriesListModal);
+    // Hide the categories list modal (don't use closeModal to avoid parent logic)
+    elements.categoriesListModal.classList.remove('active');
 
     editingCategoryId = categoryId;
 
@@ -739,7 +739,7 @@ function openEditCategoryModal(categoryId) {
     const modalTitle = elements.categoryModal.querySelector('.modal-header h3');
     if (modalTitle) modalTitle.textContent = 'Edit Category';
 
-    openModal(elements.categoryModal);
+    openModal(elements.categoryModal, elements.categoriesListModal);
 }
 
 // ========================================
@@ -1046,14 +1046,26 @@ function renderAll() {
 // Modal Management
 // ========================================
 
-function openModal(modal) {
+// Track modal parent relationships
+let modalParent = null;
+
+function openModal(modal, parent = null) {
+    modalParent = parent;
     modal.classList.add('active');
     document.body.style.overflow = 'hidden';
 }
 
 function closeModal(modal) {
     modal.classList.remove('active');
-    document.body.style.overflow = '';
+
+    // Reopen parent modal if exists
+    if (modalParent) {
+        const parent = modalParent;
+        modalParent = null;
+        openModal(parent);
+    } else {
+        document.body.style.overflow = '';
+    }
 }
 
 function setupModals() {
@@ -1120,13 +1132,13 @@ function setupModals() {
         }
 
         editingCategoryId = null;
-        closeModal(elements.categoryModal);
 
-        // If we were editing, return to the categories list modal
-        if (wasEditing) {
+        // Re-render the categories list if we're returning to it
+        if (modalParent === elements.categoriesListModal) {
             renderCategoriesListModal();
-            openModal(elements.categoriesListModal);
         }
+
+        closeModal(elements.categoryModal);
     });
 
     // Transaction Modal
@@ -1201,43 +1213,53 @@ function setupModals() {
 
     // Manage Categories button in Settings
     elements.manageCategoriesBtn.addEventListener('click', () => {
-        closeModal(elements.settingsModal);
+        elements.settingsModal.classList.remove('active');
         renderCategoriesListModal();
-        openModal(elements.categoriesListModal);
+        openModal(elements.categoriesListModal, elements.settingsModal);
     });
 
     // Add Category from List Modal
     elements.addCategoryFromListBtn.addEventListener('click', () => {
-        closeModal(elements.categoriesListModal);
+        elements.categoriesListModal.classList.remove('active');
         elements.categoryForm.reset();
         editingCategoryId = null;
 
         const modalTitle = elements.categoryModal.querySelector('.modal-header h3');
         if (modalTitle) modalTitle.textContent = 'Add Category';
 
+        // Reset type toggle to expense
+        const typeToggle = document.querySelector('.category-type-toggle');
+        if (typeToggle) typeToggle.classList.remove('disabled');
+        document.querySelectorAll('.category-type-toggle .type-btn').forEach(btn => {
+            btn.classList.toggle('active', btn.dataset.type === 'expense');
+        });
+
         const iconInput = document.getElementById('category-icon');
         const colorInput = document.getElementById('category-color');
         if (iconInput) iconInput.value = '📦';
         if (colorInput) colorInput.value = '#64748b';
+        updateEmojiPickerSelection('📦');
 
-        openModal(elements.categoryModal);
+        openModal(elements.categoryModal, elements.categoriesListModal);
     });
 
-    // Close modal handlers
+    // Close modal handlers - close only the specific modal
     document.querySelectorAll('.modal-backdrop, .modal-close, .modal-cancel').forEach(el => {
-        el.addEventListener('click', () => {
-            document.querySelectorAll('.modal.active').forEach(modal => {
+        el.addEventListener('click', (e) => {
+            const modal = e.target.closest('.modal');
+            if (modal) {
                 closeModal(modal);
-            });
+            }
         });
     });
-    
-    // Close on escape
+
+    // Close on escape - close the topmost active modal
     document.addEventListener('keydown', (e) => {
         if (e.key === 'Escape') {
-            document.querySelectorAll('.modal.active').forEach(modal => {
-                closeModal(modal);
-            });
+            const activeModal = document.querySelector('.modal.active');
+            if (activeModal) {
+                closeModal(activeModal);
+            }
         }
     });
 }

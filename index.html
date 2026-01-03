@@ -24,7 +24,7 @@
     <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Fraunces:opsz,wght@9..144,400;9..144,600;9..144,700&display=swap" rel="stylesheet">
     
     <!-- Centralized CSS -->
-    <link rel="stylesheet" href="styles.css?v=4">
+    <link rel="stylesheet" href="styles.css?v=5">
 </head>
 <body>
     <!-- Auth Screen (Login/Signup/Forgot Password) -->
@@ -343,40 +343,42 @@
                     <label for="budget-name">Category Name</label>
                     <input type="text" id="budget-name" placeholder="e.g., Groceries" required>
                 </div>
-                <div class="input-group">
-                    <label>Icon</label>
-                    <input type="hidden" id="category-icon" value="📦">
-                    <div class="emoji-preview" id="emoji-preview">📦</div>
-                    <div class="emoji-picker" id="emoji-picker">
-                        <button type="button" class="emoji-option" data-emoji="🍕">🍕</button>
-                        <button type="button" class="emoji-option" data-emoji="🍔">🍔</button>
-                        <button type="button" class="emoji-option" data-emoji="🛒">🛒</button>
-                        <button type="button" class="emoji-option" data-emoji="🚗">🚗</button>
-                        <button type="button" class="emoji-option" data-emoji="⛽">⛽</button>
-                        <button type="button" class="emoji-option" data-emoji="🏠">🏠</button>
-                        <button type="button" class="emoji-option" data-emoji="💡">💡</button>
-                        <button type="button" class="emoji-option" data-emoji="📱">📱</button>
-                        <button type="button" class="emoji-option" data-emoji="🎮">🎮</button>
-                        <button type="button" class="emoji-option" data-emoji="🎬">🎬</button>
-                        <button type="button" class="emoji-option" data-emoji="🎵">🎵</button>
-                        <button type="button" class="emoji-option" data-emoji="👕">👕</button>
-                        <button type="button" class="emoji-option" data-emoji="💊">💊</button>
-                        <button type="button" class="emoji-option" data-emoji="🏥">🏥</button>
-                        <button type="button" class="emoji-option" data-emoji="📚">📚</button>
-                        <button type="button" class="emoji-option" data-emoji="✈️">✈️</button>
-                        <button type="button" class="emoji-option" data-emoji="🏋️">🏋️</button>
-                        <button type="button" class="emoji-option" data-emoji="💰">💰</button>
-                        <button type="button" class="emoji-option" data-emoji="💵">💵</button>
-                        <button type="button" class="emoji-option" data-emoji="💳">💳</button>
-                        <button type="button" class="emoji-option" data-emoji="🎁">🎁</button>
-                        <button type="button" class="emoji-option" data-emoji="☕">☕</button>
-                        <button type="button" class="emoji-option" data-emoji="🐕">🐕</button>
-                        <button type="button" class="emoji-option" data-emoji="📦">📦</button>
+                <div class="icon-color-row">
+                    <div class="input-group">
+                        <label>Icon</label>
+                        <input type="hidden" id="category-icon" value="📦">
+                        <div class="emoji-preview" id="emoji-preview">📦</div>
+                    </div>
+                    <div class="input-group" style="flex: 1;">
+                        <label for="category-color">Color</label>
+                        <input type="color" id="category-color" value="#64748b">
                     </div>
                 </div>
-                <div class="input-group">
-                    <label for="category-color">Color</label>
-                    <input type="color" id="category-color" value="#64748b">
+                <div class="emoji-picker" id="emoji-picker">
+                    <button type="button" class="emoji-option" data-emoji="🍕">🍕</button>
+                    <button type="button" class="emoji-option" data-emoji="🍔">🍔</button>
+                    <button type="button" class="emoji-option" data-emoji="🛒">🛒</button>
+                    <button type="button" class="emoji-option" data-emoji="🚗">🚗</button>
+                    <button type="button" class="emoji-option" data-emoji="⛽">⛽</button>
+                    <button type="button" class="emoji-option" data-emoji="🏠">🏠</button>
+                    <button type="button" class="emoji-option" data-emoji="💡">💡</button>
+                    <button type="button" class="emoji-option" data-emoji="📱">📱</button>
+                    <button type="button" class="emoji-option" data-emoji="🎮">🎮</button>
+                    <button type="button" class="emoji-option" data-emoji="🎬">🎬</button>
+                    <button type="button" class="emoji-option" data-emoji="🎵">🎵</button>
+                    <button type="button" class="emoji-option" data-emoji="👕">👕</button>
+                    <button type="button" class="emoji-option" data-emoji="💊">💊</button>
+                    <button type="button" class="emoji-option" data-emoji="🏥">🏥</button>
+                    <button type="button" class="emoji-option" data-emoji="📚">📚</button>
+                    <button type="button" class="emoji-option" data-emoji="✈️">✈️</button>
+                    <button type="button" class="emoji-option" data-emoji="🏋️">🏋️</button>
+                    <button type="button" class="emoji-option" data-emoji="💰">💰</button>
+                    <button type="button" class="emoji-option" data-emoji="💵">💵</button>
+                    <button type="button" class="emoji-option" data-emoji="💳">💳</button>
+                    <button type="button" class="emoji-option" data-emoji="🎁">🎁</button>
+                    <button type="button" class="emoji-option" data-emoji="☕">☕</button>
+                    <button type="button" class="emoji-option" data-emoji="🐕">🐕</button>
+                    <button type="button" class="emoji-option" data-emoji="📦">📦</button>
                 </div>
                 <div class="input-group">
                     <label for="budget-amount">Monthly Budget (optional)</label>
