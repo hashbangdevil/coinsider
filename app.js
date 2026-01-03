@@ -609,11 +609,11 @@ function renderCategories() {
     console.log('Rendering categories:', expenseCategories);
 
     if (expenseCategories.length === 0) {
-        elements.noCategories.style.display = 'flex';
+        if (elements.noCategories) elements.noCategories.style.display = 'flex';
         return;
     }
 
-    elements.noCategories.style.display = 'none';
+    if (elements.noCategories) elements.noCategories.style.display = 'none';
 
     expenseCategories.forEach(category => {
         const spent = category.spent || 0;
@@ -871,11 +871,11 @@ function renderTransactions() {
     console.log('Rendering transactions:', transactions);
 
     if (transactions.length === 0) {
-        elements.noTransactions.style.display = 'flex';
+        if (elements.noTransactions) elements.noTransactions.style.display = 'flex';
         return;
     }
 
-    elements.noTransactions.style.display = 'none';
+    if (elements.noTransactions) elements.noTransactions.style.display = 'none';
 
     const recentTransactions = transactions.slice(0, 10);
 
@@ -921,14 +921,15 @@ function renderTransactions() {
 
 function updateBalances() {
     if (!state.summary) return;
-    
+
     const { income, expense, balance } = state.summary;
-    
-    elements.totalBalance.textContent = formatCurrency(balance);
-    elements.totalIncome.textContent = formatCurrency(income);
-    elements.totalExpenses.textContent = formatCurrency(expense);
-    
-    elements.totalBalance.style.color = balance >= 0 ? 'var(--color-success)' : 'var(--color-danger)';
+
+    if (elements.totalBalance) {
+        elements.totalBalance.textContent = formatCurrency(balance);
+        elements.totalBalance.style.color = balance >= 0 ? 'var(--color-success)' : 'var(--color-danger)';
+    }
+    if (elements.totalIncome) elements.totalIncome.textContent = formatCurrency(income);
+    if (elements.totalExpenses) elements.totalExpenses.textContent = formatCurrency(expense);
 }
 
 function renderChart() {
@@ -939,13 +940,13 @@ function renderChart() {
     const categoriesWithSpending = (summary?.categories || []).filter(c => c.spent > 0);
 
     if (!summary || categoriesWithSpending.length === 0) {
-        elements.noChart.style.display = 'flex';
-        elements.chartWithLegend.style.display = 'none';
+        if (elements.noChart) elements.noChart.style.display = 'flex';
+        if (elements.chartWithLegend) elements.chartWithLegend.style.display = 'none';
         return;
     }
 
-    elements.noChart.style.display = 'none';
-    elements.chartWithLegend.style.display = 'flex';
+    if (elements.noChart) elements.noChart.style.display = 'none';
+    if (elements.chartWithLegend) elements.chartWithLegend.style.display = 'flex';
 
     // Defer drawing to next frame so layout is calculated
     requestAnimationFrame(() => drawChart(categoriesWithSpending));
