@@ -531,11 +531,14 @@ async function createCategory(name, type, icon, color, monthlyBudget) {
     }
 }
 
-async function updateCategory(id, name, icon, color, monthlyBudget) {
+async function updateCategory(id, name, icon, color, monthlyBudget, type = null) {
     try {
+        const body = { name, icon, color, monthly_budget: monthlyBudget };
+        if (type) body.type = type;
+
         const category = await api(`api.php?resource=categories&id=${id}`, {
             method: 'PUT',
-            body: { name, icon, color, monthly_budget: monthlyBudget }
+            body
         });
 
         const index = state.categories.findIndex(c => c.id === id);
@@ -721,6 +724,17 @@ function openEditCategoryModal(categoryId) {
     // Update emoji picker selection
     updateEmojiPickerSelection(category.icon);
 
+    // Set type toggle to category's type (disabled if has transactions)
+    const typeToggle = document.querySelector('.category-type-toggle');
+    const hasTransactions = category.has_transactions === 1 || category.has_transactions === '1' || category.has_transactions === true;
+
+    if (typeToggle) {
+        typeToggle.classList.toggle('disabled', hasTransactions);
+    }
+    document.querySelectorAll('.category-type-toggle .type-btn').forEach(btn => {
+        btn.classList.toggle('active', btn.dataset.type === category.type);
+    });
+
     // Update modal title
     const modalTitle = elements.categoryModal.querySelector('.modal-header h3');
     if (modalTitle) modalTitle.textContent = 'Edit Category';
@@ -807,7 +821,7 @@ function openEditTransactionModal(transactionId) {
 
     // Set type toggle
     const type = transaction.type;
-    document.querySelectorAll('.type-btn').forEach(btn => {
+    document.querySelectorAll('.transaction-type-toggle .type-btn').forEach(btn => {
         btn.classList.toggle('active', btn.dataset.type === type);
     });
 
@@ -1052,6 +1066,13 @@ function setupModals() {
         const modalTitle = elements.categoryModal.querySelector('.modal-header h3');
         if (modalTitle) modalTitle.textContent = 'Add Category';
 
+        // Reset type toggle to expense and enable it
+        const typeToggle = document.querySelector('.category-type-toggle');
+        if (typeToggle) typeToggle.classList.remove('disabled');
+        document.querySelectorAll('.category-type-toggle .type-btn').forEach(btn => {
+            btn.classList.toggle('active', btn.dataset.type === 'expense');
+        });
+
         // Set default values for icon and color
         const iconInput = document.getElementById('category-icon');
         const colorInput = document.getElementById('category-color');
@@ -1062,21 +1083,40 @@ function setupModals() {
         openModal(elements.categoryModal);
     });
 
+    // Category type toggle - use event delegation
+    const categoryTypeToggle = document.querySelector('.category-type-toggle');
+    if (categoryTypeToggle) {
+        categoryTypeToggle.addEventListener('click', (e) => {
+            const btn = e.target.closest('.type-btn');
+            if (!btn) return;
+
+            // If disabled, show toast message instead of changing
+            if (categoryTypeToggle.classList.contains('disabled')) {
+                showToast('Type cannot be changed (category has transactions)');
+                return;
+            }
+
+            categoryTypeToggle.querySelectorAll('.type-btn').forEach(b => b.classList.remove('active'));
+            btn.classList.add('active');
+        });
+    }
+
     elements.categoryForm.addEventListener('submit', async (e) => {
         e.preventDefault();
         const name = document.getElementById('budget-name').value;
         const amount = parseFloat(document.getElementById('budget-amount').value) || 0;
         const icon = document.getElementById('category-icon')?.value || '📦';
         const color = document.getElementById('category-color')?.value || '#64748b';
+        const type = document.querySelector('.category-type-toggle .type-btn.active')?.dataset.type || 'expense';
 
         const wasEditing = editingCategoryId !== null;
 
         if (editingCategoryId) {
-            // Update existing category
-            await updateCategory(editingCategoryId, name, icon, color, amount);
+            // Update existing category (pass type in case it was changed)
+            await updateCategory(editingCategoryId, name, icon, color, amount, type);
         } else {
-            // Create new expense category (can add type selector later)
-            await createCategory(name, 'expense', icon, color, amount);
+            // Create new category with selected type
+            await createCategory(name, type, icon, color, amount);
         }
 
         editingCategoryId = null;
@@ -1094,7 +1134,7 @@ function setupModals() {
         elements.transactionForm.reset();
         editingTransactionId = null;
         elements.transactionDate.value = new Date().toISOString().split('T')[0];
-        document.querySelectorAll('.type-btn').forEach(btn => {
+        document.querySelectorAll('.transaction-type-toggle .type-btn').forEach(btn => {
             btn.classList.toggle('active', btn.dataset.type === 'expense');
         });
 
@@ -1111,9 +1151,9 @@ function setupModals() {
     });
 
     // Transaction type toggle - update category dropdown when type changes
-    document.querySelectorAll('.type-btn').forEach(btn => {
+    document.querySelectorAll('.transaction-type-toggle .type-btn').forEach(btn => {
         btn.addEventListener('click', () => {
-            document.querySelectorAll('.type-btn').forEach(b => b.classList.remove('active'));
+            document.querySelectorAll('.transaction-type-toggle .type-btn').forEach(b => b.classList.remove('active'));
             btn.classList.add('active');
 
             // Update category dropdown based on selected type

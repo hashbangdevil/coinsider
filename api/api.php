@@ -115,6 +115,12 @@ function handleCategories($method, $id) {
             }
 
             $monthlyBudget = isset($data['monthly_budget']) ? floatval($data['monthly_budget']) : 0;
+            $type = isset($data['type']) ? $data['type'] : null;
+
+            // Validate type if provided
+            if ($type !== null && !in_array($type, ['income', 'expense'])) {
+                errorResponse('Type must be "income" or "expense"');
+            }
 
             $category = updateCategory(
                 $userId,
@@ -122,11 +128,12 @@ function handleCategories($method, $id) {
                 trim($data['name']),
                 trim($data['icon']),
                 trim($data['color']),
-                $monthlyBudget
+                $monthlyBudget,
+                $type
             );
 
             if (!$category) {
-                errorResponse('Category not found', 404);
+                errorResponse('Cannot change category type while it has transactions', 400);
             }
 
             $category['spent'] = getCategorySpent($userId, $id, $yearMonth);

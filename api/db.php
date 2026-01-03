@@ -293,16 +293,20 @@ function getCategories($userId, $type = null) {
 
     if ($type) {
         $stmt = $pdo->prepare("
-            SELECT * FROM categories
-            WHERE user_id = ? AND type = ?
-            ORDER BY name ASC
+            SELECT c.*,
+                   (SELECT COUNT(*) FROM transactions t WHERE t.category_id = c.id) > 0 as has_transactions
+            FROM categories c
+            WHERE c.user_id = ? AND c.type = ?
+            ORDER BY c.name ASC
         ");
         $stmt->execute([$userId, $type]);
     } else {
         $stmt = $pdo->prepare("
-            SELECT * FROM categories
-            WHERE user_id = ?
-            ORDER BY type DESC, name ASC
+            SELECT c.*,
+                   (SELECT COUNT(*) FROM transactions t WHERE t.category_id = c.id) > 0 as has_transactions
+            FROM categories c
+            WHERE c.user_id = ?
+            ORDER BY c.type DESC, c.name ASC
         ");
         $stmt->execute([$userId]);
     }
@@ -327,14 +331,35 @@ function createCategory($userId, $name, $type, $icon, $color, $monthlyBudget = 0
     return getCategory($userId, $pdo->lastInsertId());
 }
 
-function updateCategory($userId, $categoryId, $name, $icon, $color, $monthlyBudget) {
+function updateCategory($userId, $categoryId, $name, $icon, $color, $monthlyBudget, $type = null) {
     $pdo = Database::getInstance()->getPdo();
-    $stmt = $pdo->prepare("
-        UPDATE categories
-        SET name = ?, icon = ?, color = ?, monthly_budget = ?, updated_at = CURRENT_TIMESTAMP
-        WHERE id = ? AND user_id = ?
-    ");
-    $stmt->execute([trim($name), $icon, $color, $monthlyBudget, $categoryId, $userId]);
+
+    // If type is being changed, check if category has transactions
+    if ($type !== null) {
+        $category = getCategory($userId, $categoryId);
+        if ($category && $category['type'] !== $type) {
+            if (categoryHasTransactions($userId, $categoryId)) {
+                return false; // Cannot change type, has transactions
+            }
+        }
+    }
+
+    if ($type !== null) {
+        $stmt = $pdo->prepare("
+            UPDATE categories
+            SET name = ?, icon = ?, color = ?, monthly_budget = ?, type = ?, updated_at = CURRENT_TIMESTAMP
+            WHERE id = ? AND user_id = ?
+        ");
+        $stmt->execute([trim($name), $icon, $color, $monthlyBudget, $type, $categoryId, $userId]);
+    } else {
+        $stmt = $pdo->prepare("
+            UPDATE categories
+            SET name = ?, icon = ?, color = ?, monthly_budget = ?, updated_at = CURRENT_TIMESTAMP
+            WHERE id = ? AND user_id = ?
+        ");
+        $stmt->execute([trim($name), $icon, $color, $monthlyBudget, $categoryId, $userId]);
+    }
+
     return getCategory($userId, $categoryId);
 }
 
