@@ -1266,7 +1266,7 @@ function setupModals() {
         const amount = document.getElementById('transaction-amount').value;
         const categoryId = document.getElementById('transaction-category').value;
         const date = document.getElementById('transaction-date').value;
-        const type = document.querySelector('.type-btn.active').dataset.type;
+        const type = document.querySelector('.transaction-type-toggle .type-btn.active').dataset.type;
 
         if (!categoryId) {
             showToast('Please select a category');
