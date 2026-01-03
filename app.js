@@ -14,6 +14,7 @@ const state = {
     categories: [],
     transactions: [],
     summary: null,
+    chartSummary: null,
     spendingSummary: null
 };
 
@@ -23,6 +24,7 @@ function resetState() {
     state.categories = [];
     state.transactions = [];
     state.summary = null;
+    state.chartSummary = null;
     state.spendingSummary = null;
 }
 
@@ -121,6 +123,7 @@ const elements = {
     legendRight: document.getElementById('legend-right'),
     chartHeader: document.getElementById('chart-header'),
     chartWrapper: document.getElementById('chart-wrapper'),
+    chartPeriodSelector: document.getElementById('chart-period-selector'),
 
     // Spending Modal
     spendingModal: document.getElementById('spending-modal'),
@@ -929,10 +932,13 @@ function updateBalances() {
 }
 
 function renderChart() {
-    // Filter categories with spending > 0
-    const categoriesWithSpending = (state.summary?.categories || []).filter(c => c.spent > 0);
+    // Use chartSummary if available, otherwise fall back to summary
+    const summary = state.chartSummary || state.summary;
 
-    if (!state.summary || categoriesWithSpending.length === 0) {
+    // Filter categories with spending > 0
+    const categoriesWithSpending = (summary?.categories || []).filter(c => c.spent > 0);
+
+    if (!summary || categoriesWithSpending.length === 0) {
         elements.noChart.style.display = 'flex';
         elements.chartWithLegend.style.display = 'none';
         return;
@@ -1322,11 +1328,16 @@ function setupModals() {
     });
 
     // Chart click handlers - open spending details modal
-    const openSpendingModal = () => {
-        if (!state.summary || !state.summary.categories) return;
+    const openSpendingModal = (e) => {
+        // Ignore clicks on the period selector itself
+        if (e?.target?.closest('.period-selector')) return;
 
-        // Sync period selector with main period selector
-        elements.spendingPeriodSelector.value = elements.periodSelector.value;
+        const summary = state.chartSummary || state.summary;
+        if (!summary || !summary.categories) return;
+
+        // Sync period selector with chart period selector
+        elements.spendingPeriodSelector.value = elements.chartPeriodSelector.value;
+        state.spendingSummary = summary;
         renderSpendingTable();
         openModal(elements.spendingModal);
     };
@@ -1464,9 +1475,21 @@ async function init() {
     setupModals();
     setupEmojiPicker();
 
-    // Period selector change handler
+    // Period selector change handler (balance card)
     elements.periodSelector?.addEventListener('change', () => {
         loadSummary();
+    });
+
+    // Chart period selector change handler
+    elements.chartPeriodSelector?.addEventListener('change', async () => {
+        const period = elements.chartPeriodSelector.value;
+        try {
+            const summary = await api(`api.php?resource=summary&period=${period}`);
+            state.chartSummary = summary;
+            renderChart();
+        } catch (error) {
+            showToast('Failed to load chart data');
+        }
     });
 
     // Register service worker

@@ -306,11 +306,15 @@
 
         <!-- Reports Section -->
         <section class="section">
-            <div class="section-header clickable" id="chart-header">
+            <div class="section-header" id="chart-header">
                 <h3 class="section-title">Spending by Category</h3>
-                <svg class="section-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <polyline points="9 18 15 12 9 6"/>
-                </svg>
+                <select class="period-selector" id="chart-period-selector">
+                    <option value="this-month">This Month</option>
+                    <option value="last-month">Last Month</option>
+                    <option value="this-year">This Year</option>
+                    <option value="last-year">Last Year</option>
+                    <option value="all-time">All Time</option>
+                </select>
             </div>
             <div class="chart-wrapper clickable" id="chart-wrapper">
                 <div class="chart-container" id="chart-container">

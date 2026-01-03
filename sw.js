@@ -2,7 +2,7 @@
 // Budget Manager - Service Worker
 // ========================================
 
-const CACHE_NAME = 'budget-manager-v7';
+const CACHE_NAME = 'budget-manager-v8';
 
 // Use relative paths for subdirectory support
 const STATIC_ASSETS = [
