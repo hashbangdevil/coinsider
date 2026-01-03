@@ -24,7 +24,7 @@
     <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Fraunces:opsz,wght@9..144,400;9..144,600;9..144,700&display=swap" rel="stylesheet">
     
     <!-- Centralized CSS -->
-    <link rel="stylesheet" href="styles.css?v=5">
+    <link rel="stylesheet" href="styles.css?v=7">
 </head>
 <body>
     <!-- Auth Screen (Login/Signup/Forgot Password) -->
@@ -217,8 +217,14 @@
         <!-- Balance Overview -->
         <section class="balance-card">
             <div class="balance-header">
-                <span class="balance-label">Total Balance</span>
-                <span class="balance-period" id="balance-period">This Month</span>
+                <span class="balance-label">Net Balance</span>
+                <select class="period-selector" id="period-selector">
+                    <option value="this-month">This Month</option>
+                    <option value="last-month">Last Month</option>
+                    <option value="this-year">This Year</option>
+                    <option value="last-year">Last Year</option>
+                    <option value="all-time">All Time</option>
+                </select>
             </div>
             <div class="balance-amount" id="total-balance">$0.00</div>
             <div class="balance-stats">
@@ -527,6 +533,6 @@
     </div>
 
     <!-- App JavaScript -->
-    <script src="app.js?v=4"></script>
+    <script src="app.js?v=5"></script>
 </body>
 </html>

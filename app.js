@@ -88,6 +88,7 @@ const elements = {
     totalBalance: document.getElementById('total-balance'),
     totalIncome: document.getElementById('total-income'),
     totalExpenses: document.getElementById('total-expenses'),
+    periodSelector: document.getElementById('period-selector'),
     
     // Categories (formerly Budgets)
     categoriesList: document.getElementById('budgets-list'),
@@ -487,10 +488,11 @@ async function updateUserCurrency(currency) {
 
 async function loadAppData() {
     try {
+        const period = elements.periodSelector?.value || 'this-month';
         const [categories, transactions, summary] = await Promise.all([
             api('api.php?resource=categories'),
             api('api.php?resource=transactions&limit=50'),
-            api('api.php?resource=summary')
+            api(`api.php?resource=summary&period=${period}`)
         ]);
 
         console.log('Loaded categories:', categories);
@@ -507,6 +509,19 @@ async function loadAppData() {
         state.transactions = [];
         state.summary = null;
         showToast('Failed to load data');
+    }
+}
+
+async function loadSummary() {
+    try {
+        const period = elements.periodSelector?.value || 'this-month';
+        const summary = await api(`api.php?resource=summary&period=${period}`);
+        state.summary = summary && typeof summary === 'object' ? summary : null;
+        updateBalances();
+        renderChart();
+    } catch (error) {
+        console.error('Failed to load summary:', error);
+        showToast('Failed to load summary');
     }
 }
 
@@ -756,7 +771,8 @@ async function createTransaction(description, amount, categoryId, type, date) {
         state.transactions.unshift(transaction);
 
         // Refresh summary and categories
-        state.summary = await api('api.php?resource=summary');
+        const period = elements.periodSelector?.value || 'this-month';
+        state.summary = await api(`api.php?resource=summary&period=${period}`);
         state.categories = await api('api.php?resource=categories');
 
         renderAll();
@@ -772,7 +788,8 @@ async function deleteTransaction(id) {
         state.transactions = state.transactions.filter(t => t.id !== id);
 
         // Refresh summary and categories
-        state.summary = await api('api.php?resource=summary');
+        const period = elements.periodSelector?.value || 'this-month';
+        state.summary = await api(`api.php?resource=summary&period=${period}`);
         state.categories = await api('api.php?resource=categories');
 
         renderAll();
@@ -796,7 +813,8 @@ async function updateTransaction(id, description, amount, categoryId, type, date
         }
 
         // Refresh summary and categories
-        state.summary = await api('api.php?resource=summary');
+        const period = elements.periodSelector?.value || 'this-month';
+        state.summary = await api(`api.php?resource=summary&period=${period}`);
         state.categories = await api('api.php?resource=categories');
 
         renderAll();
@@ -1340,6 +1358,11 @@ async function init() {
     elements.logoutBtn.addEventListener('click', handleLogout);
     setupModals();
     setupEmojiPicker();
+
+    // Period selector change handler
+    elements.periodSelector?.addEventListener('change', () => {
+        loadSummary();
+    });
 
     // Register service worker
     registerServiceWorker();

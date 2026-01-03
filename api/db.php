@@ -676,6 +676,116 @@ function getCategoryTotalsWithDetails($userId, $yearMonth) {
     return $results;
 }
 
+function getYearlyTotals($userId, $year) {
+    $pdo = Database::getInstance()->getPdo();
+    $stmt = $pdo->prepare("
+        SELECT
+            type,
+            SUM(amount) as total
+        FROM transactions
+        WHERE user_id = ? AND strftime('%Y', date) = ?
+        GROUP BY type
+    ");
+    $stmt->execute([$userId, $year]);
+
+    $results = $stmt->fetchAll();
+    $totals = ['income' => 0, 'expense' => 0];
+
+    foreach ($results as $row) {
+        $totals[$row['type']] = (float) $row['total'];
+    }
+
+    return $totals;
+}
+
+function getAllTimeTotals($userId) {
+    $pdo = Database::getInstance()->getPdo();
+    $stmt = $pdo->prepare("
+        SELECT
+            type,
+            SUM(amount) as total
+        FROM transactions
+        WHERE user_id = ?
+        GROUP BY type
+    ");
+    $stmt->execute([$userId]);
+
+    $results = $stmt->fetchAll();
+    $totals = ['income' => 0, 'expense' => 0];
+
+    foreach ($results as $row) {
+        $totals[$row['type']] = (float) $row['total'];
+    }
+
+    return $totals;
+}
+
+function getCategoryTotalsForYear($userId, $year) {
+    $pdo = Database::getInstance()->getPdo();
+    $stmt = $pdo->prepare("
+        SELECT
+            c.id,
+            c.name,
+            c.icon,
+            c.color,
+            c.monthly_budget,
+            COALESCE(SUM(t.amount), 0) as spent
+        FROM categories c
+        LEFT JOIN transactions t ON c.id = t.category_id
+            AND t.type = 'expense'
+            AND strftime('%Y', t.date) = ?
+        WHERE c.user_id = ? AND c.type = 'expense'
+        GROUP BY c.id, c.name, c.icon, c.color, c.monthly_budget
+        ORDER BY spent DESC
+    ");
+    $stmt->execute([$year, $userId]);
+    $results = $stmt->fetchAll();
+
+    // For yearly view, multiply monthly budget by 12 for percentage calc
+    foreach ($results as &$row) {
+        $row['spent'] = (float) $row['spent'];
+        $row['monthly_budget'] = (float) $row['monthly_budget'];
+        $yearlyBudget = $row['monthly_budget'] * 12;
+        if ($yearlyBudget > 0) {
+            $row['percentage'] = round(($row['spent'] / $yearlyBudget) * 100, 1);
+        } else {
+            $row['percentage'] = 0;
+        }
+    }
+
+    return $results;
+}
+
+function getCategoryTotalsAllTime($userId) {
+    $pdo = Database::getInstance()->getPdo();
+    $stmt = $pdo->prepare("
+        SELECT
+            c.id,
+            c.name,
+            c.icon,
+            c.color,
+            c.monthly_budget,
+            COALESCE(SUM(t.amount), 0) as spent
+        FROM categories c
+        LEFT JOIN transactions t ON c.id = t.category_id
+            AND t.type = 'expense'
+        WHERE c.user_id = ? AND c.type = 'expense'
+        GROUP BY c.id, c.name, c.icon, c.color, c.monthly_budget
+        ORDER BY spent DESC
+    ");
+    $stmt->execute([$userId]);
+    $results = $stmt->fetchAll();
+
+    // For all-time, don't calculate percentage (no sensible budget comparison)
+    foreach ($results as &$row) {
+        $row['spent'] = (float) $row['spent'];
+        $row['monthly_budget'] = (float) $row['monthly_budget'];
+        $row['percentage'] = 0;
+    }
+
+    return $results;
+}
+
 // Legacy function - keep for backward compatibility
 function getCategoryTotals($userId, $yearMonth) {
     $pdo = Database::getInstance()->getPdo();

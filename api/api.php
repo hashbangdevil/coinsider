@@ -416,19 +416,63 @@ function handleSummary($method) {
     $user = requireAuth();
     $userId = $user['id'];
 
-    $yearMonth = $_GET['month'] ?? date('Y-m');
+    // Support period parameter: this-month, last-month, this-year, last-year, all-time
+    $period = $_GET['period'] ?? 'this-month';
 
-    if (!preg_match('/^\d{4}-\d{2}$/', $yearMonth)) {
-        errorResponse('Invalid month format. Use YYYY-MM');
+    $now = new DateTime();
+    $periodLabel = '';
+
+    switch ($period) {
+        case 'this-month':
+            $yearMonth = $now->format('Y-m');
+            $totals = getMonthlyTotals($userId, $yearMonth);
+            $categoryTotals = getCategoryTotalsWithDetails($userId, $yearMonth);
+            $periodLabel = $now->format('F Y');
+            break;
+
+        case 'last-month':
+            $lastMonth = (clone $now)->modify('-1 month');
+            $yearMonth = $lastMonth->format('Y-m');
+            $totals = getMonthlyTotals($userId, $yearMonth);
+            $categoryTotals = getCategoryTotalsWithDetails($userId, $yearMonth);
+            $periodLabel = $lastMonth->format('F Y');
+            break;
+
+        case 'this-year':
+            $year = $now->format('Y');
+            $totals = getYearlyTotals($userId, $year);
+            $categoryTotals = getCategoryTotalsForYear($userId, $year);
+            $periodLabel = $year;
+            break;
+
+        case 'last-year':
+            $lastYear = (clone $now)->modify('-1 year');
+            $year = $lastYear->format('Y');
+            $totals = getYearlyTotals($userId, $year);
+            $categoryTotals = getCategoryTotalsForYear($userId, $year);
+            $periodLabel = $year;
+            break;
+
+        case 'all-time':
+            $totals = getAllTimeTotals($userId);
+            $categoryTotals = getCategoryTotalsAllTime($userId);
+            $periodLabel = 'All Time';
+            break;
+
+        default:
+            // Fallback: treat as month format (YYYY-MM) for backward compatibility
+            if (preg_match('/^\d{4}-\d{2}$/', $period)) {
+                $totals = getMonthlyTotals($userId, $period);
+                $categoryTotals = getCategoryTotalsWithDetails($userId, $period);
+                $periodLabel = $period;
+            } else {
+                errorResponse('Invalid period. Use: this-month, last-month, this-year, last-year, all-time');
+            }
     }
 
-    $totals = getMonthlyTotals($userId, $yearMonth);
-
-    // Use new function that includes category details with budget info
-    $categoryTotals = getCategoryTotalsWithDetails($userId, $yearMonth);
-
     jsonResponse([
-        'month' => $yearMonth,
+        'period' => $period,
+        'periodLabel' => $periodLabel,
         'income' => $totals['income'],
         'expense' => $totals['expense'],
         'balance' => $totals['income'] - $totals['expense'],
