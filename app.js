@@ -223,6 +223,20 @@ function escapeHtml(text) {
     return div.innerHTML;
 }
 
+// Password toggle functions
+function setupPasswordToggles() {
+    document.querySelectorAll('.password-toggle').forEach(toggle => {
+        toggle.addEventListener('click', () => {
+            const input = toggle.parentElement.querySelector('input');
+            if (!input) return;
+
+            const isPassword = input.type === 'password';
+            input.type = isPassword ? 'text' : 'password';
+            toggle.classList.toggle('visible', isPassword);
+        });
+    });
+}
+
 // Emoji picker functions
 function setupEmojiPicker() {
     const emojiPicker = document.getElementById('emoji-picker');
@@ -1475,6 +1489,7 @@ async function init() {
     elements.logoutBtn.addEventListener('click', handleLogout);
     setupModals();
     setupEmojiPicker();
+    setupPasswordToggles();
 
     // Period selector change handler (balance card)
     elements.periodSelector?.addEventListener('change', () => {
