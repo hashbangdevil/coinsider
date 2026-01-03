@@ -13,6 +13,7 @@ const state = {
     user: null,
     categories: [],
     transactions: [],
+    allTransactions: [],
     summary: null,
     chartSummary: null,
     spendingSummary: null
@@ -23,6 +24,7 @@ function resetState() {
     state.user = null;
     state.categories = [];
     state.transactions = [];
+    state.allTransactions = [];
     state.summary = null;
     state.chartSummary = null;
     state.spendingSummary = null;
@@ -109,6 +111,7 @@ const elements = {
     transactionsList: document.getElementById('transactions-list'),
     noTransactions: document.getElementById('no-transactions'),
     addTransactionBtn: document.getElementById('add-transaction-btn'),
+    viewAllTransactionsBtn: document.getElementById('view-all-transactions-btn'),
     transactionModal: document.getElementById('transaction-modal'),
     transactionForm: document.getElementById('transaction-form'),
     transactionDate: document.getElementById('transaction-date'),
@@ -129,6 +132,14 @@ const elements = {
     spendingModal: document.getElementById('spending-modal'),
     spendingPeriodSelector: document.getElementById('spending-period-selector'),
     spendingTableBody: document.getElementById('spending-table-body'),
+
+    // Transactions Modal
+    transactionsModal: document.getElementById('transactions-modal'),
+    transactionsModalList: document.getElementById('transactions-modal-list'),
+    transactionsModalEmpty: document.getElementById('transactions-modal-empty'),
+    transactionsSearch: document.getElementById('transactions-search'),
+    transactionsDateFrom: document.getElementById('transactions-date-from'),
+    transactionsDateTo: document.getElementById('transactions-date-to'),
 
     // Toast
     toast: document.getElementById('toast')
@@ -930,6 +941,114 @@ function renderTransactions() {
 }
 
 // ========================================
+// All Transactions Modal
+// ========================================
+
+async function loadAllTransactions() {
+    try {
+        // Load more transactions for the modal (up to 500)
+        const transactions = await api('api.php?resource=transactions&limit=500');
+        state.allTransactions = transactions;
+        return transactions;
+    } catch (error) {
+        console.error('Failed to load all transactions:', error);
+        showToast('Failed to load transactions');
+        return [];
+    }
+}
+
+function filterTransactions() {
+    const searchTerm = (elements.transactionsSearch?.value || '').toLowerCase().trim();
+    const dateFrom = elements.transactionsDateFrom?.value || '';
+    const dateTo = elements.transactionsDateTo?.value || '';
+
+    let filtered = [...state.allTransactions];
+
+    // Filter by search term
+    if (searchTerm) {
+        filtered = filtered.filter(t =>
+            t.description.toLowerCase().includes(searchTerm) ||
+            (t.category_name || t.category || '').toLowerCase().includes(searchTerm)
+        );
+    }
+
+    // Filter by date range
+    if (dateFrom) {
+        filtered = filtered.filter(t => t.date >= dateFrom);
+    }
+    if (dateTo) {
+        filtered = filtered.filter(t => t.date <= dateTo);
+    }
+
+    return filtered;
+}
+
+function renderTransactionsModal() {
+    const container = elements.transactionsModalList;
+    const emptyState = elements.transactionsModalEmpty;
+    if (!container) return;
+
+    container.innerHTML = '';
+
+    const filteredTransactions = filterTransactions();
+
+    if (filteredTransactions.length === 0) {
+        container.style.display = 'none';
+        if (emptyState) emptyState.style.display = 'block';
+        return;
+    }
+
+    container.style.display = 'flex';
+    if (emptyState) emptyState.style.display = 'none';
+
+    filteredTransactions.forEach(transaction => {
+        const catName = transaction.category_name || transaction.category || 'Unknown';
+        const catIcon = transaction.category_icon || '📦';
+        const catColor = transaction.category_color || '#64748b';
+        const isIncome = transaction.type === 'income';
+
+        const html = `
+            <div class="transaction-item" data-id="${transaction.id}" onclick="openEditTransactionModal(${transaction.id})">
+                <div class="transaction-content">
+                    <div class="transaction-icon ${transaction.type}" style="background: ${isIncome ? 'var(--color-success-light)' : catColor + '20'}">
+                        ${catIcon}
+                    </div>
+                    <div class="transaction-info">
+                        <div class="transaction-description">${escapeHtml(transaction.description)}</div>
+                        <div class="transaction-meta">${escapeHtml(catName)} • ${formatDate(transaction.date)}</div>
+                    </div>
+                    <div class="transaction-amount ${transaction.type}">
+                        ${isIncome ? '+' : '-'}${formatCurrency(transaction.amount)}
+                    </div>
+                </div>
+                <div class="transaction-actions">
+                    <button class="btn btn-delete btn-icon" onclick="event.stopPropagation(); deleteTransaction(${transaction.id})" title="Delete">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <line x1="18" y1="6" x2="6" y2="18"/>
+                            <line x1="6" y1="6" x2="18" y2="18"/>
+                        </svg>
+                    </button>
+                </div>
+            </div>
+        `;
+
+        container.insertAdjacentHTML('beforeend', html);
+    });
+}
+
+async function openTransactionsModal() {
+    await loadAllTransactions();
+
+    // Reset filters
+    if (elements.transactionsSearch) elements.transactionsSearch.value = '';
+    if (elements.transactionsDateFrom) elements.transactionsDateFrom.value = '';
+    if (elements.transactionsDateTo) elements.transactionsDateTo.value = '';
+
+    renderTransactionsModal();
+    openModal(elements.transactionsModal);
+}
+
+// ========================================
 // Summary & Chart
 // ========================================
 
@@ -1263,6 +1382,9 @@ function setupModals() {
         openModal(elements.transactionModal);
     });
 
+    // View All Transactions button
+    elements.viewAllTransactionsBtn?.addEventListener('click', openTransactionsModal);
+
     // Transaction type toggle - update category dropdown when type changes
     document.querySelectorAll('.transaction-type-toggle .type-btn').forEach(btn => {
         btn.addEventListener('click', () => {
@@ -1390,6 +1512,23 @@ function setupModals() {
 
             renderSpendingTable(sortKey, newDir);
         });
+    });
+
+    // Transactions modal filters
+    let searchDebounce;
+    elements.transactionsSearch?.addEventListener('input', () => {
+        clearTimeout(searchDebounce);
+        searchDebounce = setTimeout(() => {
+            renderTransactionsModal();
+        }, 300);
+    });
+
+    elements.transactionsDateFrom?.addEventListener('change', () => {
+        renderTransactionsModal();
+    });
+
+    elements.transactionsDateTo?.addEventListener('change', () => {
+        renderTransactionsModal();
     });
 
     // Close modal handlers - close only the specific modal

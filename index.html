@@ -24,7 +24,7 @@
     <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Fraunces:opsz,wght@9..144,400;9..144,600;9..144,700&display=swap" rel="stylesheet">
     
     <!-- Centralized CSS -->
-    <link rel="stylesheet" href="styles.css?v=11">
+    <link rel="stylesheet" href="styles.css?v=12">
 </head>
 <body>
     <!-- Auth Screen (Login/Signup/Forgot Password) -->
@@ -308,13 +308,16 @@
         <section class="section">
             <div class="section-header">
                 <h3 class="section-title">Recent Transactions</h3>
-                <button class="btn btn-small" id="add-transaction-btn">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                        <line x1="12" y1="5" x2="12" y2="19"/>
-                        <line x1="5" y1="12" x2="19" y2="12"/>
-                    </svg>
-                    <span>Add Transaction</span>
-                </button>
+                <div class="section-actions">
+                    <button class="btn-link" id="view-all-transactions-btn">View All</button>
+                    <button class="btn btn-small" id="add-transaction-btn">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <line x1="12" y1="5" x2="12" y2="19"/>
+                            <line x1="5" y1="12" x2="19" y2="12"/>
+                        </svg>
+                        <span>Add Transaction</span>
+                    </button>
+                </div>
             </div>
             <div class="transactions-list" id="transactions-list">
                 <div class="empty-state" id="no-transactions">
@@ -596,12 +599,50 @@
         </div>
     </div>
 
+    <!-- All Transactions Modal -->
+    <div class="modal" id="transactions-modal">
+        <div class="modal-backdrop"></div>
+        <div class="modal-content modal-large">
+            <div class="modal-header">
+                <h3>All Transactions</h3>
+                <button class="btn-icon modal-close">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <line x1="18" y1="6" x2="6" y2="18"/>
+                        <line x1="6" y1="6" x2="18" y2="18"/>
+                    </svg>
+                </button>
+            </div>
+            <div class="modal-body">
+                <div class="transactions-filters">
+                    <div class="search-input-wrapper">
+                        <svg class="search-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <circle cx="11" cy="11" r="8"/>
+                            <line x1="21" y1="21" x2="16.65" y2="16.65"/>
+                        </svg>
+                        <input type="text" id="transactions-search" placeholder="Search transactions...">
+                    </div>
+                    <div class="date-filters">
+                        <input type="date" id="transactions-date-from" title="From date">
+                        <span class="date-separator">to</span>
+                        <input type="date" id="transactions-date-to" title="To date">
+                    </div>
+                </div>
+                <div class="transactions-modal-list" id="transactions-modal-list">
+                    <!-- Transactions rendered here -->
+                </div>
+                <div class="transactions-modal-empty" id="transactions-modal-empty" style="display: none;">
+                    <p>No transactions found</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <!-- Toast Notification -->
     <div class="toast" id="toast">
         <span class="toast-message"></span>
     </div>
 
     <!-- App JavaScript -->
-    <script src="app.js?v=14"></script>
+    <script src="app.js?v=15"></script>
 </body>
 </html>

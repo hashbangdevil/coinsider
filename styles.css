@@ -603,6 +603,12 @@ body {
     margin-bottom: var(--space-md);
 }
 
+.section-actions {
+    display: flex;
+    align-items: center;
+    gap: var(--space-md);
+}
+
 .section-title {
     font-family: var(--font-display);
     font-size: 1.25rem;
@@ -1244,6 +1250,23 @@ select option {
     border-color: var(--border-color-light);
 }
 
+.btn-link {
+    background: none;
+    border: none;
+    color: var(--color-primary);
+    font-size: var(--text-sm);
+    font-weight: 500;
+    cursor: pointer;
+    padding: var(--space-xs) var(--space-sm);
+    border-radius: var(--radius-sm);
+    transition: background var(--transition-fast), color var(--transition-fast);
+}
+
+.btn-link:hover {
+    background: var(--color-primary-light);
+    color: var(--color-primary-dark);
+}
+
 .btn-small {
     padding: var(--space-sm) var(--space-md);
     font-size: 0.875rem;
@@ -1542,6 +1565,72 @@ select option {
 .type-btn[data-type="income"].active {
     background: var(--color-success);
     color: white;
+}
+
+/* ========================================
+   Transactions Modal
+   ======================================== */
+
+.transactions-filters {
+    display: flex;
+    gap: var(--space-md);
+    margin-bottom: var(--space-lg);
+    flex-wrap: wrap;
+}
+
+.search-input-wrapper {
+    position: relative;
+    flex: 1;
+    min-width: 200px;
+}
+
+.search-input-wrapper .search-icon {
+    position: absolute;
+    left: var(--space-md);
+    top: 50%;
+    transform: translateY(-50%);
+    width: 18px;
+    height: 18px;
+    color: var(--text-tertiary);
+    pointer-events: none;
+}
+
+.search-input-wrapper input {
+    padding-left: calc(var(--space-md) + 26px);
+}
+
+.date-filters {
+    display: flex;
+    align-items: center;
+    gap: var(--space-sm);
+}
+
+.date-filters input[type="date"] {
+    width: auto;
+    min-width: 130px;
+}
+
+.date-separator {
+    color: var(--text-tertiary);
+    font-size: var(--text-sm);
+}
+
+.transactions-modal-list {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-sm);
+    max-height: 400px;
+    overflow-y: auto;
+}
+
+.transactions-modal-list .transaction-item {
+    background: var(--bg-tertiary);
+}
+
+.transactions-modal-empty {
+    text-align: center;
+    padding: var(--space-xl);
+    color: var(--text-tertiary);
 }
 
 /* ========================================
