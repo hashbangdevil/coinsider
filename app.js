@@ -948,6 +948,12 @@ function renderChart() {
     elements.noChart.style.display = 'none';
     elements.expenseChart.style.display = 'block';
 
+    // Defer drawing to next frame so layout is calculated
+    requestAnimationFrame(() => drawChart(categoriesWithSpending));
+}
+
+function drawChart(categoriesWithSpending) {
+
     const labels = [];
     const data = [];
     const colors = [];
@@ -969,13 +975,14 @@ function renderChart() {
 
     const dpr = window.devicePixelRatio || 1;
     const rect = canvas.parentElement.getBoundingClientRect();
-    canvas.width = rect.width * dpr;
+    const canvasWidth = rect.width > 0 ? rect.width : 300;
+    canvas.width = canvasWidth * dpr;
     canvas.height = 200 * dpr;
-    canvas.style.width = rect.width + 'px';
+    canvas.style.width = canvasWidth + 'px';
     canvas.style.height = '200px';
     ctx.scale(dpr, dpr);
 
-    const centerX = rect.width / 2;
+    const centerX = canvasWidth / 2;
     const centerY = 100;
     const radius = 70;
     const innerRadius = 45;
