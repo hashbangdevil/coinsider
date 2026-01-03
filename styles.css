@@ -766,12 +766,14 @@ body {
     color: var(--color-danger);
 }
 
-.transaction-delete {
+.transaction-actions {
+    display: flex;
+    gap: var(--space-xs);
     opacity: 0;
     transition: opacity var(--transition-fast);
 }
 
-.transaction-item:hover .transaction-delete {
+.transaction-item:hover .transaction-actions {
     opacity: 1;
 }
 

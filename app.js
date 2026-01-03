@@ -768,6 +768,66 @@ async function deleteTransaction(id) {
     }
 }
 
+async function updateTransaction(id, description, amount, categoryId, type, date) {
+    try {
+        const transaction = await api(`api.php?resource=transactions&id=${id}`, {
+            method: 'PUT',
+            body: { description, amount, category_id: categoryId, type, date }
+        });
+
+        // Update in state
+        const index = state.transactions.findIndex(t => t.id === id);
+        if (index !== -1) {
+            state.transactions[index] = transaction;
+        }
+
+        // Refresh summary and categories
+        state.summary = await api('api.php?resource=summary');
+        state.categories = await api('api.php?resource=categories');
+
+        renderAll();
+        showToast('Transaction updated');
+    } catch (error) {
+        showToast('Failed to update transaction');
+    }
+}
+
+let editingTransactionId = null;
+
+function openEditTransactionModal(transactionId) {
+    const transaction = state.transactions.find(t => t.id === transactionId);
+    if (!transaction) return;
+
+    editingTransactionId = transactionId;
+
+    // Set form values
+    document.getElementById('transaction-description').value = transaction.description;
+    document.getElementById('transaction-amount').value = transaction.amount;
+    document.getElementById('transaction-date').value = transaction.date;
+
+    // Set type toggle
+    const type = transaction.type;
+    document.querySelectorAll('.type-btn').forEach(btn => {
+        btn.classList.toggle('active', btn.dataset.type === type);
+    });
+
+    // Populate category dropdown for this type and select the current category
+    populateCategoryDropdown(elements.transactionCategory, type);
+
+    // Select the current category
+    if (transaction.category_id) {
+        elements.transactionCategory.value = transaction.category_id;
+    }
+
+    // Update modal title and button text
+    const modalTitle = elements.transactionModal.querySelector('.modal-header h3');
+    if (modalTitle) modalTitle.textContent = 'Edit Transaction';
+    const submitBtn = document.getElementById('transaction-submit-btn');
+    if (submitBtn) submitBtn.textContent = 'Save Transaction';
+
+    openModal(elements.transactionModal);
+}
+
 function renderTransactions() {
     const container = elements.transactionsList;
 
@@ -805,12 +865,20 @@ function renderTransactions() {
                 <div class="transaction-amount ${transaction.type}">
                     ${isIncome ? '+' : '-'}${formatCurrency(transaction.amount)}
                 </div>
-                <button class="btn btn-delete btn-icon transaction-delete" onclick="deleteTransaction(${transaction.id})" title="Delete">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                        <line x1="18" y1="6" x2="6" y2="18"/>
-                        <line x1="6" y1="6" x2="18" y2="18"/>
-                    </svg>
-                </button>
+                <div class="transaction-actions">
+                    <button class="btn btn-icon" onclick="openEditTransactionModal(${transaction.id})" title="Edit">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
+                            <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
+                        </svg>
+                    </button>
+                    <button class="btn btn-delete btn-icon" onclick="deleteTransaction(${transaction.id})" title="Delete">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <line x1="18" y1="6" x2="6" y2="18"/>
+                            <line x1="6" y1="6" x2="18" y2="18"/>
+                        </svg>
+                    </button>
+                </div>
             </div>
         `;
 
@@ -1024,6 +1092,7 @@ function setupModals() {
     // Transaction Modal
     elements.addTransactionBtn.addEventListener('click', () => {
         elements.transactionForm.reset();
+        editingTransactionId = null;
         elements.transactionDate.value = new Date().toISOString().split('T')[0];
         document.querySelectorAll('.type-btn').forEach(btn => {
             btn.classList.toggle('active', btn.dataset.type === 'expense');
@@ -1031,6 +1100,12 @@ function setupModals() {
 
         // Populate category dropdown with expense categories by default
         populateCategoryDropdown(elements.transactionCategory, 'expense');
+
+        // Reset modal title and button text
+        const modalTitle = elements.transactionModal.querySelector('.modal-header h3');
+        if (modalTitle) modalTitle.textContent = 'Add Transaction';
+        const submitBtn = document.getElementById('transaction-submit-btn');
+        if (submitBtn) submitBtn.textContent = 'Add Transaction';
 
         openModal(elements.transactionModal);
     });
@@ -1060,7 +1135,13 @@ function setupModals() {
             return;
         }
 
-        await createTransaction(description, parseFloat(amount), parseInt(categoryId), type, date);
+        if (editingTransactionId) {
+            await updateTransaction(editingTransactionId, description, parseFloat(amount), parseInt(categoryId), type, date);
+        } else {
+            await createTransaction(description, parseFloat(amount), parseInt(categoryId), type, date);
+        }
+
+        editingTransactionId = null;
         closeModal(elements.transactionModal);
     });
     
@@ -1220,3 +1301,4 @@ document.addEventListener('DOMContentLoaded', init);
 window.deleteCategory = deleteCategory;
 window.openEditCategoryModal = openEditCategoryModal;
 window.deleteTransaction = deleteTransaction;
+window.openEditTransactionModal = openEditTransactionModal;
