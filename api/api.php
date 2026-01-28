@@ -498,9 +498,6 @@ function handleRecurring($method, $id) {
                 errorResponse('Failed to create recurring transaction');
             }
 
-            // Generate pending transactions immediately
-            generatePendingRecurringTransactions($userId);
-
             jsonResponse($recurring, 201);
             break;
 

@@ -912,14 +912,11 @@ function createRecurringTransaction($userId, $description, $amount, $categoryId,
         return null;
     }
 
-    // Calculate initial next_occurrence (start_date if it's in the future, otherwise next occurrence)
-    $today = date('Y-m-d');
+    // Set initial next_occurrence to start_date
+    // The generation function will handle catch-up for past dates and update to next future date
     $nextOccurrence = $startDate;
-    if ($startDate < $today) {
-        $nextOccurrence = calculateNextOccurrence($startDate, $frequency, $today);
-    }
 
-    // If end_date is reached, set next_occurrence to null equivalent (we'll use end_date)
+    // If end_date is already passed, set next_occurrence to end_date
     if ($endDate !== null && $nextOccurrence > $endDate) {
         $nextOccurrence = $endDate;
     }
@@ -930,7 +927,12 @@ function createRecurringTransaction($userId, $description, $amount, $categoryId,
     ");
     $stmt->execute([$userId, $description, $amount, $categoryId, $type, $frequency, $startDate, $endDate, $nextOccurrence]);
 
-    return getRecurringTransaction($userId, $pdo->lastInsertId());
+    $newId = $pdo->lastInsertId();
+
+    // Immediately generate any pending transactions (including catch-up for past dates)
+    generatePendingRecurringTransactions($userId);
+
+    return getRecurringTransaction($userId, $newId);
 }
 
 function updateRecurringTransaction($userId, $id, $description, $amount, $categoryId, $type, $frequency, $startDate, $endDate = null) {
