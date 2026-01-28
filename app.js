@@ -14,6 +14,7 @@ const state = {
     categories: [],
     transactions: [],
     allTransactions: [],
+    recurringTransactions: [],
     summary: null,
     chartSummary: null,
     spendingSummary: null
@@ -25,6 +26,7 @@ function resetState() {
     state.categories = [];
     state.transactions = [];
     state.allTransactions = [];
+    state.recurringTransactions = [];
     state.summary = null;
     state.chartSummary = null;
     state.spendingSummary = null;
@@ -140,6 +142,24 @@ const elements = {
     transactionsSearch: document.getElementById('transactions-search'),
     transactionsDateFrom: document.getElementById('transactions-date-from'),
     transactionsDateTo: document.getElementById('transactions-date-to'),
+
+    // Recurring Transactions
+    manageRecurringBtn: document.getElementById('manage-recurring-btn'),
+    recurringModal: document.getElementById('recurring-modal'),
+    recurringList: document.getElementById('recurring-list'),
+    noRecurring: document.getElementById('no-recurring'),
+    addRecurringBtn: document.getElementById('add-recurring-btn'),
+    recurringFormModal: document.getElementById('recurring-form-modal'),
+    recurringForm: document.getElementById('recurring-form'),
+    recurringCategory: document.getElementById('recurring-category'),
+    transactionRecurring: document.getElementById('transaction-recurring'),
+    recurringOptions: document.getElementById('recurring-options'),
+    upcomingTab: document.getElementById('upcoming-tab'),
+    allTab: document.getElementById('all-tab'),
+    upcomingList: document.getElementById('upcoming-list'),
+    noUpcoming: document.getElementById('no-upcoming'),
+    upcomingDays: document.getElementById('upcoming-days'),
+    viewUpcomingBtn: document.getElementById('view-upcoming-btn'),
 
     // Toast
     toast: document.getElementById('toast')
@@ -528,24 +548,28 @@ async function updateUserCurrency(currency) {
 async function loadAppData() {
     try {
         const period = elements.periodSelector?.value || 'this-month';
-        const [categories, transactions, summary] = await Promise.all([
+        const [categories, transactions, summary, recurring] = await Promise.all([
             api('api.php?resource=categories'),
             api('api.php?resource=transactions&limit=50'),
-            api(`api.php?resource=summary&period=${period}`)
+            api(`api.php?resource=summary&period=${period}`),
+            api('api.php?resource=recurring')
         ]);
 
         console.log('Loaded categories:', categories);
         console.log('Loaded transactions:', transactions);
         console.log('Loaded summary:', summary);
+        console.log('Loaded recurring:', recurring);
 
         // Ensure arrays (API might return object with error)
         state.categories = Array.isArray(categories) ? categories : [];
         state.transactions = Array.isArray(transactions) ? transactions : [];
+        state.recurringTransactions = Array.isArray(recurring) ? recurring : [];
         state.summary = summary && typeof summary === 'object' ? summary : null;
     } catch (error) {
         console.error('Failed to load data:', error);
         state.categories = [];
         state.transactions = [];
+        state.recurringTransactions = [];
         state.summary = null;
         showToast('Failed to load data');
     }
@@ -932,6 +956,316 @@ function renderTransactions() {
                             <line x1="6" y1="6" x2="18" y2="18"/>
                         </svg>
                     </button>
+                </div>
+            </div>
+        `;
+
+        container.insertAdjacentHTML('beforeend', html);
+    });
+}
+
+// ========================================
+// Recurring Transaction Functions
+// ========================================
+
+async function loadRecurringTransactions() {
+    try {
+        const recurring = await api('api.php?resource=recurring');
+        state.recurringTransactions = Array.isArray(recurring) ? recurring : [];
+        return state.recurringTransactions;
+    } catch (error) {
+        console.error('Failed to load recurring transactions:', error);
+        showToast('Failed to load recurring transactions');
+        return [];
+    }
+}
+
+async function createRecurringTransaction(description, amount, categoryId, type, frequency, startDate, endDate = null) {
+    try {
+        const body = {
+            description,
+            amount,
+            category_id: categoryId,
+            type,
+            frequency,
+            start_date: startDate
+        };
+        if (endDate) {
+            body.end_date = endDate;
+        }
+
+        const recurring = await api('api.php?resource=recurring', {
+            method: 'POST',
+            body
+        });
+
+        state.recurringTransactions.push(recurring);
+
+        // Refresh transactions since new ones may have been generated
+        const period = elements.periodSelector?.value || 'this-month';
+        const [transactions, summary, categories] = await Promise.all([
+            api('api.php?resource=transactions&limit=50'),
+            api(`api.php?resource=summary&period=${period}`),
+            api('api.php?resource=categories')
+        ]);
+
+        state.transactions = Array.isArray(transactions) ? transactions : [];
+        state.categories = Array.isArray(categories) ? categories : [];
+        state.summary = summary;
+
+        renderAll();
+        showToast('Recurring transaction created');
+        return recurring;
+    } catch (error) {
+        showToast(error.message || 'Failed to create recurring transaction');
+        return null;
+    }
+}
+
+async function updateRecurringTransaction(id, description, amount, categoryId, type, frequency, startDate, endDate = null) {
+    try {
+        const body = {
+            description,
+            amount,
+            category_id: categoryId,
+            type,
+            frequency,
+            start_date: startDate
+        };
+        if (endDate) {
+            body.end_date = endDate;
+        }
+
+        const recurring = await api(`api.php?resource=recurring&id=${id}`, {
+            method: 'PUT',
+            body
+        });
+
+        const index = state.recurringTransactions.findIndex(r => r.id === id);
+        if (index !== -1) {
+            state.recurringTransactions[index] = recurring;
+        }
+
+        renderRecurringList();
+        showToast('Recurring transaction updated');
+        return recurring;
+    } catch (error) {
+        showToast(error.message || 'Failed to update recurring transaction');
+        return null;
+    }
+}
+
+async function deleteRecurringTransaction(id) {
+    try {
+        await api(`api.php?resource=recurring&id=${id}`, { method: 'DELETE' });
+        state.recurringTransactions = state.recurringTransactions.filter(r => r.id !== id);
+        renderRecurringList();
+        showToast('Recurring transaction deleted');
+    } catch (error) {
+        showToast('Failed to delete recurring transaction');
+    }
+}
+
+async function toggleRecurringTransaction(id, isActive) {
+    try {
+        const action = isActive ? 'resume' : 'pause';
+        const recurring = await api(`api.php?resource=recurring&id=${id}`, {
+            method: 'PUT',
+            body: { action }
+        });
+
+        const index = state.recurringTransactions.findIndex(r => r.id === id);
+        if (index !== -1) {
+            state.recurringTransactions[index] = recurring;
+        }
+
+        renderRecurringList();
+        showToast(isActive ? 'Recurring transaction resumed' : 'Recurring transaction paused');
+        return recurring;
+    } catch (error) {
+        showToast('Failed to update recurring transaction');
+        return null;
+    }
+}
+
+let editingRecurringId = null;
+
+function openEditRecurringModal(recurringId) {
+    const recurring = state.recurringTransactions.find(r => r.id === recurringId);
+    if (!recurring) return;
+
+    // Hide the recurring list modal
+    elements.recurringModal.classList.remove('active');
+
+    editingRecurringId = recurringId;
+
+    // Set form values
+    document.getElementById('recurring-description').value = recurring.description;
+    document.getElementById('recurring-amount').value = recurring.amount;
+    document.getElementById('recurring-frequency').value = recurring.frequency;
+    document.getElementById('recurring-start-date').value = recurring.start_date;
+    document.getElementById('recurring-end-date').value = recurring.end_date || '';
+
+    // Set type toggle
+    const type = recurring.type;
+    document.querySelectorAll('.recurring-type-toggle .type-btn').forEach(btn => {
+        btn.classList.toggle('active', btn.dataset.type === type);
+    });
+
+    // Populate category dropdown and select current category
+    populateCategoryDropdown(elements.recurringCategory, type);
+    if (recurring.category_id) {
+        elements.recurringCategory.value = recurring.category_id;
+    }
+
+    // Update modal title and button
+    const modalTitle = elements.recurringFormModal.querySelector('.modal-header h3');
+    if (modalTitle) modalTitle.textContent = 'Edit Recurring Transaction';
+    const submitBtn = document.getElementById('recurring-submit-btn');
+    if (submitBtn) submitBtn.textContent = 'Save Changes';
+
+    openModal(elements.recurringFormModal, elements.recurringModal);
+}
+
+function renderRecurringList() {
+    const container = elements.recurringList;
+    if (!container) return;
+
+    // Remove existing items (keep empty state)
+    container.querySelectorAll('.recurring-item').forEach(item => item.remove());
+
+    const recurringTransactions = Array.isArray(state.recurringTransactions) ? state.recurringTransactions : [];
+
+    if (recurringTransactions.length === 0) {
+        if (elements.noRecurring) elements.noRecurring.style.display = 'flex';
+        return;
+    }
+
+    if (elements.noRecurring) elements.noRecurring.style.display = 'none';
+
+    recurringTransactions.forEach(recurring => {
+        const catIcon = recurring.category_icon || '📦';
+        const catColor = recurring.category_color || '#64748b';
+        const catName = recurring.category_name || 'Unknown';
+        const isIncome = recurring.type === 'income';
+        const isPaused = !recurring.is_active || recurring.is_active === '0' || recurring.is_active === 0;
+
+        const frequencyLabel = recurring.frequency === 'monthly' ? 'Monthly' : 'Yearly';
+        const nextDate = recurring.next_occurrence ? formatDate(recurring.next_occurrence) : 'N/A';
+
+        const html = `
+            <div class="recurring-item ${isPaused ? 'paused' : ''}" data-id="${recurring.id}">
+                <div class="recurring-content" onclick="openEditRecurringModal(${recurring.id})">
+                    <div class="recurring-icon ${recurring.type}" style="background: ${isIncome ? 'var(--color-success-light)' : catColor + '20'}">
+                        ${catIcon}
+                    </div>
+                    <div class="recurring-info">
+                        <div class="recurring-description">${escapeHtml(recurring.description)}</div>
+                        <div class="recurring-meta">
+                            ${escapeHtml(catName)} • ${frequencyLabel} • Next: ${nextDate}
+                            ${isPaused ? '<span class="paused-badge">Paused</span>' : ''}
+                        </div>
+                    </div>
+                    <div class="recurring-amount ${recurring.type}">
+                        ${isIncome ? '+' : '-'}${formatCurrency(recurring.amount)}
+                    </div>
+                </div>
+                <div class="recurring-actions">
+                    <button class="btn btn-icon btn-toggle ${isPaused ? '' : 'active'}" onclick="event.stopPropagation(); toggleRecurringTransaction(${recurring.id}, ${isPaused ? 'true' : 'false'})" title="${isPaused ? 'Resume' : 'Pause'}">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            ${isPaused ?
+                                '<polygon points="5 3 19 12 5 21 5 3"/>' :
+                                '<rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/>'
+                            }
+                        </svg>
+                    </button>
+                    <button class="btn btn-delete btn-icon" onclick="event.stopPropagation(); deleteRecurringTransaction(${recurring.id})" title="Delete">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <line x1="18" y1="6" x2="6" y2="18"/>
+                            <line x1="6" y1="6" x2="18" y2="18"/>
+                        </svg>
+                    </button>
+                </div>
+            </div>
+        `;
+
+        container.insertAdjacentHTML('beforeend', html);
+    });
+}
+
+function openRecurringModal(showUpcoming = true) {
+    loadRecurringTransactions().then(() => {
+        renderRecurringList();
+
+        // Set active tab
+        document.querySelectorAll('.recurring-tab').forEach(tab => {
+            tab.classList.toggle('active', tab.dataset.tab === (showUpcoming ? 'upcoming' : 'all'));
+        });
+        document.querySelectorAll('.recurring-tab-content').forEach(content => {
+            content.classList.toggle('active', content.id === (showUpcoming ? 'upcoming-tab' : 'all-tab'));
+        });
+
+        // Load upcoming if that tab is shown
+        if (showUpcoming) {
+            const days = parseInt(elements.upcomingDays?.value) || 7;
+            loadUpcomingRecurring(days);
+        }
+
+        openModal(elements.recurringModal);
+    });
+}
+
+async function loadUpcomingRecurring(days = 7) {
+    try {
+        const upcoming = await api(`api.php?resource=recurring&upcoming=1&days=${days}`);
+        renderUpcomingList(Array.isArray(upcoming) ? upcoming : []);
+    } catch (error) {
+        console.error('Failed to load upcoming recurring:', error);
+        renderUpcomingList([]);
+    }
+}
+
+function renderUpcomingList(upcomingTransactions) {
+    const container = elements.upcomingList;
+    if (!container) return;
+
+    // Remove existing items (keep empty state)
+    container.querySelectorAll('.upcoming-item').forEach(item => item.remove());
+
+    if (upcomingTransactions.length === 0) {
+        if (elements.noUpcoming) elements.noUpcoming.style.display = 'flex';
+        return;
+    }
+
+    if (elements.noUpcoming) elements.noUpcoming.style.display = 'none';
+
+    upcomingTransactions.forEach(recurring => {
+        const catIcon = recurring.category_icon || '📦';
+        const catColor = recurring.category_color || '#64748b';
+        const catName = recurring.category_name || 'Unknown';
+        const isIncome = recurring.type === 'income';
+        const frequencyLabel = recurring.frequency === 'monthly' ? 'Monthly' : 'Yearly';
+
+        // Calculate days until (use T00:00:00 to avoid timezone issues)
+        const nextDate = new Date(recurring.next_occurrence + 'T00:00:00');
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        const daysUntil = Math.round((nextDate - today) / (1000 * 60 * 60 * 24));
+        const daysLabel = daysUntil === 1 ? 'tomorrow' : `in ${daysUntil} days`;
+
+        const html = `
+            <div class="upcoming-item" data-id="${recurring.id}">
+                <div class="upcoming-icon ${recurring.type}" style="background: ${isIncome ? 'var(--color-success-light)' : catColor + '20'}">
+                    ${catIcon}
+                </div>
+                <div class="upcoming-info">
+                    <div class="upcoming-description">${escapeHtml(recurring.description)}</div>
+                    <div class="upcoming-meta">
+                        ${escapeHtml(catName)} • ${frequencyLabel} • ${formatDate(recurring.next_occurrence)} (${daysLabel})
+                    </div>
+                </div>
+                <div class="upcoming-amount ${recurring.type}">
+                    ${isIncome ? '+' : '-'}${formatCurrency(recurring.amount)}
                 </div>
             </div>
         `;
@@ -1373,6 +1707,14 @@ function setupModals() {
         // Populate category dropdown with expense categories by default
         populateCategoryDropdown(elements.transactionCategory, 'expense');
 
+        // Reset recurring toggle and hide options
+        if (elements.transactionRecurring) {
+            elements.transactionRecurring.checked = false;
+        }
+        if (elements.recurringOptions) {
+            elements.recurringOptions.style.display = 'none';
+        }
+
         // Reset modal title and button text
         const modalTitle = elements.transactionModal.querySelector('.modal-header h3');
         if (modalTitle) modalTitle.textContent = 'Add Transaction';
@@ -1404,6 +1746,7 @@ function setupModals() {
         const categoryId = document.getElementById('transaction-category').value;
         const date = document.getElementById('transaction-date').value;
         const type = document.querySelector('.transaction-type-toggle .type-btn.active').dataset.type;
+        const isRecurring = elements.transactionRecurring?.checked || false;
 
         if (!categoryId) {
             showToast('Please select a category');
@@ -1412,6 +1755,11 @@ function setupModals() {
 
         if (editingTransactionId) {
             await updateTransaction(editingTransactionId, description, parseFloat(amount), parseInt(categoryId), type, date);
+        } else if (isRecurring) {
+            // Create recurring transaction instead
+            const frequency = document.getElementById('transaction-frequency').value;
+            const endDate = document.getElementById('transaction-end-date').value || null;
+            await createRecurringTransaction(description, parseFloat(amount), parseInt(categoryId), type, frequency, date, endDate);
         } else {
             await createTransaction(description, parseFloat(amount), parseInt(categoryId), type, date);
         }
@@ -1462,6 +1810,123 @@ function setupModals() {
         updateEmojiPickerSelection('📦');
 
         openModal(elements.categoryModal, elements.categoriesListModal);
+    });
+
+    // Recurring transaction toggle in transaction modal
+    elements.transactionRecurring?.addEventListener('change', (e) => {
+        if (elements.recurringOptions) {
+            elements.recurringOptions.style.display = e.target.checked ? 'block' : 'none';
+        }
+    });
+
+    // Manage Recurring Transactions button in Settings
+    elements.manageRecurringBtn?.addEventListener('click', () => {
+        elements.settingsModal.classList.remove('active');
+        openRecurringModal();
+    });
+
+    // Add Recurring button in recurring modal
+    elements.addRecurringBtn?.addEventListener('click', () => {
+        elements.recurringModal.classList.remove('active');
+        elements.recurringForm.reset();
+        editingRecurringId = null;
+
+        // Reset form
+        const modalTitle = elements.recurringFormModal.querySelector('.modal-header h3');
+        if (modalTitle) modalTitle.textContent = 'Add Recurring Transaction';
+        const submitBtn = document.getElementById('recurring-submit-btn');
+        if (submitBtn) submitBtn.textContent = 'Add Recurring';
+
+        // Reset type toggle to expense
+        document.querySelectorAll('.recurring-type-toggle .type-btn').forEach(btn => {
+            btn.classList.toggle('active', btn.dataset.type === 'expense');
+        });
+
+        // Set default start date to today
+        document.getElementById('recurring-start-date').value = new Date().toISOString().split('T')[0];
+
+        // Populate category dropdown with expense categories
+        populateCategoryDropdown(elements.recurringCategory, 'expense');
+
+        openModal(elements.recurringFormModal, elements.recurringModal);
+    });
+
+    // Recurring type toggle
+    document.querySelectorAll('.recurring-type-toggle .type-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+            document.querySelectorAll('.recurring-type-toggle .type-btn').forEach(b => b.classList.remove('active'));
+            btn.classList.add('active');
+
+            // Update category dropdown based on selected type
+            const type = btn.dataset.type;
+            populateCategoryDropdown(elements.recurringCategory, type);
+        });
+    });
+
+    // Recurring form submission
+    elements.recurringForm?.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const description = document.getElementById('recurring-description').value;
+        const amount = parseFloat(document.getElementById('recurring-amount').value);
+        const categoryId = parseInt(document.getElementById('recurring-category').value);
+        const frequency = document.getElementById('recurring-frequency').value;
+        const startDate = document.getElementById('recurring-start-date').value;
+        const endDate = document.getElementById('recurring-end-date').value || null;
+        const type = document.querySelector('.recurring-type-toggle .type-btn.active')?.dataset.type || 'expense';
+
+        if (!categoryId) {
+            showToast('Please select a category');
+            return;
+        }
+
+        if (editingRecurringId) {
+            await updateRecurringTransaction(editingRecurringId, description, amount, categoryId, type, frequency, startDate, endDate);
+        } else {
+            await createRecurringTransaction(description, amount, categoryId, type, frequency, startDate, endDate);
+        }
+
+        editingRecurringId = null;
+        closeModal(elements.recurringFormModal);
+    });
+
+    // Recurring modal tab switching
+    document.querySelectorAll('.recurring-tab').forEach(tab => {
+        tab.addEventListener('click', () => {
+            const tabName = tab.dataset.tab;
+
+            // Update tab active state
+            document.querySelectorAll('.recurring-tab').forEach(t => t.classList.remove('active'));
+            tab.classList.add('active');
+
+            // Update content visibility
+            document.querySelectorAll('.recurring-tab-content').forEach(content => {
+                content.classList.toggle('active', content.id === `${tabName}-tab`);
+            });
+
+            // Load upcoming if switching to that tab
+            if (tabName === 'upcoming') {
+                const days = parseInt(elements.upcomingDays?.value) || 7;
+                loadUpcomingRecurring(days);
+            }
+        });
+    });
+
+    // Upcoming days input change - listen to both 'change' and 'input' events
+    const handleDaysChange = () => {
+        const days = parseInt(elements.upcomingDays?.value) || 7;
+        loadUpcomingRecurring(days);
+    };
+
+    elements.upcomingDays?.addEventListener('change', handleDaysChange);
+    elements.upcomingDays?.addEventListener('keyup', (e) => {
+        if (e.key === 'Enter') {
+            handleDaysChange();
+        }
+    });
+
+    // Dashboard "Upcoming" button
+    elements.viewUpcomingBtn?.addEventListener('click', () => {
+        openRecurringModal(true); // true = show upcoming tab
     });
 
     // Chart click handlers - open spending details modal
@@ -1670,3 +2135,6 @@ window.deleteCategory = deleteCategory;
 window.openEditCategoryModal = openEditCategoryModal;
 window.deleteTransaction = deleteTransaction;
 window.openEditTransactionModal = openEditTransactionModal;
+window.deleteRecurringTransaction = deleteRecurringTransaction;
+window.openEditRecurringModal = openEditRecurringModal;
+window.toggleRecurringTransaction = toggleRecurringTransaction;

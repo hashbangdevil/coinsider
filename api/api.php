@@ -24,6 +24,9 @@ switch ($resource) {
     case 'transactions':
         handleTransactions($method, $id);
         break;
+    case 'recurring':
+        handleRecurring($method, $id);
+        break;
     case 'summary':
         handleSummary($method);
         break;
@@ -273,6 +276,9 @@ function handleTransactions($method, $id) {
 
     switch ($method) {
         case 'GET':
+            // Generate pending recurring transactions on load
+            generatePendingRecurringTransactions($userId);
+
             if ($id) {
                 $transaction = getTransaction($userId, $id);
                 if (!$transaction) {
@@ -394,6 +400,197 @@ function handleTransactions($method, $id) {
             $deleted = deleteTransaction($userId, $id);
             if (!$deleted) {
                 errorResponse('Transaction not found', 404);
+            }
+
+            jsonResponse(['success' => true]);
+            break;
+
+        default:
+            errorResponse('Method not allowed', 405);
+    }
+}
+
+// ========================================
+// Recurring Transaction Handlers
+// ========================================
+
+function handleRecurring($method, $id) {
+    $user = requireAuth();
+    $userId = $user['id'];
+
+    switch ($method) {
+        case 'GET':
+            // Check for upcoming filter
+            if (isset($_GET['upcoming'])) {
+                $days = isset($_GET['days']) ? intval($_GET['days']) : 7;
+                $days = max(1, min($days, 365)); // Clamp between 1 and 365 days
+                $upcoming = getUpcomingRecurringTransactions($userId, $days);
+                jsonResponse($upcoming);
+                break;
+            }
+
+            if ($id) {
+                $recurring = getRecurringTransaction($userId, $id);
+                if (!$recurring) {
+                    errorResponse('Recurring transaction not found', 404);
+                }
+                jsonResponse($recurring);
+            } else {
+                $recurring = getRecurringTransactions($userId);
+                jsonResponse($recurring);
+            }
+            break;
+
+        case 'POST':
+            $data = json_decode(file_get_contents('php://input'), true);
+
+            // Check for generate action
+            if (isset($data['action']) && $data['action'] === 'generate') {
+                $generated = generatePendingRecurringTransactions($userId);
+                jsonResponse(['generated' => $generated, 'count' => count($generated)]);
+                break;
+            }
+
+            // Validate required fields
+            if (empty($data['description']) || !isset($data['amount']) || empty($data['category_id']) ||
+                empty($data['type']) || empty($data['frequency']) || empty($data['start_date'])) {
+                errorResponse('Description, amount, category_id, type, frequency, and start_date are required');
+            }
+
+            // Validate type
+            if (!in_array($data['type'], ['income', 'expense'])) {
+                errorResponse('Type must be "income" or "expense"');
+            }
+
+            // Validate frequency
+            if (!in_array($data['frequency'], ['monthly', 'yearly'])) {
+                errorResponse('Frequency must be "monthly" or "yearly"');
+            }
+
+            // Validate category belongs to user and matches type
+            $category = getCategory($userId, $data['category_id']);
+            if (!$category) {
+                errorResponse('Invalid category');
+            }
+            if ($category['type'] !== $data['type']) {
+                errorResponse('Category type must match transaction type');
+            }
+
+            $endDate = isset($data['end_date']) && !empty($data['end_date']) ? $data['end_date'] : null;
+
+            // Validate end_date >= start_date
+            if ($endDate !== null && $endDate < $data['start_date']) {
+                errorResponse('End date must be on or after start date');
+            }
+
+            $recurring = createRecurringTransaction(
+                $userId,
+                trim($data['description']),
+                floatval($data['amount']),
+                intval($data['category_id']),
+                $data['type'],
+                $data['frequency'],
+                $data['start_date'],
+                $endDate
+            );
+
+            if (!$recurring) {
+                errorResponse('Failed to create recurring transaction');
+            }
+
+            // Generate pending transactions immediately
+            generatePendingRecurringTransactions($userId);
+
+            jsonResponse($recurring, 201);
+            break;
+
+        case 'PUT':
+            if (!$id) {
+                errorResponse('Recurring transaction ID is required');
+            }
+
+            $data = json_decode(file_get_contents('php://input'), true);
+
+            // Check for action (pause/resume)
+            if (isset($data['action'])) {
+                switch ($data['action']) {
+                    case 'pause':
+                        $recurring = pauseRecurringTransaction($userId, $id);
+                        if (!$recurring) {
+                            errorResponse('Recurring transaction not found', 404);
+                        }
+                        jsonResponse($recurring);
+                        break;
+
+                    case 'resume':
+                        $recurring = resumeRecurringTransaction($userId, $id);
+                        if (!$recurring) {
+                            errorResponse('Recurring transaction not found', 404);
+                        }
+                        jsonResponse($recurring);
+                        break;
+
+                    default:
+                        errorResponse('Invalid action. Use "pause" or "resume"');
+                }
+                break;
+            }
+
+            // Regular update
+            if (empty($data['description']) || !isset($data['amount']) || empty($data['category_id']) ||
+                empty($data['type']) || empty($data['frequency']) || empty($data['start_date'])) {
+                errorResponse('Description, amount, category_id, type, frequency, and start_date are required');
+            }
+
+            if (!in_array($data['type'], ['income', 'expense'])) {
+                errorResponse('Type must be "income" or "expense"');
+            }
+
+            if (!in_array($data['frequency'], ['monthly', 'yearly'])) {
+                errorResponse('Frequency must be "monthly" or "yearly"');
+            }
+
+            $category = getCategory($userId, $data['category_id']);
+            if (!$category) {
+                errorResponse('Invalid category');
+            }
+            if ($category['type'] !== $data['type']) {
+                errorResponse('Category type must match transaction type');
+            }
+
+            $endDate = isset($data['end_date']) && !empty($data['end_date']) ? $data['end_date'] : null;
+
+            if ($endDate !== null && $endDate < $data['start_date']) {
+                errorResponse('End date must be on or after start date');
+            }
+
+            $recurring = updateRecurringTransaction(
+                $userId,
+                $id,
+                trim($data['description']),
+                floatval($data['amount']),
+                intval($data['category_id']),
+                $data['type'],
+                $data['frequency'],
+                $data['start_date'],
+                $endDate
+            );
+
+            if (!$recurring) {
+                errorResponse('Failed to update recurring transaction or not found', 404);
+            }
+
+            jsonResponse($recurring);
+            break;
+
+        case 'DELETE':
+            if (!$id) {
+                errorResponse('Recurring transaction ID is required');
+            }
+
+            $deleted = deleteRecurringTransaction($userId, $id);
+            if (!$deleted) {
+                errorResponse('Recurring transaction not found', 404);
             }
 
             jsonResponse(['success' => true]);

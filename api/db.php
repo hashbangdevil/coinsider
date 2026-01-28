@@ -126,6 +126,34 @@ class Database {
             // Column already exists, ignore
         }
 
+        // Recurring transactions table
+        $this->pdo->exec("
+            CREATE TABLE IF NOT EXISTS recurring_transactions (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                user_id INTEGER NOT NULL,
+                description TEXT NOT NULL,
+                amount REAL NOT NULL,
+                category_id INTEGER NOT NULL,
+                type TEXT NOT NULL CHECK (type IN ('income', 'expense')),
+                frequency TEXT NOT NULL CHECK (frequency IN ('monthly', 'yearly')),
+                start_date DATE NOT NULL,
+                end_date DATE DEFAULT NULL,
+                next_occurrence DATE NOT NULL,
+                is_active INTEGER DEFAULT 1,
+                created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+                FOREIGN KEY (category_id) REFERENCES categories(id)
+            )
+        ");
+
+        // Add recurring_id column to transactions (migration for existing DBs)
+        try {
+            $this->pdo->exec("ALTER TABLE transactions ADD COLUMN recurring_id INTEGER REFERENCES recurring_transactions(id) ON DELETE SET NULL");
+        } catch (PDOException $e) {
+            // Column already exists, ignore
+        }
+
         // Indexes
         $this->pdo->exec("CREATE INDEX IF NOT EXISTS idx_users_email ON users(email)");
         $this->pdo->exec("CREATE INDEX IF NOT EXISTS idx_users_reset_token ON users(reset_token)");
@@ -134,6 +162,9 @@ class Database {
         $this->pdo->exec("CREATE INDEX IF NOT EXISTS idx_transactions_date ON transactions(date)");
         $this->pdo->exec("CREATE INDEX IF NOT EXISTS idx_categories_user ON categories(user_id)");
         $this->pdo->exec("CREATE INDEX IF NOT EXISTS idx_transactions_category ON transactions(category_id)");
+        $this->pdo->exec("CREATE INDEX IF NOT EXISTS idx_recurring_user ON recurring_transactions(user_id)");
+        $this->pdo->exec("CREATE INDEX IF NOT EXISTS idx_recurring_next ON recurring_transactions(next_occurrence)");
+        $this->pdo->exec("CREATE INDEX IF NOT EXISTS idx_transactions_recurring ON transactions(recurring_id)");
     }
 }
 
@@ -836,4 +867,290 @@ function getBudgetSpent($userId, $category, $yearMonth) {
     $stmt->execute([$userId, $category, $yearMonth]);
     $result = $stmt->fetch();
     return (float) $result['spent'];
+}
+
+// ========================================
+// Recurring Transaction Functions
+// ========================================
+
+function getRecurringTransactions($userId) {
+    $pdo = Database::getInstance()->getPdo();
+    $stmt = $pdo->prepare("
+        SELECT r.*, c.name as category_name, c.icon as category_icon, c.color as category_color
+        FROM recurring_transactions r
+        LEFT JOIN categories c ON r.category_id = c.id
+        WHERE r.user_id = ?
+        ORDER BY r.is_active DESC, r.next_occurrence ASC
+    ");
+    $stmt->execute([$userId]);
+    return $stmt->fetchAll();
+}
+
+function getRecurringTransaction($userId, $id) {
+    $pdo = Database::getInstance()->getPdo();
+    $stmt = $pdo->prepare("
+        SELECT r.*, c.name as category_name, c.icon as category_icon, c.color as category_color
+        FROM recurring_transactions r
+        LEFT JOIN categories c ON r.category_id = c.id
+        WHERE r.id = ? AND r.user_id = ?
+    ");
+    $stmt->execute([$id, $userId]);
+    return $stmt->fetch();
+}
+
+function createRecurringTransaction($userId, $description, $amount, $categoryId, $type, $frequency, $startDate, $endDate = null) {
+    $pdo = Database::getInstance()->getPdo();
+
+    // Validate category belongs to user and matches type
+    $category = getCategory($userId, $categoryId);
+    if (!$category || $category['type'] !== $type) {
+        return null;
+    }
+
+    // Validate end_date >= start_date if provided
+    if ($endDate !== null && $endDate < $startDate) {
+        return null;
+    }
+
+    // Calculate initial next_occurrence (start_date if it's in the future, otherwise next occurrence)
+    $today = date('Y-m-d');
+    $nextOccurrence = $startDate;
+    if ($startDate < $today) {
+        $nextOccurrence = calculateNextOccurrence($startDate, $frequency, $today);
+    }
+
+    // If end_date is reached, set next_occurrence to null equivalent (we'll use end_date)
+    if ($endDate !== null && $nextOccurrence > $endDate) {
+        $nextOccurrence = $endDate;
+    }
+
+    $stmt = $pdo->prepare("
+        INSERT INTO recurring_transactions (user_id, description, amount, category_id, type, frequency, start_date, end_date, next_occurrence)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+    ");
+    $stmt->execute([$userId, $description, $amount, $categoryId, $type, $frequency, $startDate, $endDate, $nextOccurrence]);
+
+    return getRecurringTransaction($userId, $pdo->lastInsertId());
+}
+
+function updateRecurringTransaction($userId, $id, $description, $amount, $categoryId, $type, $frequency, $startDate, $endDate = null) {
+    $pdo = Database::getInstance()->getPdo();
+
+    // Validate category belongs to user and matches type
+    $category = getCategory($userId, $categoryId);
+    if (!$category || $category['type'] !== $type) {
+        return null;
+    }
+
+    // Validate end_date >= start_date if provided
+    if ($endDate !== null && $endDate < $startDate) {
+        return null;
+    }
+
+    // Recalculate next_occurrence
+    $today = date('Y-m-d');
+    $nextOccurrence = $startDate;
+    if ($startDate < $today) {
+        $nextOccurrence = calculateNextOccurrence($startDate, $frequency, $today);
+    }
+
+    if ($endDate !== null && $nextOccurrence > $endDate) {
+        $nextOccurrence = $endDate;
+    }
+
+    $stmt = $pdo->prepare("
+        UPDATE recurring_transactions
+        SET description = ?, amount = ?, category_id = ?, type = ?, frequency = ?, start_date = ?, end_date = ?, next_occurrence = ?, updated_at = CURRENT_TIMESTAMP
+        WHERE id = ? AND user_id = ?
+    ");
+    $stmt->execute([$description, $amount, $categoryId, $type, $frequency, $startDate, $endDate, $nextOccurrence, $id, $userId]);
+
+    return getRecurringTransaction($userId, $id);
+}
+
+function deleteRecurringTransaction($userId, $id) {
+    $pdo = Database::getInstance()->getPdo();
+    // Note: Already-generated transactions are kept (recurring_id becomes NULL due to ON DELETE SET NULL)
+    $stmt = $pdo->prepare("DELETE FROM recurring_transactions WHERE id = ? AND user_id = ?");
+    $stmt->execute([$id, $userId]);
+    return $stmt->rowCount() > 0;
+}
+
+function pauseRecurringTransaction($userId, $id) {
+    $pdo = Database::getInstance()->getPdo();
+    $stmt = $pdo->prepare("
+        UPDATE recurring_transactions
+        SET is_active = 0, updated_at = CURRENT_TIMESTAMP
+        WHERE id = ? AND user_id = ?
+    ");
+    $stmt->execute([$id, $userId]);
+    return getRecurringTransaction($userId, $id);
+}
+
+function resumeRecurringTransaction($userId, $id) {
+    $pdo = Database::getInstance()->getPdo();
+
+    // First get the recurring transaction to recalculate next_occurrence
+    $recurring = getRecurringTransaction($userId, $id);
+    if (!$recurring) {
+        return null;
+    }
+
+    $today = date('Y-m-d');
+    $nextOccurrence = calculateNextOccurrence($recurring['start_date'], $recurring['frequency'], $today);
+
+    // If end_date is reached, don't resume
+    if ($recurring['end_date'] !== null && $nextOccurrence > $recurring['end_date']) {
+        return $recurring; // Return without activating
+    }
+
+    $stmt = $pdo->prepare("
+        UPDATE recurring_transactions
+        SET is_active = 1, next_occurrence = ?, updated_at = CURRENT_TIMESTAMP
+        WHERE id = ? AND user_id = ?
+    ");
+    $stmt->execute([$nextOccurrence, $id, $userId]);
+
+    return getRecurringTransaction($userId, $id);
+}
+
+function calculateNextOccurrence($startDate, $frequency, $fromDate = null) {
+    $from = $fromDate ? new DateTime($fromDate) : new DateTime();
+    $from->setTime(0, 0, 0);
+    $start = new DateTime($startDate);
+    $start->setTime(0, 0, 0);
+    $next = clone $start;
+
+    // If start is strictly in the future, return it
+    if ($start > $from) {
+        return $start->format('Y-m-d');
+    }
+
+    // Calculate the next occurrence AFTER fromDate (must be > fromDate, not ==)
+    switch ($frequency) {
+        case 'monthly':
+            // Calculate months difference
+            $interval = $start->diff($from);
+            $monthsDiff = ($interval->y * 12) + $interval->m;
+
+            // Always add 1 more to ensure we get a date AFTER fromDate
+            $monthsDiff++;
+
+            $next->modify("+{$monthsDiff} months");
+            break;
+
+        case 'yearly':
+            // Calculate years difference
+            $interval = $start->diff($from);
+            $yearsDiff = $interval->y;
+
+            // Always add 1 more to ensure we get a date AFTER fromDate
+            $yearsDiff++;
+
+            $next->modify("+{$yearsDiff} years");
+            break;
+    }
+
+    return $next->format('Y-m-d');
+}
+
+function generatePendingRecurringTransactions($userId) {
+    $pdo = Database::getInstance()->getPdo();
+    $today = date('Y-m-d');
+
+    // Get all active recurring transactions that need processing
+    $stmt = $pdo->prepare("
+        SELECT * FROM recurring_transactions
+        WHERE user_id = ? AND is_active = 1
+        AND (end_date IS NULL OR next_occurrence <= end_date)
+    ");
+    $stmt->execute([$userId]);
+    $recurringTransactions = $stmt->fetchAll();
+
+    $generated = [];
+
+    foreach ($recurringTransactions as $recurring) {
+        $currentDate = $recurring['next_occurrence'];
+
+        // Only generate transactions for dates up to and including today (no future pre-generation)
+        while ($currentDate <= $today) {
+            // Check if end_date is reached
+            if ($recurring['end_date'] !== null && $currentDate > $recurring['end_date']) {
+                break;
+            }
+
+            // Check if transaction already exists for this date and recurring_id
+            $checkStmt = $pdo->prepare("
+                SELECT id FROM transactions
+                WHERE user_id = ? AND recurring_id = ? AND date = ?
+            ");
+            $checkStmt->execute([$userId, $recurring['id'], $currentDate]);
+
+            if (!$checkStmt->fetch()) {
+                // Create the transaction
+                $category = getCategory($userId, $recurring['category_id']);
+                $categoryName = $category ? $category['name'] : 'Unknown';
+
+                $insertStmt = $pdo->prepare("
+                    INSERT INTO transactions (user_id, description, amount, category, category_id, type, date, recurring_id)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                ");
+                $insertStmt->execute([
+                    $userId,
+                    $recurring['description'],
+                    $recurring['amount'],
+                    $categoryName,
+                    $recurring['category_id'],
+                    $recurring['type'],
+                    $currentDate,
+                    $recurring['id']
+                ]);
+
+                $generated[] = [
+                    'recurring_id' => $recurring['id'],
+                    'date' => $currentDate,
+                    'description' => $recurring['description']
+                ];
+            }
+
+            // Move to next occurrence
+            $currentDate = calculateNextOccurrence($recurring['start_date'], $recurring['frequency'], $currentDate);
+
+            // Safety check to prevent infinite loop
+            if ($currentDate === $recurring['next_occurrence']) {
+                break;
+            }
+        }
+
+        // Update next_occurrence to the next future date
+        $newNextOccurrence = calculateNextOccurrence($recurring['start_date'], $recurring['frequency'], $today);
+        $updateStmt = $pdo->prepare("
+            UPDATE recurring_transactions SET next_occurrence = ?, updated_at = CURRENT_TIMESTAMP
+            WHERE id = ?
+        ");
+        $updateStmt->execute([$newNextOccurrence, $recurring['id']]);
+    }
+
+    return $generated;
+}
+
+function getUpcomingRecurringTransactions($userId, $days = 7) {
+    $pdo = Database::getInstance()->getPdo();
+    $today = date('Y-m-d');
+    $endDate = (new DateTime())->modify("+{$days} days")->format('Y-m-d');
+
+    // Get active recurring transactions with next_occurrence within the window
+    $stmt = $pdo->prepare("
+        SELECT r.*, c.name as category_name, c.icon as category_icon, c.color as category_color
+        FROM recurring_transactions r
+        LEFT JOIN categories c ON r.category_id = c.id
+        WHERE r.user_id = ?
+        AND r.is_active = 1
+        AND r.next_occurrence > ?
+        AND r.next_occurrence <= ?
+        AND (r.end_date IS NULL OR r.next_occurrence <= r.end_date)
+        ORDER BY r.next_occurrence ASC
+    ");
+    $stmt->execute([$userId, $today, $endDate]);
+    return $stmt->fetchAll();
 }

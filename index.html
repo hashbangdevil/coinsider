@@ -24,7 +24,7 @@
     <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Fraunces:opsz,wght@9..144,400;9..144,600;9..144,700&display=swap" rel="stylesheet">
     
     <!-- Centralized CSS -->
-    <link rel="stylesheet" href="styles.css?v=12">
+    <link rel="stylesheet" href="styles.css?v=15">
 </head>
 <body>
     <!-- Auth Screen (Login/Signup/Forgot Password) -->
@@ -309,6 +309,14 @@
             <div class="section-header">
                 <h3 class="section-title">Recent Transactions</h3>
                 <div class="section-actions">
+                    <button class="btn-link" id="view-upcoming-btn" title="View upcoming recurring transactions">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width: 16px; height: 16px; margin-right: 4px; vertical-align: middle;">
+                            <polyline points="23 4 23 10 17 10"/>
+                            <polyline points="1 20 1 14 7 14"/>
+                            <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/>
+                        </svg>
+                        Upcoming
+                    </button>
                     <button class="btn-link" id="view-all-transactions-btn">View All</button>
                     <button class="btn btn-small" id="add-transaction-btn">
                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -474,6 +482,25 @@
                     <label for="transaction-date">Date</label>
                     <input type="date" id="transaction-date" required>
                 </div>
+                <div class="recurring-toggle">
+                    <label class="checkbox-label">
+                        <input type="checkbox" id="transaction-recurring">
+                        <span class="checkbox-text">Make this recurring</span>
+                    </label>
+                </div>
+                <div class="recurring-options" id="recurring-options" style="display: none;">
+                    <div class="input-group">
+                        <label for="transaction-frequency">Frequency</label>
+                        <select id="transaction-frequency">
+                            <option value="monthly">Monthly</option>
+                            <option value="yearly">Yearly</option>
+                        </select>
+                    </div>
+                    <div class="input-group">
+                        <label for="transaction-end-date">End Date (optional)</label>
+                        <input type="date" id="transaction-end-date">
+                    </div>
+                </div>
                 <div class="modal-actions">
                     <button type="button" class="btn btn-secondary modal-cancel">Cancel</button>
                     <button type="submit" class="btn btn-primary" id="transaction-submit-btn">Add Transaction</button>
@@ -503,6 +530,14 @@
                         <line x1="9" y1="21" x2="9" y2="9"/>
                     </svg>
                     Manage Budget Categories
+                </button>
+                <button type="button" class="btn btn-secondary btn-full" id="manage-recurring-btn" style="margin-top: var(--space-sm);">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width: 20px; height: 20px; margin-right: 8px;">
+                        <polyline points="23 4 23 10 17 10"/>
+                        <polyline points="1 20 1 14 7 14"/>
+                        <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/>
+                    </svg>
+                    Manage Recurring Transactions
                 </button>
             </div>
             <form id="settings-form" class="modal-form">
@@ -637,12 +672,135 @@
         </div>
     </div>
 
+    <!-- Recurring Transactions Modal -->
+    <div class="modal" id="recurring-modal">
+        <div class="modal-backdrop"></div>
+        <div class="modal-content modal-large">
+            <div class="modal-header">
+                <h3>Recurring Transactions</h3>
+                <button class="btn-icon modal-close">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <line x1="18" y1="6" x2="6" y2="18"/>
+                        <line x1="6" y1="6" x2="18" y2="18"/>
+                    </svg>
+                </button>
+            </div>
+            <div class="modal-body">
+                <!-- Tab Navigation -->
+                <div class="recurring-tabs">
+                    <button type="button" class="recurring-tab active" data-tab="upcoming">Upcoming</button>
+                    <button type="button" class="recurring-tab" data-tab="all">Manage</button>
+                </div>
+
+                <!-- Upcoming Tab Content -->
+                <div class="recurring-tab-content active" id="upcoming-tab">
+                    <div class="upcoming-controls">
+                        <span>Show upcoming in next</span>
+                        <input type="number" id="upcoming-days" value="7" min="1" max="365" class="days-input">
+                        <span>days</span>
+                    </div>
+                    <div class="upcoming-list" id="upcoming-list">
+                        <div class="empty-state" id="no-upcoming">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                                <circle cx="12" cy="12" r="10"/>
+                                <polyline points="12 6 12 12 16 14"/>
+                            </svg>
+                            <p>No upcoming transactions</p>
+                            <span>Nothing scheduled in this time period</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- All Rules Tab Content -->
+                <div class="recurring-tab-content" id="all-tab">
+                    <div class="recurring-list" id="recurring-list">
+                        <div class="empty-state" id="no-recurring">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                                <polyline points="23 4 23 10 17 10"/>
+                                <polyline points="1 20 1 14 7 14"/>
+                                <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/>
+                            </svg>
+                            <p>No recurring transactions</p>
+                            <span>Set up automatic transactions like rent, subscriptions, or salary</span>
+                        </div>
+                    </div>
+                </div>
+
+                <button type="button" class="btn btn-primary btn-full" id="add-recurring-btn">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width: 20px; height: 20px; margin-right: 8px;">
+                        <line x1="12" y1="5" x2="12" y2="19"/>
+                        <line x1="5" y1="12" x2="19" y2="12"/>
+                    </svg>
+                    Add Recurring Transaction
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Add/Edit Recurring Transaction Modal -->
+    <div class="modal" id="recurring-form-modal">
+        <div class="modal-backdrop"></div>
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>Add Recurring Transaction</h3>
+                <button class="btn-icon modal-close">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <line x1="18" y1="6" x2="6" y2="18"/>
+                        <line x1="6" y1="6" x2="18" y2="18"/>
+                    </svg>
+                </button>
+            </div>
+            <form id="recurring-form" class="modal-form">
+                <div class="transaction-type-toggle recurring-type-toggle">
+                    <button type="button" class="type-btn active" data-type="expense">Expense</button>
+                    <button type="button" class="type-btn" data-type="income">Income</button>
+                </div>
+                <div class="input-group">
+                    <label for="recurring-description">Description</label>
+                    <input type="text" id="recurring-description" placeholder="e.g., Rent, Netflix, Salary" required>
+                </div>
+                <div class="input-group">
+                    <label for="recurring-amount">Amount</label>
+                    <div class="input-with-prefix">
+                        <span class="input-prefix">R</span>
+                        <input type="number" id="recurring-amount" placeholder="0.00" step="0.01" min="0" required>
+                    </div>
+                </div>
+                <div class="input-group">
+                    <label for="recurring-category">Category</label>
+                    <select id="recurring-category" required>
+                        <option value="">Select category</option>
+                    </select>
+                </div>
+                <div class="input-group">
+                    <label for="recurring-frequency">Frequency</label>
+                    <select id="recurring-frequency" required>
+                        <option value="monthly">Monthly</option>
+                        <option value="yearly">Yearly</option>
+                    </select>
+                </div>
+                <div class="input-group">
+                    <label for="recurring-start-date">Start Date</label>
+                    <input type="date" id="recurring-start-date" required>
+                </div>
+                <div class="input-group">
+                    <label for="recurring-end-date">End Date (optional)</label>
+                    <input type="date" id="recurring-end-date">
+                </div>
+                <div class="modal-actions">
+                    <button type="button" class="btn btn-secondary modal-cancel">Cancel</button>
+                    <button type="submit" class="btn btn-primary" id="recurring-submit-btn">Add Recurring</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
     <!-- Toast Notification -->
     <div class="toast" id="toast">
         <span class="toast-message"></span>
     </div>
 
     <!-- App JavaScript -->
-    <script src="app.js?v=15"></script>
+    <script src="app.js?v=19"></script>
 </body>
 </html>
