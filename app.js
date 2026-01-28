@@ -572,11 +572,21 @@ async function handleForgotPassword(e) {
         
         // Show success message
         showAuthForm('reset-success');
-        
-        // If in dev mode, show the reset link
+
+        // If in dev mode (email disabled), show the reset link in a toast
         if (data.reset_link) {
-            console.log('Reset link (dev mode):', data.reset_link);
-            showToast('Check console for reset link (dev mode)', 5000);
+            showToast('Dev mode: Click the link shown below', 5000);
+            // Display the link in a more visible way
+            const successEl = document.getElementById('reset-success');
+            let devLinkEl = successEl.querySelector('.dev-reset-link');
+            if (!devLinkEl) {
+                devLinkEl = document.createElement('a');
+                devLinkEl.className = 'dev-reset-link';
+                devLinkEl.style.cssText = 'display:block;margin-top:16px;padding:12px;background:var(--bg-card);border-radius:8px;color:var(--color-primary);word-break:break-all;font-size:0.85rem;text-align:center;';
+                successEl.appendChild(devLinkEl);
+            }
+            devLinkEl.href = data.reset_link;
+            devLinkEl.textContent = 'Click here to reset password';
         }
     } catch (error) {
         showToast(error.message || 'Request failed');
@@ -587,25 +597,41 @@ async function handleForgotPassword(e) {
 
 async function handleResetPassword(e) {
     e.preventDefault();
-    
-    const password = document.getElementById('reset-password').value;
+
+    const passwordInput = document.getElementById('reset-password');
+    const password = passwordInput.value;
     const confirmPassword = document.getElementById('reset-password-confirm').value;
     const token = document.getElementById('reset-token').value;
     const submitBtn = e.target.querySelector('button[type="submit"]');
-    
+
+    // Check password strength
+    const strengthScore = parseInt(passwordInput.dataset.strengthScore || '0');
+    if (password.length < 10 || strengthScore < 2) {
+        showToast('Please choose a stronger password');
+        // Expand password tips
+        const hintsToggle = elements.resetForm.querySelector('.password-hints-toggle');
+        const hints = elements.resetForm.querySelector('.password-hints');
+        if (hintsToggle && hints && !hints.classList.contains('show')) {
+            hintsToggle.classList.add('expanded');
+            hints.classList.add('show');
+        }
+        passwordInput.focus();
+        return;
+    }
+
     if (password !== confirmPassword) {
         showToast('Passwords do not match');
         return;
     }
-    
+
     submitBtn.disabled = true;
-    
+
     try {
         const data = await api('auth.php?action=reset-password', {
             method: 'POST',
             body: { token, password }
         });
-        
+
         if (data.success) {
             showToast('Password reset successfully!');
             showAuthForm('login');

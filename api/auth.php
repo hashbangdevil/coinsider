@@ -224,10 +224,10 @@ function handleResetPassword() {
         errorResponse('Reset token is required');
     }
     
-    if (strlen($password) < MIN_PASSWORD_LENGTH) {
-        errorResponse('Password must be at least ' . MIN_PASSWORD_LENGTH . ' characters');
+    if (strlen($password) < 10) {
+        errorResponse('Password must be at least 10 characters');
     }
-    
+
     // Find user by token
     $user = findUserByResetToken($token);
     

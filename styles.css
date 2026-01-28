@@ -1296,7 +1296,7 @@ select option {
     color: #ffffff;
     margin-top: var(--space-sm);
     padding: var(--space-md);
-    background: rgba(0, 0, 0, 0.3);
+    background: var(--bg-card);
     border: 1px solid rgba(255, 255, 255, 0.2);
     border-radius: var(--radius-md);
 }
