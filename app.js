@@ -145,8 +145,7 @@ const elements = {
     transactionsModalList: document.getElementById('transactions-modal-list'),
     transactionsModalEmpty: document.getElementById('transactions-modal-empty'),
     transactionsSearch: document.getElementById('transactions-search'),
-    transactionsDateFrom: document.getElementById('transactions-date-from'),
-    transactionsDateTo: document.getElementById('transactions-date-to'),
+    transactionsPeriodSelector: document.getElementById('transactions-period-selector'),
 
     // Recurring Transactions
     manageRecurringBtn: document.getElementById('manage-recurring-btn'),
@@ -1434,10 +1433,42 @@ async function loadAllTransactions() {
     }
 }
 
+function getDateRangeForPeriod(period) {
+    const now = new Date();
+    const year = now.getFullYear();
+    const month = now.getMonth();
+
+    switch (period) {
+        case 'this-month': {
+            const start = new Date(year, month, 1);
+            const end = new Date(year, month + 1, 0);
+            return { start, end };
+        }
+        case 'last-month': {
+            const start = new Date(year, month - 1, 1);
+            const end = new Date(year, month, 0);
+            return { start, end };
+        }
+        case 'this-year': {
+            const start = new Date(year, 0, 1);
+            const end = new Date(year, 11, 31);
+            return { start, end };
+        }
+        case 'last-year': {
+            const start = new Date(year - 1, 0, 1);
+            const end = new Date(year - 1, 11, 31);
+            return { start, end };
+        }
+        case 'all-time':
+        default:
+            return { start: null, end: null };
+    }
+}
+
 function filterTransactions() {
     const searchTerm = (elements.transactionsSearch?.value || '').toLowerCase().trim();
-    const dateFrom = elements.transactionsDateFrom?.value || '';
-    const dateTo = elements.transactionsDateTo?.value || '';
+    const period = elements.transactionsPeriodSelector?.value || 'this-month';
+    const { start, end } = getDateRangeForPeriod(period);
 
     let filtered = [...state.allTransactions];
 
@@ -1449,12 +1480,11 @@ function filterTransactions() {
         );
     }
 
-    // Filter by date range
-    if (dateFrom) {
-        filtered = filtered.filter(t => t.date >= dateFrom);
-    }
-    if (dateTo) {
-        filtered = filtered.filter(t => t.date <= dateTo);
+    // Filter by period
+    if (start && end) {
+        const startStr = start.toISOString().split('T')[0];
+        const endStr = end.toISOString().split('T')[0];
+        filtered = filtered.filter(t => t.date >= startStr && t.date <= endStr);
     }
 
     return filtered;
@@ -1518,8 +1548,7 @@ async function openTransactionsModal() {
 
     // Reset filters
     if (elements.transactionsSearch) elements.transactionsSearch.value = '';
-    if (elements.transactionsDateFrom) elements.transactionsDateFrom.value = '';
-    if (elements.transactionsDateTo) elements.transactionsDateTo.value = '';
+    if (elements.transactionsPeriodSelector) elements.transactionsPeriodSelector.value = 'this-month';
 
     renderTransactionsModal();
     openModal(elements.transactionsModal);
@@ -2191,11 +2220,7 @@ function setupModals() {
         }, 300);
     });
 
-    elements.transactionsDateFrom?.addEventListener('change', () => {
-        renderTransactionsModal();
-    });
-
-    elements.transactionsDateTo?.addEventListener('change', () => {
+    elements.transactionsPeriodSelector?.addEventListener('change', () => {
         renderTransactionsModal();
     });
 

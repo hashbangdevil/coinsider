@@ -501,7 +501,7 @@ body {
 }
 
 .period-selector {
-    font-size: 0.8rem;
+    font-size: 1rem;
     font-weight: 500;
     color: var(--text-primary);
     background: var(--bg-tertiary);
@@ -1813,28 +1813,47 @@ select option {
     padding-left: calc(var(--space-md) + 26px);
 }
 
-.date-filters {
+.period-selector-wrapper {
+    position: relative;
     display: flex;
     align-items: center;
-    gap: var(--space-sm);
 }
 
-.date-filters input[type="date"] {
-    width: auto;
-    min-width: 130px;
-}
-
-.date-separator {
+.period-selector-wrapper .period-icon {
+    position: absolute;
+    left: var(--space-md);
+    width: 18px;
+    height: 18px;
     color: var(--text-tertiary);
-    font-size: var(--text-sm);
+    pointer-events: none;
+}
+
+.period-selector-wrapper .period-selector {
+    padding-left: calc(var(--space-md) + 26px);
+}
+
+/* Transactions modal - filters stay visible, list scrolls */
+#transactions-modal .modal-content {
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+}
+
+#transactions-modal .modal-body {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+    overflow: hidden;
 }
 
 .transactions-modal-list {
     display: flex;
     flex-direction: column;
     gap: var(--space-sm);
-    max-height: 400px;
+    flex: 1;
     overflow-y: auto;
+    min-height: 0;
 }
 
 .transactions-modal-list .transaction-item {

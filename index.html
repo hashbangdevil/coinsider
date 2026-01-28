@@ -24,7 +24,7 @@
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
 
     <!-- Centralized CSS -->
-    <link rel="stylesheet" href="styles.css?v=53">
+    <link rel="stylesheet" href="styles.css?v=57">
 </head>
 <body>
     <!-- Auth Screen (Login/Signup/Forgot Password) -->
@@ -687,10 +687,20 @@
                         </svg>
                         <input type="text" id="transactions-search" placeholder="Search transactions...">
                     </div>
-                    <div class="date-filters">
-                        <input type="date" id="transactions-date-from" title="From date">
-                        <span class="date-separator">to</span>
-                        <input type="date" id="transactions-date-to" title="To date">
+                    <div class="period-selector-wrapper">
+                        <svg class="period-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <rect x="3" y="4" width="18" height="18" rx="2" ry="2"/>
+                            <line x1="16" y1="2" x2="16" y2="6"/>
+                            <line x1="8" y1="2" x2="8" y2="6"/>
+                            <line x1="3" y1="10" x2="21" y2="10"/>
+                        </svg>
+                        <select class="period-selector" id="transactions-period-selector">
+                            <option value="this-month">This Month</option>
+                            <option value="last-month">Last Month</option>
+                            <option value="this-year">This Year</option>
+                            <option value="last-year">Last Year</option>
+                            <option value="all-time">All Time</option>
+                        </select>
                     </div>
                 </div>
                 <div class="transactions-modal-list" id="transactions-modal-list">
@@ -918,6 +928,6 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/zxcvbn/4.4.2/zxcvbn.js"></script>
 
     <!-- App JavaScript -->
-    <script src="app.js?v=27"></script>
+    <script src="app.js?v=28"></script>
 </body>
 </html>
