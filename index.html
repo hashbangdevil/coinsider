@@ -24,7 +24,7 @@
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
 
     <!-- Centralized CSS -->
-    <link rel="stylesheet" href="styles.css?v=46">
+    <link rel="stylesheet" href="styles.css?v=52">
 </head>
 <body>
     <!-- Auth Screen (Login/Signup/Forgot Password) -->
@@ -509,7 +509,7 @@
                 <div class="recurring-toggle">
                     <label class="checkbox-label">
                         <input type="checkbox" id="transaction-recurring">
-                        <span class="checkbox-text">Make this recurring</span>
+                        <span class="checkbox-text">Make this a recurring transaction</span>
                     </label>
                 </div>
                 <div class="recurring-options" id="recurring-options" style="display: none;">
@@ -719,12 +719,25 @@
             <div class="modal-body">
                 <!-- Tab Navigation -->
                 <div class="recurring-tabs">
-                    <button type="button" class="recurring-tab active" data-tab="upcoming">Upcoming</button>
-                    <button type="button" class="recurring-tab" data-tab="all">Manage</button>
+                    <button type="button" class="recurring-tab active" data-tab="all">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:18px;height:18px;">
+                            <polyline points="23 4 23 10 17 10"/>
+                            <polyline points="1 20 1 14 7 14"/>
+                            <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/>
+                        </svg>
+                        All Recurring
+                    </button>
+                    <button type="button" class="recurring-tab" data-tab="upcoming">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:18px;height:18px;">
+                            <circle cx="12" cy="12" r="10"/>
+                            <polyline points="12 6 12 12 16 14"/>
+                        </svg>
+                        Coming Up
+                    </button>
                 </div>
 
                 <!-- Upcoming Tab Content -->
-                <div class="recurring-tab-content active" id="upcoming-tab">
+                <div class="recurring-tab-content" id="upcoming-tab">
                     <div class="upcoming-controls">
                         <span>Show upcoming in next</span>
                         <input type="number" id="upcoming-days" value="7" min="1" max="365" class="days-input">
@@ -743,7 +756,7 @@
                 </div>
 
                 <!-- All Rules Tab Content -->
-                <div class="recurring-tab-content" id="all-tab">
+                <div class="recurring-tab-content active" id="all-tab">
                     <div class="recurring-list" id="recurring-list">
                         <div class="empty-state" id="no-recurring">
                             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
@@ -905,6 +918,6 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/zxcvbn/4.4.2/zxcvbn.js"></script>
 
     <!-- App JavaScript -->
-    <script src="app.js?v=24"></script>
+    <script src="app.js?v=25"></script>
 </body>
 </html>

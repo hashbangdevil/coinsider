@@ -1334,6 +1334,37 @@ select option {
     gap: var(--space-sm);
 }
 
+/* Compact transaction form - inline labels */
+#transaction-form .input-group {
+    flex-direction: row;
+    align-items: center;
+    gap: var(--space-md);
+}
+
+#transaction-form .input-group label {
+    min-width: 90px;
+    flex-shrink: 0;
+    font-size: 0.9rem;
+}
+
+#transaction-form .input-group input,
+#transaction-form .input-group select,
+#transaction-form .input-group .input-with-prefix {
+    flex: 1;
+}
+
+#transaction-form .input-with-prefix {
+    display: flex;
+}
+
+#transaction-form .modal-form {
+    gap: var(--space-sm);
+}
+
+#transaction-form .recurring-options .input-group label {
+    min-width: 110px;
+}
+
 #change-password-modal .input-group {
     gap: 4px;
 }
@@ -1898,11 +1929,11 @@ select option {
 }
 
 .checkbox-label input[type="checkbox"] {
-    width: 20px;
-    height: 20px;
+    width: 22px;
+    height: 22px;
     border-radius: var(--radius-sm);
     background: var(--bg-tertiary);
-    border: 2px solid var(--border-color);
+    border: 2px solid var(--border-color-light);
     cursor: pointer;
     appearance: none;
     display: flex;
@@ -1919,13 +1950,14 @@ select option {
 .checkbox-label input[type="checkbox"]:checked::after {
     content: '✓';
     color: white;
-    font-size: 12px;
+    font-size: 14px;
     font-weight: bold;
 }
 
 .checkbox-text {
-    font-size: 0.9rem;
-    color: var(--text-secondary);
+    font-size: 1rem;
+    font-weight: 500;
+    color: #ffffff;
 }
 
 /* Recurring options container */
@@ -1956,15 +1988,15 @@ select option {
     align-items: center;
     gap: var(--space-md);
     padding: var(--space-md);
-    background: #6a6a88;
+    background: rgba(0, 0, 0, 0.25);
     border-radius: var(--radius-md);
-    border: 1px solid rgba(255, 255, 255, 0.15);
+    border: 1px solid rgba(255, 255, 255, 0.1);
     transition: background var(--transition-fast), border-color var(--transition-fast), opacity var(--transition-fast);
 }
 
 .recurring-item:hover {
-    background: #555575;
-    border-color: rgba(139, 154, 255, 0.35);
+    background: rgba(0, 0, 0, 0.35);
+    border-color: rgba(255, 255, 255, 0.2);
 }
 
 .recurring-item.paused {
@@ -2116,35 +2148,39 @@ select option {
 /* Recurring Tabs */
 .recurring-tabs {
     display: flex;
-    gap: var(--space-xs);
+    gap: 0;
     margin-bottom: var(--space-lg);
-    background: var(--bg-tertiary);
-    padding: 4px;
-    border-radius: var(--radius-md);
+    border-bottom: 2px solid rgba(255, 255, 255, 0.15);
 }
 
 .recurring-tab {
     flex: 1;
-    padding: var(--space-sm) var(--space-md);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: var(--space-sm);
+    padding: var(--space-md) var(--space-lg);
     background: transparent;
     border: none;
-    border-radius: var(--radius-sm);
-    color: var(--text-secondary);
+    border-bottom: 3px solid transparent;
+    margin-bottom: -2px;
+    color: rgba(255, 255, 255, 0.7);
     font-family: inherit;
-    font-size: 0.875rem;
-    font-weight: 500;
+    font-size: 1rem;
+    font-weight: 600;
     cursor: pointer;
     transition: all var(--transition-fast);
 }
 
 .recurring-tab:hover {
-    color: var(--text-primary);
+    color: #ffffff;
+    background: rgba(255, 255, 255, 0.1);
 }
 
 .recurring-tab.active {
-    background: var(--bg-card);
-    color: var(--text-primary);
-    box-shadow: var(--shadow-sm);
+    color: #ffffff;
+    border-bottom-color: #ffffff;
+    background: transparent;
 }
 
 /* Tab Content */
@@ -2189,9 +2225,9 @@ select option {
     align-items: center;
     gap: var(--space-md);
     padding: var(--space-md);
-    background: #6a6a88;
+    background: rgba(0, 0, 0, 0.25);
     border-radius: var(--radius-md);
-    border: 1px solid rgba(255, 255, 255, 0.15);
+    border: 1px solid rgba(255, 255, 255, 0.1);
 }
 
 .upcoming-icon {

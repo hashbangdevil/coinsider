@@ -2025,7 +2025,7 @@ function setupModals() {
     // Manage Recurring Transactions button in Settings
     elements.manageRecurringBtn?.addEventListener('click', () => {
         elements.settingsModal.classList.remove('active');
-        openRecurringModal();
+        openRecurringModal(false); // false = show "All Recurring" tab
     });
 
     // Add Recurring button in recurring modal
