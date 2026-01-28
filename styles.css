@@ -190,7 +190,7 @@ body {
    Login Screen
    ======================================== */
 
-#login-screen {
+#auth-screen {
     display: none;
     align-items: center;
     justify-content: center;
@@ -203,7 +203,7 @@ body {
         var(--bg-primary);
 }
 
-#login-screen.active {
+#auth-screen.active {
     display: flex;
 }
 
@@ -240,17 +240,17 @@ body {
 
 .login-title {
     font-family: var(--font-display);
-    font-size: 2.25rem;
-    font-weight: 600;
+    font-size: 2.5rem;
+    font-weight: 700;
     letter-spacing: -0.02em;
     margin-bottom: var(--space-sm);
-    color: var(--text-primary);
+    color: #ffffff;
 }
 
 .login-subtitle {
-    color: var(--text-secondary);
-    font-size: 1rem;
-    font-weight: 400;
+    color: #ffffff;
+    font-size: 1.1rem;
+    font-weight: 500;
 }
 
 /* Auth Forms */
@@ -266,8 +266,9 @@ body {
 
 .form-description {
     text-align: center;
-    color: var(--text-secondary);
-    font-size: 0.9rem;
+    color: #ffffff;
+    font-size: 1rem;
+    font-weight: 500;
     margin-bottom: var(--space-sm);
 }
 
@@ -282,21 +283,22 @@ body {
 .link-btn {
     background: none;
     border: none;
-    color: var(--color-primary-light);
+    color: #ffffff;
     font-family: inherit;
-    font-size: 0.875rem;
+    font-size: 1rem;
+    font-weight: 600;
     cursor: pointer;
     padding: var(--space-xs) var(--space-sm);
     transition: color var(--transition-fast);
 }
 
 .link-btn:hover {
-    color: var(--color-primary);
+    color: var(--color-primary-light);
     text-decoration: underline;
 }
 
 .separator {
-    color: var(--text-tertiary);
+    color: #ffffff;
 }
 
 /* Success Message */
@@ -1062,9 +1064,9 @@ body {
 }
 
 .input-group label {
-    font-size: 0.8rem;
-    font-weight: 500;
-    color: var(--text-secondary);
+    font-size: 0.95rem;
+    font-weight: 600;
+    color: #ffffff;
     letter-spacing: 0.02em;
 }
 
@@ -1229,6 +1231,148 @@ select option {
     display: block;
 }
 
+/* Password Strength Indicator */
+.password-strength {
+    margin-top: var(--space-sm);
+    display: flex;
+    align-items: center;
+    gap: var(--space-sm);
+}
+
+.password-strength-bar {
+    flex: 1;
+    height: 5px;
+    background: var(--bg-primary);
+    border-radius: var(--radius-full);
+    overflow: hidden;
+}
+
+.password-strength-fill {
+    height: 100%;
+    width: 0;
+    border-radius: var(--radius-full);
+    transition: width 0.3s, background-color 0.3s;
+}
+
+.password-strength-label {
+    font-size: 0.85rem;
+    font-weight: 600;
+    white-space: nowrap;
+    color: #ffffff;
+}
+
+/* Password Hints */
+.password-hints-toggle {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    background: none;
+    border: none;
+    color: #ffffff;
+    font-size: 0.8rem;
+    cursor: pointer;
+    padding: 4px 0;
+    margin-top: var(--space-xs);
+    font-family: inherit;
+}
+
+.password-hints-toggle:hover {
+    color: #ffffff;
+    text-decoration: underline;
+}
+
+.password-hints-toggle .arrow {
+    transition: transform 0.2s ease;
+    font-size: 0.65rem;
+}
+
+.password-hints-toggle.expanded .arrow {
+    transform: rotate(90deg);
+}
+
+.password-hints {
+    display: none;
+    font-size: 0.8rem;
+    color: #ffffff;
+    margin-top: var(--space-sm);
+    padding: var(--space-md);
+    background: rgba(0, 0, 0, 0.3);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    border-radius: var(--radius-md);
+}
+
+.password-hints.show {
+    display: block;
+}
+
+.password-hints-title {
+    font-weight: 600;
+    color: #ffffff;
+    margin-bottom: var(--space-sm);
+}
+
+.password-hints ul {
+    margin: 0;
+    padding-left: 1.2rem;
+}
+
+.password-hints li {
+    margin: 4px 0;
+    line-height: 1.4;
+}
+
+/* Compact change password modal */
+#change-password-modal .modal-content {
+    padding: var(--space-lg);
+}
+
+#change-password-modal .modal-header {
+    margin-bottom: var(--space-md);
+}
+
+#change-password-modal .modal-form {
+    gap: var(--space-sm);
+}
+
+#change-password-modal .input-group {
+    gap: 4px;
+}
+
+#change-password-modal .input-group label {
+    font-size: 0.85rem;
+}
+
+#change-password-modal input {
+    padding: var(--space-sm) var(--space-md);
+}
+
+#change-password-modal .modal-actions {
+    margin-top: var(--space-sm);
+}
+
+#change-password-modal .password-strength {
+    margin-top: 4px;
+}
+
+#change-password-modal .password-hints-toggle {
+    margin-top: 2px;
+    font-size: 0.75rem;
+}
+
+#change-password-modal .password-hints {
+    padding: var(--space-sm);
+    margin-top: 4px;
+    font-size: 0.75rem;
+}
+
+#change-password-modal .password-hints ul {
+    padding-left: 1rem;
+}
+
+#change-password-modal .password-hints li {
+    margin: 2px 0;
+}
+
 /* ========================================
    Buttons
    ======================================== */
@@ -1273,14 +1417,13 @@ select option {
 }
 
 .btn-secondary {
-    background: var(--bg-tertiary);
+    background: var(--bg-card);
     color: var(--text-primary);
-    border: 1px solid var(--border-color);
-    box-shadow: var(--shadow-inner);
+    border: 1px solid var(--border-color-light);
 }
 
 .btn-secondary:hover {
-    background: var(--bg-elevated);
+    background: var(--bg-card-hover);
     border-color: var(--border-color-light);
 }
 
@@ -1387,13 +1530,12 @@ select option {
     max-width: 500px;
     max-height: 90vh;
     overflow-y: auto;
-    background: var(--bg-secondary);
+    background: #6a6a88;
     border-radius: var(--radius-xl) var(--radius-xl) 0 0;
     padding: var(--space-xl);
     animation: slideUp var(--transition-slow) forwards;
-    border: 1px solid var(--border-color);
+    border: 1px solid rgba(255, 255, 255, 0.15);
     border-bottom: none;
-    box-shadow: var(--shadow-lg);
 }
 
 @media (min-width: 640px) {
@@ -1404,7 +1546,7 @@ select option {
 
     .modal-content {
         border-radius: var(--radius-xl);
-        border-bottom: 1px solid var(--border-color);
+        border: 1px solid rgba(255, 255, 255, 0.15);
     }
 }
 

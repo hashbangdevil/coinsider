@@ -25,6 +25,9 @@ switch ($action) {
     case 'reset-password':
         handleResetPassword();
         break;
+    case 'change-password':
+        handleChangePassword();
+        break;
     case 'update-settings':
         handleUpdateSettings();
         break;
@@ -238,6 +241,41 @@ function handleResetPassword() {
     jsonResponse([
         'success' => true,
         'message' => 'Password has been reset successfully. You can now log in.'
+    ]);
+}
+
+// ========================================
+// Change Password
+// ========================================
+
+function handleChangePassword() {
+    if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+        errorResponse('Method not allowed', 405);
+    }
+
+    $user = requireAuth();
+    $input = json_decode(file_get_contents('php://input'), true);
+
+    $currentPassword = $input['current_password'] ?? '';
+    $newPassword = $input['new_password'] ?? '';
+
+    // Verify current password
+    $fullUser = findUserById($user['id']);
+    if (!$fullUser || !verifyPassword($fullUser, $currentPassword)) {
+        errorResponse('Current password is incorrect');
+    }
+
+    // Validate new password length (require 10 chars for password changes)
+    if (strlen($newPassword) < 10) {
+        errorResponse('Password must be at least 10 characters');
+    }
+
+    // Update password
+    updatePassword($user['id'], $newPassword);
+
+    jsonResponse([
+        'success' => true,
+        'message' => 'Password changed successfully'
     ]);
 }
 

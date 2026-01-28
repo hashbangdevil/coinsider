@@ -91,6 +91,11 @@ const elements = {
     settingsModal: document.getElementById('settings-modal'),
     settingsForm: document.getElementById('settings-form'),
     settingsCurrency: document.getElementById('settings-currency'),
+
+    // Change Password
+    changePasswordBtn: document.getElementById('change-password-btn'),
+    changePasswordModal: document.getElementById('change-password-modal'),
+    changePasswordForm: document.getElementById('change-password-form'),
     
     // Balance
     totalBalance: document.getElementById('total-balance'),
@@ -262,8 +267,120 @@ function setupPasswordToggles() {
             if (!input) return;
 
             const isPassword = input.type === 'password';
-            input.type = isPassword ? 'text' : 'password';
-            toggle.classList.toggle('visible', isPassword);
+            const newType = isPassword ? 'text' : 'password';
+
+            // Check if this toggle is part of a group
+            const group = toggle.dataset.toggleGroup;
+            if (group) {
+                // Toggle all inputs in the same group
+                document.querySelectorAll(`.password-toggle[data-toggle-group="${group}"]`).forEach(groupToggle => {
+                    const groupInput = groupToggle.parentElement.querySelector('input');
+                    if (groupInput) {
+                        groupInput.type = newType;
+                        groupToggle.classList.toggle('visible', isPassword);
+                    }
+                });
+            } else {
+                // Single toggle behavior
+                input.type = newType;
+                toggle.classList.toggle('visible', isPassword);
+            }
+        });
+    });
+}
+
+// Password strength checker using zxcvbn
+function setupPasswordStrength() {
+    document.querySelectorAll('.input-with-toggle[data-strength="true"]').forEach(wrapper => {
+        const input = wrapper.querySelector('input');
+        if (!input) return;
+
+        // Create strength meter
+        const meter = document.createElement('div');
+        meter.className = 'password-strength';
+        meter.style.display = 'none';
+        meter.innerHTML = `
+            <div class="password-strength-bar"><div class="password-strength-fill"></div></div>
+            <span class="password-strength-label"></span>
+        `;
+
+        // Create hints container
+        const hintsContainer = document.createElement('div');
+        hintsContainer.className = 'password-hints-container';
+        hintsContainer.innerHTML = `
+            <button type="button" class="password-hints-toggle">
+                <span class="arrow">▶</span> Password tips
+            </button>
+            <div class="password-hints">
+                <div class="password-hints-title">Choose a strong password:</div>
+                <ul>
+                    <li>At least 10 characters long</li>
+                    <li>Mix of uppercase, lowercase, numbers, and symbols</li>
+                    <li>Don't use common words or patterns</li>
+                </ul>
+            </div>
+        `;
+
+        // Insert after the wrapper's parent input-group
+        const inputGroup = wrapper.closest('.input-group');
+        if (inputGroup) {
+            inputGroup.appendChild(meter);
+            inputGroup.appendChild(hintsContainer);
+        }
+
+        // Toggle hints
+        const hintsToggle = hintsContainer.querySelector('.password-hints-toggle');
+        const hints = hintsContainer.querySelector('.password-hints');
+        hintsToggle.addEventListener('click', () => {
+            hintsToggle.classList.toggle('expanded');
+            hints.classList.toggle('show');
+        });
+
+        const fill = meter.querySelector('.password-strength-fill');
+        const label = meter.querySelector('.password-strength-label');
+
+        function getRating(score, warning) {
+            if (warning && score > 1) score = Math.max(1, score - 1);
+            if (score <= 1) return { label: 'Very weak', color: 'var(--color-danger)', width: '33%' };
+            if (score === 2) return { label: 'OK', color: 'var(--color-warning)', width: '66%' };
+            return { label: 'Strong', color: 'var(--color-success)', width: '100%' };
+        }
+
+        input.addEventListener('input', () => {
+            const password = input.value;
+
+            if (password.length === 0) {
+                meter.style.display = 'none';
+                return;
+            }
+
+            meter.style.display = 'block';
+
+            if (typeof zxcvbn === 'undefined') {
+                label.textContent = 'Loading...';
+                return;
+            }
+
+            let result = zxcvbn(password);
+            let score = result.score;
+            let warning = result.feedback.warning || '';
+
+            // Custom checks
+            if (password.length < 6) {
+                score = 0;
+                warning = 'Too short - minimum 6 characters';
+            }
+
+            const rating = getRating(score, warning);
+
+            fill.style.width = rating.width;
+            fill.style.backgroundColor = rating.color;
+
+            let labelText = rating.label;
+            if (warning) labelText += ' - ' + warning;
+            label.textContent = labelText;
+
+            input.dataset.strengthScore = score;
         });
     });
 }
@@ -1789,6 +1906,66 @@ function setupModals() {
         openModal(elements.categoriesListModal, elements.settingsModal);
     });
 
+    // Change Password button in Settings
+    elements.changePasswordBtn?.addEventListener('click', () => {
+        elements.settingsModal.classList.remove('active');
+        elements.changePasswordForm.reset();
+        // Reset strength meter visibility
+        const meter = elements.changePasswordModal.querySelector('.password-strength');
+        if (meter) meter.style.display = 'none';
+        openModal(elements.changePasswordModal, elements.settingsModal);
+    });
+
+    // Change Password form submission
+    elements.changePasswordForm?.addEventListener('submit', async (e) => {
+        e.preventDefault();
+
+        const currentPassword = document.getElementById('current-password').value;
+        const newPasswordInput = document.getElementById('new-password');
+        const newPassword = newPasswordInput.value;
+        const confirmPassword = document.getElementById('confirm-new-password').value;
+
+        // Check password strength
+        const strengthScore = parseInt(newPasswordInput.dataset.strengthScore || '0');
+        if (newPassword.length < 10 || strengthScore < 2) {
+            showToast('Please choose a stronger password');
+            // Expand password tips
+            const hintsToggle = elements.changePasswordModal.querySelector('.password-hints-toggle');
+            const hints = elements.changePasswordModal.querySelector('.password-hints');
+            if (hintsToggle && hints && !hints.classList.contains('show')) {
+                hintsToggle.classList.add('expanded');
+                hints.classList.add('show');
+            }
+            newPasswordInput.focus();
+            return;
+        }
+
+        if (newPassword !== confirmPassword) {
+            showToast('New passwords do not match');
+            return;
+        }
+
+        const submitBtn = e.target.querySelector('button[type="submit"]');
+        submitBtn.disabled = true;
+
+        try {
+            const data = await api('auth.php?action=change-password', {
+                method: 'POST',
+                body: { current_password: currentPassword, new_password: newPassword }
+            });
+
+            if (data.success) {
+                showToast('Password changed successfully');
+                closeModal(elements.changePasswordModal);
+                e.target.reset();
+            }
+        } catch (error) {
+            showToast(error.message || 'Failed to change password');
+        } finally {
+            submitBtn.disabled = false;
+        }
+    });
+
     // Add Category from List Modal
     elements.addCategoryFromListBtn.addEventListener('click', () => {
         elements.categoriesListModal.classList.remove('active');
@@ -1996,9 +2173,29 @@ function setupModals() {
         renderTransactionsModal();
     });
 
+    // Stop clicks on modal content from propagating to backdrop
+    document.querySelectorAll('.modal-content').forEach(content => {
+        content.addEventListener('click', (e) => {
+            e.stopPropagation();
+        });
+    });
+
     // Close modal handlers - close only the specific modal
-    document.querySelectorAll('.modal-backdrop, .modal-close, .modal-cancel').forEach(el => {
+    // Backdrop clicks respect data-persist attribute (won't close persistent modals)
+    document.querySelectorAll('.modal-backdrop').forEach(el => {
         el.addEventListener('click', (e) => {
+            e.stopPropagation();
+            const modal = e.target.closest('.modal');
+            if (modal && !modal.dataset.persist) {
+                closeModal(modal);
+            }
+        });
+    });
+
+    // Close/cancel buttons always work, even on persistent modals
+    document.querySelectorAll('.modal-close, .modal-cancel').forEach(el => {
+        el.addEventListener('click', (e) => {
+            e.stopPropagation();
             const modal = e.target.closest('.modal');
             if (modal) {
                 closeModal(modal);
@@ -2094,6 +2291,7 @@ async function init() {
     setupModals();
     setupEmojiPicker();
     setupPasswordToggles();
+    setupPasswordStrength();
 
     // Period selector change handler (balance card)
     elements.periodSelector?.addEventListener('change', () => {
