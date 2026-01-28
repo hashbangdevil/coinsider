@@ -1616,13 +1616,13 @@ function drawChart(categoriesWithSpending) {
 
     // Draw total in center
     ctx.fillStyle = '#f8fafc';
-    ctx.font = 'bold 14px DM Sans';
+    ctx.font = 'bold 16px Outfit, system-ui, sans-serif';
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
     ctx.fillText(formatCurrency(total), centerX, centerY - 6);
 
     ctx.fillStyle = '#94a3b8';
-    ctx.font = '10px DM Sans';
+    ctx.font = '12px Outfit, system-ui, sans-serif';
     ctx.fillText('Total', centerX, centerY + 10);
 
     // Split legend items between left and right columns
