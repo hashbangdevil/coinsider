@@ -538,6 +538,7 @@ async function disableEncryption() {
         state.user.encryption_enabled = false;
         state.encryptionSettings = null;
         CryptoModule.lock();
+        CryptoModule.forgetKey();
 
         // Reload data
         await loadAppData();
@@ -2977,13 +2978,20 @@ function setupEncryptionHandlers() {
     elements.encryptionUnlockForm?.addEventListener('submit', async (e) => {
         e.preventDefault();
         const password = document.getElementById('encryption-unlock-password').value;
+        const rememberKey = document.getElementById('remember-encryption-key')?.checked;
+        const rememberDays = parseInt(document.getElementById('remember-key-duration')?.value) || 30;
         const submitBtn = e.target.querySelector('button[type="submit"]');
 
         submitBtn.disabled = true;
 
         try {
             const success = await handleEncryptionUnlock(password);
-            if (!success) {
+            if (success) {
+                // Remember the key if checkbox is checked
+                if (rememberKey && CryptoModule?.isReady()) {
+                    await CryptoModule.rememberKey(rememberDays);
+                }
+            } else {
                 showToast('Invalid encryption password');
             }
         } finally {
@@ -3075,6 +3083,15 @@ function setupEncryptionHandlers() {
         } catch (error) {
             console.error('Failed to regenerate recovery phrase:', error);
             showToast('Failed to regenerate recovery phrase');
+        }
+    });
+
+    // Forget remembered key button
+    document.getElementById('forget-remembered-key-btn')?.addEventListener('click', () => {
+        if (CryptoModule) {
+            CryptoModule.forgetKey();
+            updateEncryptionSettingsModal();
+            showToast('Remembered key forgotten');
         }
     });
 
@@ -3177,6 +3194,25 @@ function updateEncryptionSettingsModal() {
     if (elements.encryptionOptionsEnabled) {
         elements.encryptionOptionsEnabled.style.display = isEnabled ? 'block' : 'none';
     }
+
+    // Show/hide forget remembered key button
+    const forgetKeyBtn = document.getElementById('forget-remembered-key-btn');
+    const forgetKeyBtnText = document.getElementById('forget-key-btn-text');
+    if (forgetKeyBtn && CryptoModule) {
+        const keyInfo = CryptoModule.getRememberedKeyInfo();
+        if (keyInfo) {
+            forgetKeyBtn.style.display = 'flex';
+            if (forgetKeyBtnText) {
+                if (keyInfo.neverExpires) {
+                    forgetKeyBtnText.textContent = 'Forget Remembered Key';
+                } else {
+                    forgetKeyBtnText.textContent = `Forget Remembered Key (${keyInfo.daysRemaining} days left)`;
+                }
+            }
+        } else {
+            forgetKeyBtn.style.display = 'none';
+        }
+    }
 }
 
 // ========================================
@@ -3204,6 +3240,18 @@ async function init() {
             // Check encryption status
             if (state.user?.encryption_enabled) {
                 await loadEncryptionSettings();
+
+                // Try to unlock with remembered key first
+                if (CryptoModule?.hasRememberedKey()) {
+                    const unlocked = await CryptoModule.unlockWithRememberedKey();
+                    if (unlocked) {
+                        console.log('Unlocked with remembered key');
+                        await loadAppData();
+                        showAppScreen();
+                        return;
+                    }
+                }
+
                 // Show unlock modal - user needs to enter encryption password
                 state.encryptionPending = true;
                 showScreen('app');

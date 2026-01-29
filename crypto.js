@@ -400,6 +400,126 @@ const CryptoModule = {
             recoveryWrappedMEK: recoveryWrappedMEK,
             recoveryPhrase: recoveryData.phrase
         };
+    },
+
+    // Remember key functionality - stores encrypted MEK in localStorage
+    STORAGE_KEY: 'budget_manager_remembered_key',
+
+    // Save MEK to localStorage with expiry (days, 0 = never expires)
+    async rememberKey(days = 7) {
+        if (!this.mek) {
+            throw new Error('Encryption not unlocked');
+        }
+
+        // Generate a random device key
+        const deviceKey = await crypto.subtle.generateKey(
+            { name: 'AES-GCM', length: 256 },
+            true,
+            ['wrapKey', 'unwrapKey']
+        );
+
+        // Export device key to store it
+        const deviceKeyRaw = await crypto.subtle.exportKey('raw', deviceKey);
+
+        // Wrap MEK with device key
+        const wrappedMEK = await this.wrapMEK(this.mek, deviceKey);
+
+        // Calculate expiry (0 = never expires)
+        const expiry = days === 0 ? null : Date.now() + (days * 24 * 60 * 60 * 1000);
+
+        // Store in localStorage
+        const data = {
+            deviceKey: this.bufferToBase64(deviceKeyRaw),
+            wrappedMEK: wrappedMEK,
+            expiry: expiry
+        };
+        localStorage.setItem(this.STORAGE_KEY, JSON.stringify(data));
+
+        return true;
+    },
+
+    // Check if there's a valid remembered key
+    hasRememberedKey() {
+        try {
+            const stored = localStorage.getItem(this.STORAGE_KEY);
+            if (!stored) return false;
+
+            const data = JSON.parse(stored);
+            // Check expiry (null = never expires)
+            if (data.expiry !== null && Date.now() > data.expiry) {
+                this.forgetKey();
+                return false;
+            }
+            return true;
+        } catch {
+            return false;
+        }
+    },
+
+    // Get remembered key expiry info
+    getRememberedKeyInfo() {
+        try {
+            const stored = localStorage.getItem(this.STORAGE_KEY);
+            if (!stored) return null;
+
+            const data = JSON.parse(stored);
+            // Check expiry (null = never expires)
+            if (data.expiry !== null && Date.now() > data.expiry) {
+                this.forgetKey();
+                return null;
+            }
+            return {
+                expiry: data.expiry,
+                daysRemaining: data.expiry === null ? null : Math.ceil((data.expiry - Date.now()) / (24 * 60 * 60 * 1000)),
+                neverExpires: data.expiry === null
+            };
+        } catch {
+            return null;
+        }
+    },
+
+    // Unlock using remembered key
+    async unlockWithRememberedKey() {
+        try {
+            const stored = localStorage.getItem(this.STORAGE_KEY);
+            if (!stored) return false;
+
+            const data = JSON.parse(stored);
+
+            // Check expiry (null = never expires)
+            if (data.expiry !== null && Date.now() > data.expiry) {
+                this.forgetKey();
+                return false;
+            }
+
+            // Restore device key
+            const deviceKeyRaw = this.base64ToBuffer(data.deviceKey);
+            const deviceKey = await crypto.subtle.importKey(
+                'raw',
+                deviceKeyRaw,
+                { name: 'AES-GCM', length: 256 },
+                false,
+                ['unwrapKey']
+            );
+
+            // Unwrap MEK
+            const mek = await this.unwrapMEK(data.wrappedMEK, deviceKey);
+
+            // Store in memory
+            this.mek = mek;
+            this.isUnlocked = true;
+
+            return true;
+        } catch (error) {
+            console.error('Failed to unlock with remembered key:', error);
+            this.forgetKey();
+            return false;
+        }
+    },
+
+    // Clear remembered key
+    forgetKey() {
+        localStorage.removeItem(this.STORAGE_KEY);
     }
 };
 

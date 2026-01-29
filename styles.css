@@ -2685,3 +2685,21 @@ select:focus,
     background: rgba(239, 68, 68, 0.15);
     border-color: var(--error);
 }
+
+/* Remember Key Group */
+.remember-key-group {
+    display: flex;
+    align-items: center;
+    gap: var(--space-sm);
+    flex-wrap: wrap;
+}
+
+.remember-key-group .checkbox-label {
+    padding: 0;
+}
+
+.remember-key-group select {
+    width: auto;
+    padding: var(--space-xs) var(--space-sm);
+    font-size: 0.9rem;
+}

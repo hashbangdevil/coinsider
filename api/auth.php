@@ -372,6 +372,11 @@ function handleEnableEncryption() {
         $input['recovery_encrypted_mek']
     );
 
+    // Update session to reflect the new encryption status
+    if (isset($_SESSION['user'])) {
+        $_SESSION['user']['encryption_enabled'] = true;
+    }
+
     jsonResponse([
         'success' => true,
         'message' => 'Encryption enabled successfully',
@@ -420,6 +425,11 @@ function handleDisableEncryption() {
     $user = requireAuth();
 
     disableEncryption($user['id']);
+
+    // Update session to reflect the new encryption status
+    if (isset($_SESSION['user'])) {
+        $_SESSION['user']['encryption_enabled'] = false;
+    }
 
     jsonResponse([
         'success' => true,
