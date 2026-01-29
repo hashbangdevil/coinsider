@@ -2540,3 +2540,148 @@ select:focus,
         transition-duration: 0.01ms !important;
     }
 }
+
+/* ========================================
+   Encryption Styles
+   ======================================== */
+
+.recovery-warning {
+    display: flex;
+    align-items: flex-start;
+    gap: var(--space-sm);
+    padding: var(--space-md);
+    background: rgba(245, 158, 11, 0.1);
+    border: 1px solid rgba(245, 158, 11, 0.3);
+    border-radius: var(--radius-md);
+    margin-bottom: var(--space-lg);
+}
+
+.recovery-warning p {
+    margin: 0;
+    font-size: 0.875rem;
+    color: var(--text-secondary);
+    line-height: 1.5;
+}
+
+.recovery-phrase-display {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: var(--space-sm);
+    padding: var(--space-md);
+    background: var(--bg-elevated);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-md);
+    margin-bottom: var(--space-lg);
+}
+
+.recovery-word {
+    display: flex;
+    align-items: center;
+    gap: var(--space-xs);
+    padding: var(--space-sm);
+    background: var(--bg-surface);
+    border-radius: var(--radius-sm);
+    font-family: 'Courier New', monospace;
+}
+
+.recovery-word-number {
+    font-size: 0.75rem;
+    color: var(--text-tertiary);
+    min-width: 20px;
+}
+
+.recovery-word-text {
+    font-weight: 500;
+    color: var(--text-primary);
+}
+
+#encryption-recovery-phrase {
+    width: 100%;
+    padding: var(--space-md);
+    background: var(--bg-elevated);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-md);
+    color: var(--text-primary);
+    font-family: 'Courier New', monospace;
+    font-size: 0.875rem;
+    resize: vertical;
+}
+
+#encryption-recovery-phrase:focus {
+    outline: none;
+    border-color: var(--color-primary);
+    box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.2);
+}
+
+@media (max-width: 480px) {
+    .recovery-phrase-display {
+        grid-template-columns: repeat(2, 1fr);
+    }
+}
+
+/* Encryption Status */
+.encryption-status {
+    display: flex;
+    align-items: center;
+    gap: var(--space-md);
+    padding: var(--space-md);
+    background: var(--bg-elevated);
+    border-radius: var(--radius-md);
+    margin-bottom: var(--space-lg);
+}
+
+.encryption-status-icon {
+    width: 48px;
+    height: 48px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(239, 68, 68, 0.1);
+    color: var(--error);
+}
+
+.encryption-status-icon svg {
+    width: 24px;
+    height: 24px;
+}
+
+.encryption-status.enabled .encryption-status-icon {
+    background: rgba(34, 197, 94, 0.1);
+    color: var(--success);
+}
+
+.encryption-status-text {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.encryption-status-label {
+    font-weight: 600;
+    color: #ffffff;
+}
+
+.encryption-status-desc {
+    font-size: 0.875rem;
+    color: #d4d5e0;
+}
+
+.encryption-info {
+    color: #ffffff;
+    font-size: 0.875rem;
+    margin-bottom: var(--space-md);
+    line-height: 1.5;
+}
+
+/* Danger Button */
+.btn-danger {
+    background: var(--bg-card);
+    color: var(--error);
+    border: 1px solid var(--border-color-light);
+}
+
+.btn-danger:hover {
+    background: rgba(239, 68, 68, 0.15);
+    border-color: var(--error);
+}

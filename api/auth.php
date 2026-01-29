@@ -31,6 +31,21 @@ switch ($action) {
     case 'update-settings':
         handleUpdateSettings();
         break;
+    case 'get-encryption':
+        handleGetEncryption();
+        break;
+    case 'enable-encryption':
+        handleEnableEncryption();
+        break;
+    case 'update-encryption-key':
+        handleUpdateEncryptionKey();
+        break;
+    case 'disable-encryption':
+        handleDisableEncryption();
+        break;
+    case 'update-recovery-key':
+        handleUpdateRecoveryKey();
+        break;
     case 'status':
     default:
         handleStatus();
@@ -313,6 +328,143 @@ function handleUpdateSettings() {
 }
 
 // ========================================
+// Get Encryption Settings
+// ========================================
+
+function handleGetEncryption() {
+    $user = requireAuth();
+    $settings = getEncryptionSettings($user['id']);
+
+    jsonResponse([
+        'encryption_enabled' => (bool) $settings['encryption_enabled'],
+        'encryption_salt' => $settings['encryption_salt'],
+        'encrypted_mek' => $settings['encrypted_mek'],
+        'recovery_salt' => $settings['recovery_salt'],
+        'recovery_encrypted_mek' => $settings['recovery_encrypted_mek']
+    ]);
+}
+
+// ========================================
+// Enable Encryption
+// ========================================
+
+function handleEnableEncryption() {
+    if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+        errorResponse('Method not allowed', 405);
+    }
+
+    $user = requireAuth();
+    $input = json_decode(file_get_contents('php://input'), true);
+
+    // Validate required fields
+    $required = ['encryption_salt', 'encrypted_mek', 'recovery_salt', 'recovery_encrypted_mek'];
+    foreach ($required as $field) {
+        if (empty($input[$field])) {
+            errorResponse("Missing required field: $field");
+        }
+    }
+
+    $result = enableEncryption(
+        $user['id'],
+        $input['encryption_salt'],
+        $input['encrypted_mek'],
+        $input['recovery_salt'],
+        $input['recovery_encrypted_mek']
+    );
+
+    jsonResponse([
+        'success' => true,
+        'message' => 'Encryption enabled successfully',
+        'encryption_enabled' => true
+    ]);
+}
+
+// ========================================
+// Update Encryption Key (after password change)
+// ========================================
+
+function handleUpdateEncryptionKey() {
+    if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+        errorResponse('Method not allowed', 405);
+    }
+
+    $user = requireAuth();
+    $input = json_decode(file_get_contents('php://input'), true);
+
+    // Validate required fields
+    if (empty($input['encryption_salt']) || empty($input['encrypted_mek'])) {
+        errorResponse('Missing required fields: encryption_salt, encrypted_mek');
+    }
+
+    $result = updateEncryptionKey(
+        $user['id'],
+        $input['encryption_salt'],
+        $input['encrypted_mek']
+    );
+
+    jsonResponse([
+        'success' => true,
+        'message' => 'Encryption key updated successfully'
+    ]);
+}
+
+// ========================================
+// Disable Encryption
+// ========================================
+
+function handleDisableEncryption() {
+    if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+        errorResponse('Method not allowed', 405);
+    }
+
+    $user = requireAuth();
+
+    disableEncryption($user['id']);
+
+    jsonResponse([
+        'success' => true,
+        'message' => 'Encryption disabled'
+    ]);
+}
+
+// ========================================
+// Update Recovery Key
+// ========================================
+
+function handleUpdateRecoveryKey() {
+    if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+        errorResponse('Method not allowed', 405);
+    }
+
+    $user = requireAuth();
+    $input = json_decode(file_get_contents('php://input'), true);
+
+    // Validate required fields
+    if (empty($input['recovery_salt']) || empty($input['recovery_encrypted_mek'])) {
+        errorResponse('Missing required fields: recovery_salt, recovery_encrypted_mek');
+    }
+
+    $pdo = Database::getInstance()->getPdo();
+    $stmt = $pdo->prepare("
+        UPDATE users SET
+            recovery_salt = ?,
+            recovery_encrypted_mek = ?,
+            updated_at = CURRENT_TIMESTAMP
+        WHERE id = ?
+    ");
+    $stmt->execute([
+        $input['recovery_salt'],
+        $input['recovery_encrypted_mek'],
+        $user['id']
+    ]);
+
+    jsonResponse([
+        'success' => true,
+        'message' => 'Recovery key updated successfully'
+    ]);
+}
+
+// ========================================
 // Check Status
 // ========================================
 
@@ -354,7 +506,8 @@ function sanitizeUser($user) {
         'id' => $user['id'],
         'email' => $user['email'],
         'name' => $user['name'],
-        'currency' => $user['currency'] ?? 'ZAR'
+        'currency' => $user['currency'] ?? 'ZAR',
+        'encryption_enabled' => (bool) ($user['encryption_enabled'] ?? false)
     ];
 }
 

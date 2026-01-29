@@ -17,7 +17,19 @@ const state = {
     recurringTransactions: [],
     summary: null,
     chartSummary: null,
-    spendingSummary: null
+    spendingSummary: null,
+    // Encryption state
+    encryptionSettings: null,
+    encryptionPending: false
+};
+
+// Fields to encrypt for each data type
+// Note: amounts are not encrypted to preserve database numeric operations
+// Note: category_name is included for decryption since API returns it via joins
+const ENCRYPTED_FIELDS = {
+    transaction: ['description', 'category_name'],
+    category: ['name'],
+    recurring: ['description', 'category_name']
 };
 
 // Reset state to defaults
@@ -30,6 +42,12 @@ function resetState() {
     state.summary = null;
     state.chartSummary = null;
     state.spendingSummary = null;
+    state.encryptionSettings = null;
+    state.encryptionPending = false;
+    // Lock the crypto module
+    if (window.CryptoModule) {
+        CryptoModule.lock();
+    }
 }
 
 // ========================================
@@ -165,6 +183,29 @@ const elements = {
     upcomingDays: document.getElementById('upcoming-days'),
     viewUpcomingBtn: document.getElementById('view-upcoming-btn'),
 
+    // Encryption
+    dataEncryptionBtn: document.getElementById('data-encryption-btn'),
+    encryptionSettingsModal: document.getElementById('encryption-settings-modal'),
+    encryptionStatus: document.getElementById('encryption-status'),
+    encryptionStatusIcon: document.getElementById('encryption-status-icon'),
+    encryptionStatusLabel: document.getElementById('encryption-status-label'),
+    encryptionStatusDesc: document.getElementById('encryption-status-desc'),
+    encryptionOptionsDisabled: document.getElementById('encryption-options-disabled'),
+    encryptionOptionsEnabled: document.getElementById('encryption-options-enabled'),
+    enableEncryptionBtn: document.getElementById('enable-encryption-btn'),
+    changeEncryptionPasswordBtn: document.getElementById('change-encryption-password-btn'),
+    regenerateRecoveryBtn: document.getElementById('regenerate-recovery-btn'),
+    disableEncryptionBtn: document.getElementById('disable-encryption-btn'),
+    changeEncryptionPasswordModal: document.getElementById('change-encryption-password-modal'),
+    changeEncryptionPasswordForm: document.getElementById('change-encryption-password-form'),
+    encryptionUnlockModal: document.getElementById('encryption-unlock-modal'),
+    encryptionUnlockForm: document.getElementById('encryption-unlock-form'),
+    encryptionRecoveryForm: document.getElementById('encryption-recovery-form'),
+    encryptionSetupModal: document.getElementById('encryption-setup-modal'),
+    encryptionSetupForm: document.getElementById('encryption-setup-form'),
+    recoveryPhraseModal: document.getElementById('recovery-phrase-modal'),
+    recoveryPhraseDisplay: document.getElementById('recovery-phrase-display'),
+
     // Toast
     toast: document.getElementById('toast')
 };
@@ -256,6 +297,362 @@ function escapeHtml(text) {
     const div = document.createElement('div');
     div.textContent = text;
     return div.innerHTML;
+}
+
+// ========================================
+// Encryption Helper Functions
+// ========================================
+
+function isEncryptionEnabled() {
+    return state.user?.encryption_enabled && CryptoModule?.isReady();
+}
+
+function isEncryptionUnlocked() {
+    return CryptoModule?.isReady();
+}
+
+async function encryptTransaction(data) {
+    if (!isEncryptionEnabled()) return data;
+    return CryptoModule.encryptObject(data, ENCRYPTED_FIELDS.transaction);
+}
+
+async function decryptTransaction(data) {
+    if (!CryptoModule?.isReady()) return data;
+    return CryptoModule.decryptObject(data, ENCRYPTED_FIELDS.transaction);
+}
+
+async function decryptTransactions(arr) {
+    if (!CryptoModule?.isReady()) return arr;
+    return CryptoModule.decryptArray(arr, ENCRYPTED_FIELDS.transaction);
+}
+
+async function encryptCategory(data) {
+    if (!isEncryptionEnabled()) return data;
+    return CryptoModule.encryptObject(data, ENCRYPTED_FIELDS.category);
+}
+
+async function decryptCategory(data) {
+    if (!CryptoModule?.isReady()) return data;
+    return CryptoModule.decryptObject(data, ENCRYPTED_FIELDS.category);
+}
+
+async function decryptCategories(arr) {
+    if (!CryptoModule?.isReady()) return arr;
+    return CryptoModule.decryptArray(arr, ENCRYPTED_FIELDS.category);
+}
+
+async function encryptRecurring(data) {
+    if (!isEncryptionEnabled()) return data;
+    return CryptoModule.encryptObject(data, ENCRYPTED_FIELDS.recurring);
+}
+
+async function decryptRecurring(data) {
+    if (!CryptoModule?.isReady()) return data;
+    return CryptoModule.decryptObject(data, ENCRYPTED_FIELDS.recurring);
+}
+
+async function decryptRecurringTransactions(arr) {
+    if (!CryptoModule?.isReady()) return arr;
+    return CryptoModule.decryptArray(arr, ENCRYPTED_FIELDS.recurring);
+}
+
+async function loadEncryptionSettings() {
+    try {
+        const settings = await api('auth.php?action=get-encryption');
+        state.encryptionSettings = settings;
+        return settings;
+    } catch (error) {
+        console.error('Failed to load encryption settings:', error);
+        return null;
+    }
+}
+
+async function unlockEncryption(password) {
+    if (!state.encryptionSettings?.encryption_enabled) {
+        return true;
+    }
+
+    try {
+        await CryptoModule.unlock(
+            password,
+            state.encryptionSettings.encryption_salt,
+            state.encryptionSettings.encrypted_mek
+        );
+        return true;
+    } catch (error) {
+        console.error('Failed to unlock encryption:', error);
+        return false;
+    }
+}
+
+async function unlockWithRecovery(recoveryPhrase) {
+    if (!state.encryptionSettings?.encryption_enabled) {
+        return false;
+    }
+
+    try {
+        await CryptoModule.unlockWithRecovery(
+            recoveryPhrase,
+            state.encryptionSettings.recovery_salt,
+            state.encryptionSettings.recovery_encrypted_mek
+        );
+        return true;
+    } catch (error) {
+        console.error('Failed to unlock with recovery:', error);
+        return false;
+    }
+}
+
+async function enableEncryption(password) {
+    try {
+        // Generate encryption keys
+        const encryptionData = await CryptoModule.enableEncryption(password);
+
+        // Save to server
+        await api('auth.php?action=enable-encryption', {
+            method: 'POST',
+            body: {
+                encryption_salt: encryptionData.salt,
+                encrypted_mek: encryptionData.wrappedMEK,
+                recovery_salt: encryptionData.recoverySalt,
+                recovery_encrypted_mek: encryptionData.recoveryWrappedMEK
+            }
+        });
+
+        // Update local state
+        state.user.encryption_enabled = true;
+        await loadEncryptionSettings();
+
+        // Encrypt all existing data
+        await encryptExistingData();
+
+        return {
+            success: true,
+            recoveryPhrase: encryptionData.recoveryPhrase
+        };
+    } catch (error) {
+        console.error('Failed to enable encryption:', error);
+        CryptoModule.lock();
+        return { success: false, error: error.message };
+    }
+}
+
+async function encryptExistingData() {
+    if (!CryptoModule?.isReady()) return;
+
+    try {
+        // Fetch all data to encrypt
+        const [categories, transactions, recurring] = await Promise.all([
+            api('api.php?resource=categories'),
+            api('api.php?resource=transactions&limit=10000'),
+            api('api.php?resource=recurring')
+        ]);
+
+        const allCategories = Array.isArray(categories) ? categories : [];
+        const allTransactions = Array.isArray(transactions) ? transactions : [];
+        const allRecurring = Array.isArray(recurring) ? recurring : [];
+
+        // Encrypt all categories
+        for (const category of allCategories) {
+            if (category.name && !CryptoModule.isEncrypted(category.name)) {
+                const encrypted = await encryptCategory({
+                    name: category.name
+                });
+                await api(`api.php?resource=categories&id=${category.id}`, {
+                    method: 'PUT',
+                    body: {
+                        name: encrypted.name,
+                        type: category.type,
+                        icon: category.icon,
+                        color: category.color,
+                        monthly_budget: category.monthly_budget
+                    }
+                });
+            }
+        }
+
+        // Encrypt all transactions
+        for (const transaction of allTransactions) {
+            if (transaction.description && !CryptoModule.isEncrypted(transaction.description)) {
+                const encrypted = await encryptTransaction({
+                    description: transaction.description
+                });
+                await api(`api.php?resource=transactions&id=${transaction.id}`, {
+                    method: 'PUT',
+                    body: {
+                        description: encrypted.description,
+                        amount: transaction.amount,
+                        category_id: transaction.category_id,
+                        type: transaction.type,
+                        date: transaction.date
+                    }
+                });
+            }
+        }
+
+        // Encrypt all recurring transactions
+        for (const rec of allRecurring) {
+            if (rec.description && !CryptoModule.isEncrypted(rec.description)) {
+                const encrypted = await encryptRecurring({
+                    description: rec.description
+                });
+                await api(`api.php?resource=recurring&id=${rec.id}`, {
+                    method: 'PUT',
+                    body: {
+                        description: encrypted.description,
+                        amount: rec.amount,
+                        category_id: rec.category_id,
+                        type: rec.type,
+                        frequency: rec.frequency,
+                        start_date: rec.start_date,
+                        end_date: rec.end_date,
+                        is_active: rec.is_active
+                    }
+                });
+            }
+        }
+
+        // Reload data with encrypted values
+        await loadAppData();
+    } catch (error) {
+        console.error('Failed to encrypt existing data:', error);
+        showToast('Warning: Some existing data could not be encrypted');
+    }
+}
+
+async function disableEncryption() {
+    try {
+        if (!CryptoModule?.isReady()) {
+            showToast('Encryption must be unlocked first');
+            return false;
+        }
+
+        // Decrypt all existing data before disabling encryption
+        await decryptExistingData();
+
+        // Now disable encryption on the server
+        await api('auth.php?action=disable-encryption', {
+            method: 'POST'
+        });
+
+        state.user.encryption_enabled = false;
+        state.encryptionSettings = null;
+        CryptoModule.lock();
+
+        // Reload data
+        await loadAppData();
+
+        showToast('Encryption disabled');
+        return true;
+    } catch (error) {
+        console.error('Failed to disable encryption:', error);
+        showToast('Failed to disable encryption');
+        return false;
+    }
+}
+
+async function decryptExistingData() {
+    if (!CryptoModule?.isReady()) return;
+
+    try {
+        // Fetch all data to decrypt
+        const [categories, transactions, recurring] = await Promise.all([
+            api('api.php?resource=categories'),
+            api('api.php?resource=transactions&limit=10000'),
+            api('api.php?resource=recurring')
+        ]);
+
+        const allCategories = Array.isArray(categories) ? categories : [];
+        const allTransactions = Array.isArray(transactions) ? transactions : [];
+        const allRecurring = Array.isArray(recurring) ? recurring : [];
+
+        // Decrypt all categories
+        for (const category of allCategories) {
+            if (category.name && CryptoModule.isEncrypted(category.name)) {
+                const decrypted = await decryptCategory(category);
+                await api(`api.php?resource=categories&id=${category.id}`, {
+                    method: 'PUT',
+                    body: {
+                        name: decrypted.name,
+                        type: category.type,
+                        icon: category.icon,
+                        color: category.color,
+                        monthly_budget: category.monthly_budget
+                    }
+                });
+            }
+        }
+
+        // Decrypt all transactions
+        for (const transaction of allTransactions) {
+            if (transaction.description && CryptoModule.isEncrypted(transaction.description)) {
+                const decrypted = await decryptTransaction(transaction);
+                await api(`api.php?resource=transactions&id=${transaction.id}`, {
+                    method: 'PUT',
+                    body: {
+                        description: decrypted.description,
+                        amount: transaction.amount,
+                        category_id: transaction.category_id,
+                        type: transaction.type,
+                        date: transaction.date
+                    }
+                });
+            }
+        }
+
+        // Decrypt all recurring transactions
+        for (const rec of allRecurring) {
+            if (rec.description && CryptoModule.isEncrypted(rec.description)) {
+                const decrypted = await decryptRecurring(rec);
+                await api(`api.php?resource=recurring&id=${rec.id}`, {
+                    method: 'PUT',
+                    body: {
+                        description: decrypted.description,
+                        amount: rec.amount,
+                        category_id: rec.category_id,
+                        type: rec.type,
+                        frequency: rec.frequency,
+                        start_date: rec.start_date,
+                        end_date: rec.end_date,
+                        is_active: rec.is_active
+                    }
+                });
+            }
+        }
+    } catch (error) {
+        console.error('Failed to decrypt existing data:', error);
+        showToast('Warning: Some data could not be decrypted');
+    }
+}
+
+async function handleEncryptionUnlock(password) {
+    const success = await unlockEncryption(password);
+    if (success) {
+        state.encryptionPending = false;
+        closeModal(document.getElementById('encryption-unlock-modal'));
+        await loadAppData();
+        showAppScreen();
+        showToast(`Welcome back, ${state.user.name}!`);
+        return true;
+    }
+    return false;
+}
+
+async function handleRecoveryUnlock(recoveryPhrase) {
+    const success = await unlockWithRecovery(recoveryPhrase);
+    if (success) {
+        state.encryptionPending = false;
+        closeModal(document.getElementById('encryption-unlock-modal'));
+        await loadAppData();
+        showAppScreen();
+        // Prompt user to set a new password since they forgot the old one
+        showToast('Recovery successful! Please set a new encryption password.');
+        setTimeout(() => {
+            openModal(document.getElementById('encryption-new-password-modal'));
+        }, 500);
+        return true;
+    }
+    return false;
 }
 
 // Password toggle functions
@@ -495,25 +892,41 @@ async function checkAuthStatus() {
 
 async function handleLogin(e) {
     e.preventDefault();
-    
+
     const email = document.getElementById('login-email').value;
     const password = document.getElementById('login-password').value;
     const submitBtn = e.target.querySelector('button[type="submit"]');
-    
+
     submitBtn.disabled = true;
-    
+
     try {
         const data = await api('auth.php?action=login', {
             method: 'POST',
             body: { email, password }
         });
-        
+
         if (data.success && data.user) {
             state.user = data.user;
-            console.log('Login successful, loading data...');
+            console.log('Login successful');
+
+            // Check if encryption is enabled
+            if (state.user.encryption_enabled) {
+                console.log('Encryption enabled, loading settings...');
+                await loadEncryptionSettings();
+
+                // Try to unlock with the same password used for login
+                const unlocked = await unlockEncryption(password);
+                if (!unlocked) {
+                    // Show encryption unlock modal
+                    state.encryptionPending = true;
+                    openModal(elements.encryptionUnlockModal);
+                    showToast('Please enter your encryption password');
+                    return;
+                }
+            }
+
+            console.log('Loading app data...');
             await loadAppData();
-            console.log('Data loaded, state.budgets is:', state.budgets);
-            console.log('state.budgets is array:', Array.isArray(state.budgets));
             showAppScreen();
             showToast(`Welcome back, ${state.user.name}!`);
         }
@@ -703,9 +1116,25 @@ async function loadAppData() {
         console.log('Loaded recurring:', recurring);
 
         // Ensure arrays (API might return object with error)
-        state.categories = Array.isArray(categories) ? categories : [];
-        state.transactions = Array.isArray(transactions) ? transactions : [];
-        state.recurringTransactions = Array.isArray(recurring) ? recurring : [];
+        let cats = Array.isArray(categories) ? categories : [];
+        let txns = Array.isArray(transactions) ? transactions : [];
+        let recur = Array.isArray(recurring) ? recurring : [];
+
+        // Decrypt data if encryption is enabled
+        if (CryptoModule?.isReady()) {
+            cats = await decryptCategories(cats);
+            txns = await decryptTransactions(txns);
+            recur = await decryptRecurringTransactions(recur);
+
+            // Also decrypt category data in summary
+            if (summary?.categories) {
+                summary.categories = await decryptCategories(summary.categories);
+            }
+        }
+
+        state.categories = cats;
+        state.transactions = txns;
+        state.recurringTransactions = recur;
         state.summary = summary && typeof summary === 'object' ? summary : null;
     } catch (error) {
         console.error('Failed to load data:', error);
@@ -722,6 +1151,10 @@ async function loadSummary() {
         const period = elements.periodSelector?.value || 'this-month';
         const summary = await api(`api.php?resource=summary&period=${period}`);
         state.summary = summary && typeof summary === 'object' ? summary : null;
+        // Decrypt category data in summary
+        if (state.summary?.categories) {
+            state.summary.categories = await decryptCategories(state.summary.categories);
+        }
         updateBalances();
         renderChart();
     } catch (error) {
@@ -736,11 +1169,17 @@ async function loadSummary() {
 
 async function createCategory(name, type, icon, monthlyBudget) {
     try {
-        const category = await api('api.php?resource=categories', {
+        // Encrypt data before sending
+        let body = { name, type, icon, monthly_budget: monthlyBudget };
+        body = await encryptCategory(body);
+
+        let category = await api('api.php?resource=categories', {
             method: 'POST',
-            body: { name, type, icon, monthly_budget: monthlyBudget }
+            body
         });
 
+        // Decrypt the response
+        category = await decryptCategory(category);
         state.categories.push(category);
         renderCategories();
         showToast('Category created');
@@ -753,14 +1192,18 @@ async function createCategory(name, type, icon, monthlyBudget) {
 
 async function updateCategory(id, name, icon, monthlyBudget, type = null) {
     try {
-        const body = { name, icon, monthly_budget: monthlyBudget };
+        // Encrypt data before sending
+        let body = { name, icon, monthly_budget: monthlyBudget };
         if (type) body.type = type;
+        body = await encryptCategory(body);
 
-        const category = await api(`api.php?resource=categories&id=${id}`, {
+        let category = await api(`api.php?resource=categories&id=${id}`, {
             method: 'PUT',
             body
         });
 
+        // Decrypt the response
+        category = await decryptCategory(category);
         const index = state.categories.findIndex(c => c.id === id);
         if (index !== -1) {
             state.categories[index] = category;
@@ -955,17 +1398,31 @@ function openEditCategoryModal(categoryId) {
 
 async function createTransaction(description, amount, categoryId, type, date) {
     try {
-        const transaction = await api('api.php?resource=transactions', {
+        // Encrypt data before sending
+        let body = { description, amount, category_id: categoryId, type, date };
+        body = await encryptTransaction(body);
+
+        let transaction = await api('api.php?resource=transactions', {
             method: 'POST',
-            body: { description, amount, category_id: categoryId, type, date }
+            body
         });
 
+        // Decrypt the response
+        transaction = await decryptTransaction(transaction);
         state.transactions.unshift(transaction);
 
-        // Refresh summary and categories
+        // Refresh summary and categories (with decryption)
         const period = elements.periodSelector?.value || 'this-month';
-        state.summary = await api(`api.php?resource=summary&period=${period}`);
-        state.categories = await api('api.php?resource=categories');
+        const [summary, categories] = await Promise.all([
+            api(`api.php?resource=summary&period=${period}`),
+            api('api.php?resource=categories')
+        ]);
+
+        state.summary = summary;
+        state.categories = await decryptCategories(categories);
+        if (state.summary?.categories) {
+            state.summary.categories = await decryptCategories(state.summary.categories);
+        }
 
         renderAll();
         showToast('Transaction added');
@@ -979,10 +1436,18 @@ async function deleteTransaction(id) {
         await api(`api.php?resource=transactions&id=${id}`, { method: 'DELETE' });
         state.transactions = state.transactions.filter(t => t.id !== id);
 
-        // Refresh summary and categories
+        // Refresh summary and categories (with decryption)
         const period = elements.periodSelector?.value || 'this-month';
-        state.summary = await api(`api.php?resource=summary&period=${period}`);
-        state.categories = await api('api.php?resource=categories');
+        const [summary, categories] = await Promise.all([
+            api(`api.php?resource=summary&period=${period}`),
+            api('api.php?resource=categories')
+        ]);
+
+        state.summary = summary;
+        state.categories = await decryptCategories(categories);
+        if (state.summary?.categories) {
+            state.summary.categories = await decryptCategories(state.summary.categories);
+        }
 
         renderAll();
         showToast('Transaction deleted');
@@ -993,10 +1458,17 @@ async function deleteTransaction(id) {
 
 async function updateTransaction(id, description, amount, categoryId, type, date) {
     try {
-        const transaction = await api(`api.php?resource=transactions&id=${id}`, {
+        // Encrypt data before sending
+        let body = { description, amount, category_id: categoryId, type, date };
+        body = await encryptTransaction(body);
+
+        let transaction = await api(`api.php?resource=transactions&id=${id}`, {
             method: 'PUT',
-            body: { description, amount, category_id: categoryId, type, date }
+            body
         });
+
+        // Decrypt the response
+        transaction = await decryptTransaction(transaction);
 
         // Update in state
         const index = state.transactions.findIndex(t => t.id === id);
@@ -1004,10 +1476,18 @@ async function updateTransaction(id, description, amount, categoryId, type, date
             state.transactions[index] = transaction;
         }
 
-        // Refresh summary and categories
+        // Refresh summary and categories (with decryption)
         const period = elements.periodSelector?.value || 'this-month';
-        state.summary = await api(`api.php?resource=summary&period=${period}`);
-        state.categories = await api('api.php?resource=categories');
+        const [summary, categories] = await Promise.all([
+            api(`api.php?resource=summary&period=${period}`),
+            api('api.php?resource=categories')
+        ]);
+
+        state.summary = summary;
+        state.categories = await decryptCategories(categories);
+        if (state.summary?.categories) {
+            state.summary.categories = await decryptCategories(state.summary.categories);
+        }
 
         renderAll();
         showToast('Transaction updated');
@@ -1042,6 +1522,12 @@ function openEditTransactionModal(transactionId) {
     if (transaction.category_id) {
         elements.transactionCategory.value = transaction.category_id;
     }
+
+    // Hide recurring options when editing (not applicable for existing transactions)
+    const recurringToggle = document.getElementById('recurring-toggle');
+    if (recurringToggle) recurringToggle.style.display = 'none';
+    if (elements.transactionRecurring) elements.transactionRecurring.checked = false;
+    if (elements.recurringOptions) elements.recurringOptions.style.display = 'none';
 
     // Update modal title and button text
     const modalTitle = elements.transactionModal.querySelector('.modal-header h3');
@@ -1113,7 +1599,8 @@ function renderTransactions() {
 async function loadRecurringTransactions() {
     try {
         const recurring = await api('api.php?resource=recurring');
-        state.recurringTransactions = Array.isArray(recurring) ? recurring : [];
+        const arr = Array.isArray(recurring) ? recurring : [];
+        state.recurringTransactions = await decryptRecurringTransactions(arr);
         return state.recurringTransactions;
     } catch (error) {
         console.error('Failed to load recurring transactions:', error);
@@ -1122,40 +1609,48 @@ async function loadRecurringTransactions() {
     }
 }
 
-async function createRecurringTransaction(description, amount, categoryId, type, frequency, startDate, endDate = null) {
+async function createRecurringTransaction(description, amount, categoryId, type, frequency, startDate, endDate = null, skipFirst = false) {
     try {
-        const body = {
+        let body = {
             description,
             amount,
             category_id: categoryId,
             type,
             frequency,
-            start_date: startDate
+            start_date: startDate,
+            skip_first: skipFirst
         };
         if (endDate) {
             body.end_date = endDate;
         }
 
-        const recurring = await api('api.php?resource=recurring', {
+        // Encrypt data before sending
+        body = await encryptRecurring(body);
+
+        let recurring = await api('api.php?resource=recurring', {
             method: 'POST',
             body
         });
 
-        state.recurringTransactions.push(recurring);
-
-        // Refresh transactions since new ones may have been generated
+        // Refresh all data including the new recurring transaction
         const period = elements.periodSelector?.value || 'this-month';
-        const [transactions, summary, categories] = await Promise.all([
+        const [transactions, summary, categories, recurringList] = await Promise.all([
             api('api.php?resource=transactions&limit=50'),
             api(`api.php?resource=summary&period=${period}`),
-            api('api.php?resource=categories')
+            api('api.php?resource=categories'),
+            api('api.php?resource=recurring')
         ]);
 
-        state.transactions = Array.isArray(transactions) ? transactions : [];
-        state.categories = Array.isArray(categories) ? categories : [];
+        state.transactions = await decryptTransactions(Array.isArray(transactions) ? transactions : []);
+        state.categories = await decryptCategories(Array.isArray(categories) ? categories : []);
+        state.recurringTransactions = await decryptRecurringTransactions(Array.isArray(recurringList) ? recurringList : []);
         state.summary = summary;
+        if (state.summary?.categories) {
+            state.summary.categories = await decryptCategories(state.summary.categories);
+        }
 
         renderAll();
+        renderRecurringList();
         showToast('Recurring transaction created');
         return recurring;
     } catch (error) {
@@ -1166,7 +1661,7 @@ async function createRecurringTransaction(description, amount, categoryId, type,
 
 async function updateRecurringTransaction(id, description, amount, categoryId, type, frequency, startDate, endDate = null) {
     try {
-        const body = {
+        let body = {
             description,
             amount,
             category_id: categoryId,
@@ -1178,11 +1673,16 @@ async function updateRecurringTransaction(id, description, amount, categoryId, t
             body.end_date = endDate;
         }
 
-        const recurring = await api(`api.php?resource=recurring&id=${id}`, {
+        // Encrypt data before sending
+        body = await encryptRecurring(body);
+
+        let recurring = await api(`api.php?resource=recurring&id=${id}`, {
             method: 'PUT',
             body
         });
 
+        // Decrypt the response
+        recurring = await decryptRecurring(recurring);
         const index = state.recurringTransactions.findIndex(r => r.id === id);
         if (index !== -1) {
             state.recurringTransactions[index] = recurring;
@@ -1259,6 +1759,10 @@ function openEditRecurringModal(recurringId) {
     if (recurring.category_id) {
         elements.recurringCategory.value = recurring.category_id;
     }
+
+    // Hide skip-first checkbox when editing (only applies to creation)
+    const skipFirstGroup = document.getElementById('skip-first-group');
+    if (skipFirstGroup) skipFirstGroup.style.display = 'none';
 
     // Update modal title and button
     const modalTitle = elements.recurringFormModal.querySelector('.modal-header h3');
@@ -1359,8 +1863,9 @@ function openRecurringModal(showUpcoming = true) {
 
 async function loadUpcomingRecurring(days = 7) {
     try {
-        const upcoming = await api(`api.php?resource=recurring&upcoming=1&days=${days}`);
-        renderUpcomingList(Array.isArray(upcoming) ? upcoming : []);
+        let upcoming = await api(`api.php?resource=recurring&upcoming=1&days=${days}`);
+        upcoming = await decryptRecurringTransactions(Array.isArray(upcoming) ? upcoming : []);
+        renderUpcomingList(upcoming);
     } catch (error) {
         console.error('Failed to load upcoming recurring:', error);
         renderUpcomingList([]);
@@ -1423,7 +1928,8 @@ function renderUpcomingList(upcomingTransactions) {
 async function loadAllTransactions() {
     try {
         // Load more transactions for the modal (up to 500)
-        const transactions = await api('api.php?resource=transactions&limit=500');
+        let transactions = await api('api.php?resource=transactions&limit=500');
+        transactions = await decryptTransactions(Array.isArray(transactions) ? transactions : []);
         state.allTransactions = transactions;
         return transactions;
     } catch (error) {
@@ -1760,6 +2266,7 @@ function showAppScreen() {
     elements.userName.textContent = state.user ? state.user.name.split(' ')[0] : 'User';
     updateDate();
     renderAll();
+    updateEncryptionButton();
     showScreen('app');
 }
 
@@ -1879,7 +2386,9 @@ function setupModals() {
         // Populate category dropdown with expense categories by default
         populateCategoryDropdown(elements.transactionCategory, 'expense');
 
-        // Reset recurring toggle and hide options
+        // Show recurring toggle and reset options
+        const recurringToggle = document.getElementById('recurring-toggle');
+        if (recurringToggle) recurringToggle.style.display = 'block';
         if (elements.transactionRecurring) {
             elements.transactionRecurring.checked = false;
         }
@@ -2075,12 +2584,34 @@ function setupModals() {
         });
 
         // Set default start date to today
-        document.getElementById('recurring-start-date').value = new Date().toISOString().split('T')[0];
+        const today = new Date().toISOString().split('T')[0];
+        document.getElementById('recurring-start-date').value = today;
+
+        // Show skip first checkbox and default to checked (since start date is today)
+        const skipFirstGroup = document.getElementById('skip-first-group');
+        const skipFirstCheckbox = document.getElementById('recurring-skip-first');
+        if (skipFirstGroup) skipFirstGroup.style.display = 'block';
+        if (skipFirstCheckbox) skipFirstCheckbox.checked = true;
 
         // Populate category dropdown with expense categories
         populateCategoryDropdown(elements.recurringCategory, 'expense');
 
         openModal(elements.recurringFormModal, elements.recurringModal);
+    });
+
+    // Update skip-first checkbox when start date changes
+    document.getElementById('recurring-start-date')?.addEventListener('change', (e) => {
+        const startDate = e.target.value;
+        const today = new Date().toISOString().split('T')[0];
+        const skipFirstGroup = document.getElementById('skip-first-group');
+        const skipFirstCheckbox = document.getElementById('recurring-skip-first');
+
+        if (skipFirstGroup && skipFirstCheckbox) {
+            // Show checkbox and default to checked if start date is today or past
+            const isPastOrToday = startDate <= today;
+            skipFirstGroup.style.display = isPastOrToday ? 'block' : 'none';
+            skipFirstCheckbox.checked = isPastOrToday;
+        }
     });
 
     // Recurring type toggle
@@ -2105,6 +2636,7 @@ function setupModals() {
         const startDate = document.getElementById('recurring-start-date').value;
         const endDate = document.getElementById('recurring-end-date').value || null;
         const type = document.querySelector('.recurring-type-toggle .type-btn.active')?.dataset.type || 'expense';
+        const skipFirst = document.getElementById('recurring-skip-first')?.checked || false;
 
         if (!categoryId) {
             showToast('Please select a category');
@@ -2114,7 +2646,7 @@ function setupModals() {
         if (editingRecurringId) {
             await updateRecurringTransaction(editingRecurringId, description, amount, categoryId, type, frequency, startDate, endDate);
         } else {
-            await createRecurringTransaction(description, amount, categoryId, type, frequency, startDate, endDate);
+            await createRecurringTransaction(description, amount, categoryId, type, frequency, startDate, endDate, skipFirst);
         }
 
         editingRecurringId = null;
@@ -2309,21 +2841,377 @@ async function registerServiceWorker() {
 }
 
 // ========================================
+// Encryption Event Handlers
+// ========================================
+
+function setupEncryptionHandlers() {
+    // Data Encryption button in settings modal - opens encryption settings
+    elements.dataEncryptionBtn?.addEventListener('click', () => {
+        closeModal(elements.settingsModal);
+        updateEncryptionSettingsModal();
+        openModal(elements.encryptionSettingsModal);
+    });
+
+    // Enable encryption button
+    elements.enableEncryptionBtn?.addEventListener('click', () => {
+        closeModal(elements.encryptionSettingsModal);
+        openModal(elements.encryptionSetupModal);
+    });
+
+    // Change encryption password button
+    elements.changeEncryptionPasswordBtn?.addEventListener('click', () => {
+        closeModal(elements.encryptionSettingsModal);
+        openModal(elements.changeEncryptionPasswordModal);
+    });
+
+    // Change encryption password form
+    elements.changeEncryptionPasswordForm?.addEventListener('submit', async (e) => {
+        e.preventDefault();
+
+        const currentPassword = document.getElementById('current-encryption-password').value;
+        const newPassword = document.getElementById('new-enc-password').value;
+        const confirmPassword = document.getElementById('confirm-enc-password').value;
+
+        if (newPassword !== confirmPassword) {
+            showToast('Passwords do not match');
+            return;
+        }
+
+        if (newPassword.length < 10) {
+            showToast('Password must be at least 10 characters');
+            return;
+        }
+
+        const submitBtn = e.target.querySelector('button[type="submit"]');
+        submitBtn.disabled = true;
+
+        try {
+            // First verify the current password by trying to unlock
+            const settings = state.encryptionSettings;
+            if (!settings) {
+                showToast('Encryption settings not loaded');
+                submitBtn.disabled = false;
+                return;
+            }
+
+            // Try to derive KEK from current password and unwrap MEK
+            try {
+                await CryptoModule.unlock(currentPassword, settings.encryption_salt, settings.encrypted_mek);
+            } catch (err) {
+                showToast('Current encryption password is incorrect');
+                submitBtn.disabled = false;
+                return;
+            }
+
+            // Now change the password (re-wrap MEK with new password)
+            const newKeyData = await CryptoModule.changePassword(newPassword);
+
+            // Update on server
+            await api('auth.php?action=update-encryption-key', {
+                method: 'POST',
+                body: {
+                    encryption_salt: newKeyData.salt,
+                    encrypted_mek: newKeyData.wrappedMEK
+                }
+            });
+
+            // Update local settings
+            state.encryptionSettings.encryption_salt = newKeyData.salt;
+            state.encryptionSettings.encrypted_mek = newKeyData.wrappedMEK;
+
+            closeModal(elements.changeEncryptionPasswordModal);
+            showToast('Encryption password changed successfully');
+            e.target.reset();
+        } catch (error) {
+            console.error('Failed to change encryption password:', error);
+            showToast('Failed to change encryption password');
+        } finally {
+            submitBtn.disabled = false;
+        }
+    });
+
+    // Disable encryption button
+    elements.disableEncryptionBtn?.addEventListener('click', async () => {
+        if (!confirm('Are you sure you want to disable encryption? Your data will remain encrypted until you manually update each item.')) {
+            return;
+        }
+        closeModal(elements.encryptionSettingsModal);
+        await disableEncryption();
+    });
+
+    // Encryption setup form
+    elements.encryptionSetupForm?.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const password = document.getElementById('encryption-setup-password').value;
+        const confirm = document.getElementById('encryption-setup-confirm').value;
+
+        if (password !== confirm) {
+            showToast('Passwords do not match');
+            return;
+        }
+
+        if (password.length < 10) {
+            showToast('Password must be at least 10 characters');
+            return;
+        }
+
+        const submitBtn = e.target.querySelector('button[type="submit"]');
+        submitBtn.disabled = true;
+
+        try {
+            const result = await enableEncryption(password);
+            if (result.success) {
+                closeModal(elements.encryptionSetupModal);
+                // Show recovery phrase
+                displayRecoveryPhrase(result.recoveryPhrase);
+                openModal(elements.recoveryPhraseModal);
+            } else {
+                showToast(result.error || 'Failed to enable encryption');
+            }
+        } finally {
+            submitBtn.disabled = false;
+        }
+    });
+
+    // Encryption unlock form
+    elements.encryptionUnlockForm?.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const password = document.getElementById('encryption-unlock-password').value;
+        const submitBtn = e.target.querySelector('button[type="submit"]');
+
+        submitBtn.disabled = true;
+
+        try {
+            const success = await handleEncryptionUnlock(password);
+            if (!success) {
+                showToast('Invalid encryption password');
+            }
+        } finally {
+            submitBtn.disabled = false;
+        }
+    });
+
+    // Recovery form
+    elements.encryptionRecoveryForm?.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const phrase = document.getElementById('encryption-recovery-phrase').value;
+        const submitBtn = e.target.querySelector('button[type="submit"]');
+
+        submitBtn.disabled = true;
+
+        try {
+            const success = await handleRecoveryUnlock(phrase.trim().toLowerCase());
+            if (!success) {
+                showToast('Invalid recovery phrase');
+            }
+        } finally {
+            submitBtn.disabled = false;
+        }
+    });
+
+    // Toggle between password and recovery forms
+    document.getElementById('use-recovery-btn')?.addEventListener('click', () => {
+        elements.encryptionUnlockForm.style.display = 'none';
+        elements.encryptionRecoveryForm.style.display = 'block';
+    });
+
+    document.getElementById('use-password-btn')?.addEventListener('click', () => {
+        elements.encryptionRecoveryForm.style.display = 'none';
+        elements.encryptionUnlockForm.style.display = 'block';
+    });
+
+    // Copy recovery phrase
+    document.getElementById('copy-recovery-phrase')?.addEventListener('click', () => {
+        const words = Array.from(document.querySelectorAll('.recovery-word-text'))
+            .map(el => el.textContent)
+            .join(' ');
+        navigator.clipboard.writeText(words).then(() => {
+            showToast('Recovery phrase copied to clipboard');
+        }).catch(() => {
+            showToast('Failed to copy');
+        });
+    });
+
+    // Confirm recovery saved
+    document.getElementById('confirm-recovery-saved')?.addEventListener('click', () => {
+        closeModal(elements.recoveryPhraseModal);
+        showToast('Encryption enabled successfully');
+        updateEncryptionButton();
+    });
+
+    // Regenerate recovery phrase button
+    elements.regenerateRecoveryBtn?.addEventListener('click', async () => {
+        if (!CryptoModule?.isReady()) {
+            showToast('Encryption must be unlocked first');
+            return;
+        }
+
+        if (!confirm('This will generate a new recovery phrase. Your old recovery phrase will no longer work. Continue?')) {
+            return;
+        }
+
+        closeModal(elements.encryptionSettingsModal);
+
+        try {
+            // Generate new recovery key
+            const recoveryData = await CryptoModule.regenerateRecoveryKey();
+
+            // Update on server
+            await api('auth.php?action=update-recovery-key', {
+                method: 'POST',
+                body: {
+                    recovery_salt: recoveryData.recoverySalt,
+                    recovery_encrypted_mek: recoveryData.recoveryWrappedMEK
+                }
+            });
+
+            // Update local settings
+            state.encryptionSettings.recovery_salt = recoveryData.recoverySalt;
+            state.encryptionSettings.recovery_encrypted_mek = recoveryData.recoveryWrappedMEK;
+
+            // Show the new recovery phrase
+            displayRecoveryPhrase(recoveryData.recoveryPhrase);
+            openModal(elements.recoveryPhraseModal);
+        } catch (error) {
+            console.error('Failed to regenerate recovery phrase:', error);
+            showToast('Failed to regenerate recovery phrase');
+        }
+    });
+
+    // New encryption password form (after recovery)
+    document.getElementById('encryption-new-password-form')?.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const password = document.getElementById('new-encryption-password').value;
+        const confirm = document.getElementById('new-encryption-password-confirm').value;
+
+        if (password !== confirm) {
+            showToast('Passwords do not match');
+            return;
+        }
+
+        if (password.length < 10) {
+            showToast('Password must be at least 10 characters');
+            return;
+        }
+
+        const submitBtn = e.target.querySelector('button[type="submit"]');
+        submitBtn.disabled = true;
+
+        try {
+            // Re-wrap MEK with new password
+            const newKeyData = await CryptoModule.changePassword(password);
+
+            // Update on server
+            await api('auth.php?action=update-encryption-key', {
+                method: 'POST',
+                body: {
+                    encryption_salt: newKeyData.salt,
+                    encrypted_mek: newKeyData.wrappedMEK
+                }
+            });
+
+            // Update local settings
+            state.encryptionSettings.encryption_salt = newKeyData.salt;
+            state.encryptionSettings.encrypted_mek = newKeyData.wrappedMEK;
+
+            closeModal(document.getElementById('encryption-new-password-modal'));
+            showToast('New encryption password set successfully');
+
+            // Clear form
+            e.target.reset();
+        } catch (error) {
+            console.error('Failed to set new password:', error);
+            showToast('Failed to set new password');
+        } finally {
+            submitBtn.disabled = false;
+        }
+    });
+}
+
+function displayRecoveryPhrase(phrase) {
+    const container = elements.recoveryPhraseDisplay;
+    if (!container) return;
+
+    const words = phrase.split(' ');
+    container.innerHTML = words.map((word, i) => `
+        <div class="recovery-word">
+            <span class="recovery-word-number">${i + 1}.</span>
+            <span class="recovery-word-text">${word}</span>
+        </div>
+    `).join('');
+}
+
+function updateEncryptionButton() {
+    // Update the encryption settings modal state
+    updateEncryptionSettingsModal();
+}
+
+function updateEncryptionSettingsModal() {
+    const isEnabled = state.user?.encryption_enabled;
+    const isUnlocked = CryptoModule?.isReady();
+
+    // Update status indicator
+    if (elements.encryptionStatusIcon) {
+        elements.encryptionStatusIcon.classList.toggle('enabled', isEnabled);
+    }
+    if (elements.encryptionStatus) {
+        elements.encryptionStatus.classList.toggle('enabled', isEnabled);
+    }
+    if (elements.encryptionStatusLabel) {
+        elements.encryptionStatusLabel.textContent = isEnabled ? 'Encryption Enabled' : 'Encryption Disabled';
+    }
+    if (elements.encryptionStatusDesc) {
+        if (isEnabled && isUnlocked) {
+            elements.encryptionStatusDesc.textContent = 'Your data is encrypted and unlocked';
+        } else if (isEnabled) {
+            elements.encryptionStatusDesc.textContent = 'Your data is encrypted (locked)';
+        } else {
+            elements.encryptionStatusDesc.textContent = 'Your data is stored in plain text';
+        }
+    }
+
+    // Show/hide appropriate options
+    if (elements.encryptionOptionsDisabled) {
+        elements.encryptionOptionsDisabled.style.display = isEnabled ? 'none' : 'block';
+    }
+    if (elements.encryptionOptionsEnabled) {
+        elements.encryptionOptionsEnabled.style.display = isEnabled ? 'block' : 'none';
+    }
+}
+
+// ========================================
 // Initialize App
 // ========================================
 
 async function init() {
     console.log('App initializing...');
     showScreen('loading');
-    
+
+    // Initialize crypto module
+    if (window.CryptoModule) {
+        CryptoModule.init();
+        console.log('CryptoModule initialized');
+    } else {
+        console.warn('CryptoModule not available');
+    }
+
     try {
         // Check if already authenticated
         const isAuthenticated = await checkAuthStatus();
         console.log('Auth status:', isAuthenticated);
-        
+
         if (isAuthenticated) {
-            await loadAppData();
-            showAppScreen();
+            // Check encryption status
+            if (state.user?.encryption_enabled) {
+                await loadEncryptionSettings();
+                // Show unlock modal - user needs to enter encryption password
+                state.encryptionPending = true;
+                showScreen('app');
+                openModal(elements.encryptionUnlockModal);
+            } else {
+                await loadAppData();
+                showAppScreen();
+            }
         } else {
             showScreen('auth');
             showAuthForm('login');
@@ -2335,7 +3223,7 @@ async function init() {
         showAuthForm('login');
         showToast('Connection error. Please try again.');
     }
-    
+
     // Setup event listeners
     setupAuthForms();
     elements.logoutBtn.addEventListener('click', handleLogout);
@@ -2343,6 +3231,7 @@ async function init() {
     setupEmojiPicker();
     setupPasswordToggles();
     setupPasswordStrength();
+    setupEncryptionHandlers();
 
     // Period selector change handler (balance card)
     elements.periodSelector?.addEventListener('change', () => {

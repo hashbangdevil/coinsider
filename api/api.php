@@ -477,6 +477,7 @@ function handleRecurring($method, $id) {
             }
 
             $endDate = isset($data['end_date']) && !empty($data['end_date']) ? $data['end_date'] : null;
+            $skipFirst = isset($data['skip_first']) && $data['skip_first'] === true;
 
             // Validate end_date >= start_date
             if ($endDate !== null && $endDate < $data['start_date']) {
@@ -491,7 +492,8 @@ function handleRecurring($method, $id) {
                 $data['type'],
                 $data['frequency'],
                 $data['start_date'],
-                $endDate
+                $endDate,
+                $skipFirst
             );
 
             if (!$recurring) {

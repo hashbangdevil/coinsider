@@ -73,6 +73,22 @@ class Database {
             // Column already exists, ignore
         }
 
+        // Add encryption columns (migration for existing DBs)
+        $encryptionColumns = [
+            "ALTER TABLE users ADD COLUMN encryption_enabled INTEGER DEFAULT 0",
+            "ALTER TABLE users ADD COLUMN encryption_salt TEXT",
+            "ALTER TABLE users ADD COLUMN encrypted_mek TEXT",
+            "ALTER TABLE users ADD COLUMN recovery_salt TEXT",
+            "ALTER TABLE users ADD COLUMN recovery_encrypted_mek TEXT"
+        ];
+        foreach ($encryptionColumns as $sql) {
+            try {
+                $this->pdo->exec($sql);
+            } catch (PDOException $e) {
+                // Column already exists, ignore
+            }
+        }
+
         // Budgets table
         $this->pdo->exec("
             CREATE TABLE IF NOT EXISTS budgets (
@@ -262,6 +278,64 @@ function updateUserCurrency($userId, $currency) {
     ");
     $stmt->execute([$currency, $userId]);
     return findUserById($userId);
+}
+
+// ========================================
+// Encryption Functions
+// ========================================
+
+function getEncryptionSettings($userId) {
+    $pdo = Database::getInstance()->getPdo();
+    $stmt = $pdo->prepare("
+        SELECT encryption_enabled, encryption_salt, encrypted_mek, recovery_salt, recovery_encrypted_mek
+        FROM users WHERE id = ?
+    ");
+    $stmt->execute([$userId]);
+    return $stmt->fetch();
+}
+
+function enableEncryption($userId, $encryptionSalt, $encryptedMek, $recoverySalt, $recoveryEncryptedMek) {
+    $pdo = Database::getInstance()->getPdo();
+    $stmt = $pdo->prepare("
+        UPDATE users SET
+            encryption_enabled = 1,
+            encryption_salt = ?,
+            encrypted_mek = ?,
+            recovery_salt = ?,
+            recovery_encrypted_mek = ?,
+            updated_at = CURRENT_TIMESTAMP
+        WHERE id = ?
+    ");
+    $stmt->execute([$encryptionSalt, $encryptedMek, $recoverySalt, $recoveryEncryptedMek, $userId]);
+    return getEncryptionSettings($userId);
+}
+
+function updateEncryptionKey($userId, $encryptionSalt, $encryptedMek) {
+    $pdo = Database::getInstance()->getPdo();
+    $stmt = $pdo->prepare("
+        UPDATE users SET
+            encryption_salt = ?,
+            encrypted_mek = ?,
+            updated_at = CURRENT_TIMESTAMP
+        WHERE id = ?
+    ");
+    $stmt->execute([$encryptionSalt, $encryptedMek, $userId]);
+    return getEncryptionSettings($userId);
+}
+
+function disableEncryption($userId) {
+    $pdo = Database::getInstance()->getPdo();
+    $stmt = $pdo->prepare("
+        UPDATE users SET
+            encryption_enabled = 0,
+            encryption_salt = NULL,
+            encrypted_mek = NULL,
+            recovery_salt = NULL,
+            recovery_encrypted_mek = NULL,
+            updated_at = CURRENT_TIMESTAMP
+        WHERE id = ?
+    ");
+    $stmt->execute([$userId]);
 }
 
 // ========================================
@@ -898,7 +972,7 @@ function getRecurringTransaction($userId, $id) {
     return $stmt->fetch();
 }
 
-function createRecurringTransaction($userId, $description, $amount, $categoryId, $type, $frequency, $startDate, $endDate = null) {
+function createRecurringTransaction($userId, $description, $amount, $categoryId, $type, $frequency, $startDate, $endDate = null, $skipFirst = false) {
     $pdo = Database::getInstance()->getPdo();
 
     // Validate category belongs to user and matches type
@@ -912,9 +986,16 @@ function createRecurringTransaction($userId, $description, $amount, $categoryId,
         return null;
     }
 
-    // Set initial next_occurrence to start_date
-    // The generation function will handle catch-up for past dates and update to next future date
-    $nextOccurrence = $startDate;
+    $today = date('Y-m-d');
+
+    // Set initial next_occurrence
+    if ($skipFirst && $startDate <= $today) {
+        // Skip first occurrence - set next_occurrence to the next future date
+        $nextOccurrence = calculateNextOccurrence($startDate, $frequency, $today);
+    } else {
+        // Normal behavior - start from start_date
+        $nextOccurrence = $startDate;
+    }
 
     // If end_date is already passed, set next_occurrence to end_date
     if ($endDate !== null && $nextOccurrence > $endDate) {
@@ -929,8 +1010,10 @@ function createRecurringTransaction($userId, $description, $amount, $categoryId,
 
     $newId = $pdo->lastInsertId();
 
-    // Immediately generate any pending transactions (including catch-up for past dates)
-    generatePendingRecurringTransactions($userId);
+    // Generate any pending transactions (only if not skipping and start date is today or past)
+    if (!$skipFirst || $startDate > $today) {
+        generatePendingRecurringTransactions($userId);
+    }
 
     return getRecurringTransaction($userId, $newId);
 }

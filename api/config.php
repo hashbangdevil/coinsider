@@ -44,7 +44,7 @@ define('DB_PATH', __DIR__ . '/../data/budget.db');
 define('APP_NAME', 'Budget Manager');
 
 // Base URL of your app (no trailing slash)
-define('APP_URL', 'http://localhost:8000');
+define('APP_URL', 'http://localhost:8888');
 
 // Session lifetime in seconds (default: 30 days)
 define('SESSION_LIFETIME', 60 * 60 * 24 * 30);
