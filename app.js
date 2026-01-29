@@ -3248,14 +3248,18 @@ async function init() {
                         console.log('Unlocked with remembered key');
                         await loadAppData();
                         showAppScreen();
-                        return;
+                    } else {
+                        // Show unlock modal - user needs to enter encryption password
+                        state.encryptionPending = true;
+                        showScreen('app');
+                        openModal(elements.encryptionUnlockModal);
                     }
+                } else {
+                    // Show unlock modal - user needs to enter encryption password
+                    state.encryptionPending = true;
+                    showScreen('app');
+                    openModal(elements.encryptionUnlockModal);
                 }
-
-                // Show unlock modal - user needs to enter encryption password
-                state.encryptionPending = true;
-                showScreen('app');
-                openModal(elements.encryptionUnlockModal);
             } else {
                 await loadAppData();
                 showAppScreen();
