@@ -915,8 +915,20 @@ async function handleLogin(e) {
                 console.log('Encryption enabled, loading settings...');
                 await loadEncryptionSettings();
 
-                // Try to unlock with the same password used for login
-                const unlocked = await unlockEncryption(password);
+                // Try to unlock with remembered key first
+                let unlocked = false;
+                if (CryptoModule?.hasRememberedKey()) {
+                    unlocked = await CryptoModule.unlockWithRememberedKey();
+                    if (unlocked) {
+                        console.log('Unlocked with remembered key');
+                    }
+                }
+
+                // If not unlocked, try with the login password
+                if (!unlocked) {
+                    unlocked = await unlockEncryption(password);
+                }
+
                 if (!unlocked) {
                     // Show encryption unlock modal
                     state.encryptionPending = true;
