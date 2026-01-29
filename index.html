@@ -183,7 +183,19 @@
                     </div>
                 </div>
 
+                <!-- Recovery phrase section (shown when encryption enabled) -->
+                <div id="reset-recovery-section" class="input-group" style="display: none;">
+                    <div class="recovery-notice" style="padding: 12px; background: var(--color-warning-bg, rgba(245, 158, 11, 0.1)); border-radius: 8px; margin-bottom: 12px;">
+                        <p style="margin: 0; font-size: 0.875rem; color: var(--color-warning, #f59e0b);">
+                            <strong>Your account has encryption enabled.</strong> Enter your 12-word recovery phrase to restore access to your encrypted data.
+                        </p>
+                    </div>
+                    <label for="reset-recovery-phrase">Recovery Phrase (12 words)</label>
+                    <textarea id="reset-recovery-phrase" rows="3" placeholder="Enter your 12-word recovery phrase"></textarea>
+                </div>
+
                 <input type="hidden" id="reset-token">
+                <input type="hidden" id="reset-encryption-enabled" value="false">
 
                 <button type="submit" class="btn btn-primary btn-full">
                     <span>Reset Password</span>
@@ -974,13 +986,8 @@
 
                 <!-- Options when enabled -->
                 <div id="encryption-options-enabled" style="display: none;">
-                    <button type="button" class="btn btn-secondary btn-full" id="change-encryption-password-btn">
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width: 20px; height: 20px; margin-right: 8px;">
-                            <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
-                        </svg>
-                        Change Encryption Password
-                    </button>
-                    <button type="button" class="btn btn-secondary btn-full" id="regenerate-recovery-btn" style="margin-top: var(--space-sm);">
+                    <p class="encryption-info" style="margin-bottom: var(--space-md);">Your encryption password is the same as your login password. To change it, use "Change Password" in settings.</p>
+                    <button type="button" class="btn btn-secondary btn-full" id="regenerate-recovery-btn">
                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width: 20px; height: 20px; margin-right: 8px;">
                             <polyline points="23 4 23 10 17 10"/>
                             <polyline points="1 20 1 14 7 14"/>
@@ -1008,85 +1015,16 @@
         </div>
     </div>
 
-    <!-- Change Encryption Password Modal -->
-    <div class="modal" id="change-encryption-password-modal" data-persist="true">
-        <div class="modal-backdrop"></div>
-        <div class="modal-content">
-            <div class="modal-header">
-                <h3>Change Encryption Password</h3>
-                <button class="btn-icon modal-close">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                        <line x1="18" y1="6" x2="6" y2="18"/>
-                        <line x1="6" y1="6" x2="18" y2="18"/>
-                    </svg>
-                </button>
-            </div>
-            <form id="change-encryption-password-form" class="modal-form">
-                <div class="input-group">
-                    <label for="current-encryption-password">Current Encryption Password</label>
-                    <div class="input-with-toggle">
-                        <input type="password" id="current-encryption-password" required autocomplete="current-password">
-                        <button type="button" class="password-toggle" aria-label="Toggle password visibility">
-                            <svg class="eye-open" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                                <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
-                                <circle cx="12" cy="12" r="3"/>
-                            </svg>
-                            <svg class="eye-closed" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                                <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/>
-                                <line x1="1" y1="1" x2="23" y2="23"/>
-                            </svg>
-                        </button>
-                    </div>
-                </div>
-                <div class="input-group">
-                    <label for="new-enc-password">New Encryption Password</label>
-                    <div class="input-with-toggle" data-strength="true">
-                        <input type="password" id="new-enc-password" required minlength="10" autocomplete="new-password">
-                        <button type="button" class="password-toggle" data-toggle-group="change-enc" aria-label="Toggle password visibility">
-                            <svg class="eye-open" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                                <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
-                                <circle cx="12" cy="12" r="3"/>
-                            </svg>
-                            <svg class="eye-closed" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                                <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/>
-                                <line x1="1" y1="1" x2="23" y2="23"/>
-                            </svg>
-                        </button>
-                    </div>
-                </div>
-                <div class="input-group">
-                    <label for="confirm-enc-password">Confirm New Password</label>
-                    <div class="input-with-toggle">
-                        <input type="password" id="confirm-enc-password" required minlength="10" autocomplete="new-password">
-                        <button type="button" class="password-toggle" data-toggle-group="change-enc" aria-label="Toggle password visibility">
-                            <svg class="eye-open" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                                <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
-                                <circle cx="12" cy="12" r="3"/>
-                            </svg>
-                            <svg class="eye-closed" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                                <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/>
-                                <line x1="1" y1="1" x2="23" y2="23"/>
-                            </svg>
-                        </button>
-                    </div>
-                </div>
-                <div class="modal-actions">
-                    <button type="button" class="btn btn-secondary modal-cancel">Cancel</button>
-                    <button type="submit" class="btn btn-primary">Change Password</button>
-                </div>
-            </form>
-        </div>
-    </div>
-
-    <!-- Encryption Unlock Modal -->
+    <!-- Encryption Unlock Modal (Recovery Only) -->
     <div class="modal" id="encryption-unlock-modal" data-persist="true">
         <div class="modal-backdrop"></div>
         <div class="modal-content">
             <div class="modal-header">
-                <h3>Unlock Your Data</h3>
+                <h3>Recover Your Data</h3>
             </div>
-            <p class="form-description">Your data is encrypted. Enter your encryption password to unlock.</p>
-            <form id="encryption-unlock-form" class="modal-form">
+            <p class="form-description">Your login password should automatically unlock your encrypted data. If you're seeing this, please use your recovery phrase to restore access.</p>
+            <form id="encryption-unlock-form" class="modal-form" style="display: none;">
+                <!-- Hidden password form kept for backwards compatibility -->
                 <div class="input-group">
                     <label for="encryption-unlock-password">Encryption Password</label>
                     <div class="input-with-toggle">
@@ -1120,14 +1058,13 @@
                     <button type="submit" class="btn btn-primary">Unlock</button>
                 </div>
             </form>
-            <form id="encryption-recovery-form" class="modal-form" style="display: none;">
+            <form id="encryption-recovery-form" class="modal-form">
                 <div class="input-group">
                     <label for="encryption-recovery-phrase">Recovery Phrase (12 words)</label>
                     <textarea id="encryption-recovery-phrase" rows="3" placeholder="Enter your 12-word recovery phrase" required></textarea>
                 </div>
                 <div class="modal-actions">
-                    <button type="button" class="btn btn-secondary" id="use-password-btn">Use Password</button>
-                    <button type="submit" class="btn btn-primary">Recover</button>
+                    <button type="submit" class="btn btn-primary btn-full">Recover</button>
                 </div>
             </form>
         </div>
@@ -1146,29 +1083,13 @@
                     </svg>
                 </button>
             </div>
-            <p class="form-description">Encrypt your financial data with a password. Only you will be able to access it.</p>
+            <p class="form-description">Your login password will be used to encrypt your financial data. Only you will be able to access it.</p>
             <form id="encryption-setup-form" class="modal-form">
                 <div class="input-group">
-                    <label for="encryption-setup-password">Encryption Password</label>
-                    <div class="input-with-toggle" data-strength="true">
-                        <input type="password" id="encryption-setup-password" required minlength="10" autocomplete="new-password">
-                        <button type="button" class="password-toggle" data-toggle-group="encryption-setup" aria-label="Toggle password visibility">
-                            <svg class="eye-open" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                                <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
-                                <circle cx="12" cy="12" r="3"/>
-                            </svg>
-                            <svg class="eye-closed" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                                <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/>
-                                <line x1="1" y1="1" x2="23" y2="23"/>
-                            </svg>
-                        </button>
-                    </div>
-                </div>
-                <div class="input-group">
-                    <label for="encryption-setup-confirm">Confirm Password</label>
+                    <label for="encryption-setup-password">Enter your login password to confirm</label>
                     <div class="input-with-toggle">
-                        <input type="password" id="encryption-setup-confirm" required minlength="10" autocomplete="new-password">
-                        <button type="button" class="password-toggle" data-toggle-group="encryption-setup" aria-label="Toggle password visibility">
+                        <input type="password" id="encryption-setup-password" required autocomplete="current-password">
+                        <button type="button" class="password-toggle" aria-label="Toggle password visibility">
                             <svg class="eye-open" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                                 <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
                                 <circle cx="12" cy="12" r="3"/>
@@ -1188,17 +1109,33 @@
         </div>
     </div>
 
-    <!-- Set New Encryption Password Modal (after recovery) -->
+    <!-- Set New Password Modal (after recovery) -->
     <div class="modal" id="encryption-new-password-modal" data-persist="true">
         <div class="modal-backdrop"></div>
         <div class="modal-content">
             <div class="modal-header">
-                <h3>Set New Encryption Password</h3>
+                <h3>Set New Password</h3>
             </div>
-            <p class="form-description">Since you used your recovery phrase, please set a new encryption password for future logins.</p>
+            <p class="form-description">Since you used your recovery phrase, please set a new password. This will be your login and encryption password.</p>
             <form id="encryption-new-password-form" class="modal-form">
                 <div class="input-group">
-                    <label for="new-encryption-password">New Encryption Password</label>
+                    <label for="recovery-current-password">Current Login Password</label>
+                    <div class="input-with-toggle">
+                        <input type="password" id="recovery-current-password" required autocomplete="current-password">
+                        <button type="button" class="password-toggle" aria-label="Toggle password visibility">
+                            <svg class="eye-open" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
+                                <circle cx="12" cy="12" r="3"/>
+                            </svg>
+                            <svg class="eye-closed" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/>
+                                <line x1="1" y1="1" x2="23" y2="23"/>
+                            </svg>
+                        </button>
+                    </div>
+                </div>
+                <div class="input-group">
+                    <label for="new-encryption-password">New Password</label>
                     <div class="input-with-toggle" data-strength="true">
                         <input type="password" id="new-encryption-password" required minlength="10" autocomplete="new-password">
                         <button type="button" class="password-toggle" data-toggle-group="new-enc-pass" aria-label="Toggle password visibility">
@@ -1214,7 +1151,7 @@
                     </div>
                 </div>
                 <div class="input-group">
-                    <label for="new-encryption-password-confirm">Confirm Password</label>
+                    <label for="new-encryption-password-confirm">Confirm New Password</label>
                     <div class="input-with-toggle">
                         <input type="password" id="new-encryption-password-confirm" required minlength="10" autocomplete="new-password">
                         <button type="button" class="password-toggle" data-toggle-group="new-enc-pass" aria-label="Toggle password visibility">
@@ -1273,6 +1210,6 @@
     <script src="crypto.js?v=1"></script>
 
     <!-- App JavaScript -->
-    <script src="app.js?v=29"></script>
+    <script src="app.js?v=30"></script>
 </body>
 </html>

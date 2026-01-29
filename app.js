@@ -193,11 +193,8 @@ const elements = {
     encryptionOptionsDisabled: document.getElementById('encryption-options-disabled'),
     encryptionOptionsEnabled: document.getElementById('encryption-options-enabled'),
     enableEncryptionBtn: document.getElementById('enable-encryption-btn'),
-    changeEncryptionPasswordBtn: document.getElementById('change-encryption-password-btn'),
     regenerateRecoveryBtn: document.getElementById('regenerate-recovery-btn'),
     disableEncryptionBtn: document.getElementById('disable-encryption-btn'),
-    changeEncryptionPasswordModal: document.getElementById('change-encryption-password-modal'),
-    changeEncryptionPasswordForm: document.getElementById('change-encryption-password-form'),
     encryptionUnlockModal: document.getElementById('encryption-unlock-modal'),
     encryptionUnlockForm: document.getElementById('encryption-unlock-form'),
     encryptionRecoveryForm: document.getElementById('encryption-recovery-form'),
@@ -646,8 +643,8 @@ async function handleRecoveryUnlock(recoveryPhrase) {
         closeModal(document.getElementById('encryption-unlock-modal'));
         await loadAppData();
         showAppScreen();
-        // Prompt user to set a new password since they forgot the old one
-        showToast('Recovery successful! Please set a new encryption password.');
+        // Prompt user to set a new password to sync login and encryption passwords
+        showToast('Recovery successful! Please set a new password.');
         setTimeout(() => {
             openModal(document.getElementById('encryption-new-password-modal'));
         }, 500);
@@ -924,16 +921,21 @@ async function handleLogin(e) {
                     }
                 }
 
-                // If not unlocked, try with the login password
+                // If not unlocked, try with the login password (unified password)
                 if (!unlocked) {
                     unlocked = await unlockEncryption(password);
                 }
 
                 if (!unlocked) {
-                    // Show encryption unlock modal
+                    // Login password should always work for encryption now (unified password)
+                    // If it doesn't, data may be corrupted - show recovery-only modal
                     state.encryptionPending = true;
+                    showScreen('app');
+                    // Show recovery form directly
+                    elements.encryptionUnlockForm.style.display = 'none';
+                    elements.encryptionRecoveryForm.style.display = 'block';
                     openModal(elements.encryptionUnlockModal);
-                    showToast('Please enter your encryption password');
+                    showToast('Please use your recovery phrase to unlock your data');
                     return;
                 }
             }
@@ -1027,6 +1029,8 @@ async function handleResetPassword(e) {
     const password = passwordInput.value;
     const confirmPassword = document.getElementById('reset-password-confirm').value;
     const token = document.getElementById('reset-token').value;
+    const encryptionEnabled = document.getElementById('reset-encryption-enabled')?.value === 'true';
+    const recoveryPhrase = document.getElementById('reset-recovery-phrase')?.value?.trim().toLowerCase();
     const submitBtn = e.target.querySelector('button[type="submit"]');
 
     // Check password strength
@@ -1049,19 +1053,67 @@ async function handleResetPassword(e) {
         return;
     }
 
+    // If encryption is enabled, recovery phrase is required
+    if (encryptionEnabled && !recoveryPhrase) {
+        showToast('Recovery phrase is required to reset password');
+        return;
+    }
+
     submitBtn.disabled = true;
 
     try {
+        let encryptionData = null;
+
+        // If encryption is enabled, recover MEK and re-wrap with new password
+        if (encryptionEnabled && window._resetEncryptionData) {
+            try {
+                // Initialize crypto module if needed
+                if (window.CryptoModule && !CryptoModule.isReady()) {
+                    CryptoModule.init();
+                }
+
+                // Unlock with recovery phrase
+                await CryptoModule.unlockWithRecovery(
+                    recoveryPhrase,
+                    window._resetEncryptionData.recovery_salt,
+                    window._resetEncryptionData.recovery_encrypted_mek
+                );
+
+                // Re-wrap MEK with new password
+                const newKeyData = await CryptoModule.changePassword(password);
+                encryptionData = {
+                    encryption_salt: newKeyData.salt,
+                    encrypted_mek: newKeyData.wrappedMEK
+                };
+
+                // Lock crypto module after
+                CryptoModule.lock();
+            } catch (cryptoError) {
+                console.error('Failed to recover encryption:', cryptoError);
+                showToast('Invalid recovery phrase. Please check and try again.');
+                submitBtn.disabled = false;
+                return;
+            }
+        }
+
+        // Build request body
+        const body = { token, password };
+        if (encryptionData) {
+            body.encryption_salt = encryptionData.encryption_salt;
+            body.encrypted_mek = encryptionData.encrypted_mek;
+        }
+
         const data = await api('auth.php?action=reset-password', {
             method: 'POST',
-            body: { token, password }
+            body
         });
 
         if (data.success) {
             showToast('Password reset successfully!');
             showAuthForm('login');
-            // Clear URL parameter
+            // Clear URL parameter and encryption data
             window.history.replaceState({}, document.title, window.location.pathname);
+            window._resetEncryptionData = null;
         }
     } catch (error) {
         showToast(error.message || 'Reset failed');
@@ -2526,12 +2578,37 @@ function setupModals() {
         submitBtn.disabled = true;
 
         try {
+            // Change login password on server
             const data = await api('auth.php?action=change-password', {
                 method: 'POST',
                 body: { current_password: currentPassword, new_password: newPassword }
             });
 
             if (data.success) {
+                // If encryption is enabled, re-wrap MEK with new password
+                if (state.user?.encryption_enabled && CryptoModule?.isReady()) {
+                    try {
+                        const newKeyData = await CryptoModule.changePassword(newPassword);
+                        await api('auth.php?action=update-encryption-key', {
+                            method: 'POST',
+                            body: {
+                                encryption_salt: newKeyData.salt,
+                                encrypted_mek: newKeyData.wrappedMEK
+                            }
+                        });
+                        // Update local settings
+                        if (state.encryptionSettings) {
+                            state.encryptionSettings.encryption_salt = newKeyData.salt;
+                            state.encryptionSettings.encrypted_mek = newKeyData.wrappedMEK;
+                        }
+                    } catch (encError) {
+                        console.error('Failed to update encryption key:', encError);
+                        showToast('Password changed, but encryption key update failed');
+                        closeModal(elements.changePasswordModal);
+                        e.target.reset();
+                        return;
+                    }
+                }
                 showToast('Password changed successfully');
                 closeModal(elements.changePasswordModal);
                 e.target.reset();
@@ -2820,21 +2897,69 @@ function setupAuthForms() {
     elements.signupForm.addEventListener('submit', handleSignup);
     elements.forgotForm.addEventListener('submit', handleForgotPassword);
     elements.resetForm.addEventListener('submit', handleResetPassword);
-    
+
     // Form navigation links
     document.querySelectorAll('[data-show]').forEach(btn => {
         btn.addEventListener('click', () => {
             showAuthForm(btn.dataset.show);
         });
     });
-    
+
     // Check for reset token in URL
     const urlParams = new URLSearchParams(window.location.search);
     const resetToken = urlParams.get('reset');
-    
+
     if (resetToken) {
         document.getElementById('reset-token').value = resetToken;
         showAuthForm('reset');
+
+        // Check if user has encryption enabled
+        checkResetTokenEncryption(resetToken);
+    }
+}
+
+// Check if user associated with reset token has encryption enabled
+async function checkResetTokenEncryption(token) {
+    try {
+        const data = await api(`auth.php?action=get-encryption-by-token&token=${encodeURIComponent(token)}`);
+
+        const recoverySection = document.getElementById('reset-recovery-section');
+        const encryptionEnabledInput = document.getElementById('reset-encryption-enabled');
+        const recoveryPhraseInput = document.getElementById('reset-recovery-phrase');
+
+        if (data.encryption_enabled) {
+            // Store encryption data for later use
+            window._resetEncryptionData = {
+                recovery_salt: data.recovery_salt,
+                recovery_encrypted_mek: data.recovery_encrypted_mek
+            };
+
+            // Show recovery section
+            if (recoverySection) {
+                recoverySection.style.display = 'block';
+                recoveryPhraseInput.required = true;
+            }
+            if (encryptionEnabledInput) {
+                encryptionEnabledInput.value = 'true';
+            }
+        } else {
+            // Hide recovery section
+            if (recoverySection) {
+                recoverySection.style.display = 'none';
+                recoveryPhraseInput.required = false;
+            }
+            if (encryptionEnabledInput) {
+                encryptionEnabledInput.value = 'false';
+            }
+            window._resetEncryptionData = null;
+        }
+    } catch (error) {
+        console.error('Failed to check encryption status:', error);
+        // On error, hide recovery section
+        const recoverySection = document.getElementById('reset-recovery-section');
+        if (recoverySection) {
+            recoverySection.style.display = 'none';
+        }
     }
 }
 
@@ -2871,78 +2996,6 @@ function setupEncryptionHandlers() {
         openModal(elements.encryptionSetupModal);
     });
 
-    // Change encryption password button
-    elements.changeEncryptionPasswordBtn?.addEventListener('click', () => {
-        closeModal(elements.encryptionSettingsModal);
-        openModal(elements.changeEncryptionPasswordModal);
-    });
-
-    // Change encryption password form
-    elements.changeEncryptionPasswordForm?.addEventListener('submit', async (e) => {
-        e.preventDefault();
-
-        const currentPassword = document.getElementById('current-encryption-password').value;
-        const newPassword = document.getElementById('new-enc-password').value;
-        const confirmPassword = document.getElementById('confirm-enc-password').value;
-
-        if (newPassword !== confirmPassword) {
-            showToast('Passwords do not match');
-            return;
-        }
-
-        if (newPassword.length < 10) {
-            showToast('Password must be at least 10 characters');
-            return;
-        }
-
-        const submitBtn = e.target.querySelector('button[type="submit"]');
-        submitBtn.disabled = true;
-
-        try {
-            // First verify the current password by trying to unlock
-            const settings = state.encryptionSettings;
-            if (!settings) {
-                showToast('Encryption settings not loaded');
-                submitBtn.disabled = false;
-                return;
-            }
-
-            // Try to derive KEK from current password and unwrap MEK
-            try {
-                await CryptoModule.unlock(currentPassword, settings.encryption_salt, settings.encrypted_mek);
-            } catch (err) {
-                showToast('Current encryption password is incorrect');
-                submitBtn.disabled = false;
-                return;
-            }
-
-            // Now change the password (re-wrap MEK with new password)
-            const newKeyData = await CryptoModule.changePassword(newPassword);
-
-            // Update on server
-            await api('auth.php?action=update-encryption-key', {
-                method: 'POST',
-                body: {
-                    encryption_salt: newKeyData.salt,
-                    encrypted_mek: newKeyData.wrappedMEK
-                }
-            });
-
-            // Update local settings
-            state.encryptionSettings.encryption_salt = newKeyData.salt;
-            state.encryptionSettings.encrypted_mek = newKeyData.wrappedMEK;
-
-            closeModal(elements.changeEncryptionPasswordModal);
-            showToast('Encryption password changed successfully');
-            e.target.reset();
-        } catch (error) {
-            console.error('Failed to change encryption password:', error);
-            showToast('Failed to change encryption password');
-        } finally {
-            submitBtn.disabled = false;
-        }
-    });
-
     // Disable encryption button
     elements.disableEncryptionBtn?.addEventListener('click', async () => {
         if (!confirm('Are you sure you want to disable encryption? Your data will remain encrypted until you manually update each item.')) {
@@ -2956,22 +3009,18 @@ function setupEncryptionHandlers() {
     elements.encryptionSetupForm?.addEventListener('submit', async (e) => {
         e.preventDefault();
         const password = document.getElementById('encryption-setup-password').value;
-        const confirm = document.getElementById('encryption-setup-confirm').value;
-
-        if (password !== confirm) {
-            showToast('Passwords do not match');
-            return;
-        }
-
-        if (password.length < 10) {
-            showToast('Password must be at least 10 characters');
-            return;
-        }
 
         const submitBtn = e.target.querySelector('button[type="submit"]');
         submitBtn.disabled = true;
 
         try {
+            // Verify the login password with the server first
+            await api('auth.php?action=verify-password', {
+                method: 'POST',
+                body: { password }
+            });
+
+            // Password verified, now enable encryption with it
             const result = await enableEncryption(password);
             if (result.success) {
                 closeModal(elements.encryptionSetupModal);
@@ -2981,6 +3030,8 @@ function setupEncryptionHandlers() {
             } else {
                 showToast(result.error || 'Failed to enable encryption');
             }
+        } catch (error) {
+            showToast(error.message || 'Incorrect password');
         } finally {
             submitBtn.disabled = false;
         }
@@ -3027,17 +3078,6 @@ function setupEncryptionHandlers() {
         } finally {
             submitBtn.disabled = false;
         }
-    });
-
-    // Toggle between password and recovery forms
-    document.getElementById('use-recovery-btn')?.addEventListener('click', () => {
-        elements.encryptionUnlockForm.style.display = 'none';
-        elements.encryptionRecoveryForm.style.display = 'block';
-    });
-
-    document.getElementById('use-password-btn')?.addEventListener('click', () => {
-        elements.encryptionRecoveryForm.style.display = 'none';
-        elements.encryptionUnlockForm.style.display = 'block';
     });
 
     // Copy recovery phrase
@@ -3107,18 +3147,19 @@ function setupEncryptionHandlers() {
         }
     });
 
-    // New encryption password form (after recovery)
+    // New password form (after recovery) - changes both login and encryption password
     document.getElementById('encryption-new-password-form')?.addEventListener('submit', async (e) => {
         e.preventDefault();
-        const password = document.getElementById('new-encryption-password').value;
-        const confirm = document.getElementById('new-encryption-password-confirm').value;
+        const currentPassword = document.getElementById('recovery-current-password').value;
+        const newPassword = document.getElementById('new-encryption-password').value;
+        const confirmPassword = document.getElementById('new-encryption-password-confirm').value;
 
-        if (password !== confirm) {
+        if (newPassword !== confirmPassword) {
             showToast('Passwords do not match');
             return;
         }
 
-        if (password.length < 10) {
+        if (newPassword.length < 10) {
             showToast('Password must be at least 10 characters');
             return;
         }
@@ -3127,10 +3168,16 @@ function setupEncryptionHandlers() {
         submitBtn.disabled = true;
 
         try {
-            // Re-wrap MEK with new password
-            const newKeyData = await CryptoModule.changePassword(password);
+            // First change login password on server
+            await api('auth.php?action=change-password', {
+                method: 'POST',
+                body: { current_password: currentPassword, new_password: newPassword }
+            });
 
-            // Update on server
+            // Re-wrap MEK with new password
+            const newKeyData = await CryptoModule.changePassword(newPassword);
+
+            // Update encryption key on server
             await api('auth.php?action=update-encryption-key', {
                 method: 'POST',
                 body: {
@@ -3140,17 +3187,19 @@ function setupEncryptionHandlers() {
             });
 
             // Update local settings
-            state.encryptionSettings.encryption_salt = newKeyData.salt;
-            state.encryptionSettings.encrypted_mek = newKeyData.wrappedMEK;
+            if (state.encryptionSettings) {
+                state.encryptionSettings.encryption_salt = newKeyData.salt;
+                state.encryptionSettings.encrypted_mek = newKeyData.wrappedMEK;
+            }
 
             closeModal(document.getElementById('encryption-new-password-modal'));
-            showToast('New encryption password set successfully');
+            showToast('Password updated successfully');
 
             // Clear form
             e.target.reset();
         } catch (error) {
             console.error('Failed to set new password:', error);
-            showToast('Failed to set new password');
+            showToast(error.message || 'Failed to set new password');
         } finally {
             submitBtn.disabled = false;
         }
@@ -3261,16 +3310,24 @@ async function init() {
                         await loadAppData();
                         showAppScreen();
                     } else {
-                        // Show unlock modal - user needs to enter encryption password
+                        // Remembered key failed - show recovery modal
+                        // (With unified password, user should login again to unlock)
                         state.encryptionPending = true;
                         showScreen('app');
+                        // Show recovery form directly
+                        elements.encryptionUnlockForm.style.display = 'none';
+                        elements.encryptionRecoveryForm.style.display = 'block';
                         openModal(elements.encryptionUnlockModal);
+                        showToast('Please use your recovery phrase or login again');
                     }
                 } else {
-                    // Show unlock modal - user needs to enter encryption password
-                    state.encryptionPending = true;
-                    showScreen('app');
-                    openModal(elements.encryptionUnlockModal);
+                    // No remembered key - redirect to login so user can enter password
+                    // Logout and show auth screen
+                    await api('auth.php?action=logout', { method: 'POST' });
+                    resetState();
+                    showScreen('auth');
+                    showAuthForm('login');
+                    showToast('Please login to unlock your encrypted data');
                 }
             } else {
                 await loadAppData();

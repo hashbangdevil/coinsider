@@ -46,6 +46,12 @@ switch ($action) {
     case 'update-recovery-key':
         handleUpdateRecoveryKey();
         break;
+    case 'verify-password':
+        handleVerifyPassword();
+        break;
+    case 'get-encryption-by-token':
+        handleGetEncryptionByToken();
+        break;
     case 'status':
     default:
         handleStatus();
@@ -229,30 +235,47 @@ function handleResetPassword() {
     if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
         errorResponse('Method not allowed', 405);
     }
-    
+
     $input = json_decode(file_get_contents('php://input'), true);
-    
+
     $token = $input['token'] ?? '';
     $password = $input['password'] ?? '';
-    
+
     if (empty($token)) {
         errorResponse('Reset token is required');
     }
-    
+
     if (strlen($password) < 10) {
         errorResponse('Password must be at least 10 characters');
     }
 
     // Find user by token
     $user = findUserByResetToken($token);
-    
+
     if (!$user) {
         errorResponse('Invalid or expired reset token', 400);
     }
-    
+
     // Update password
     updatePassword($user['id'], $password);
-    
+
+    // If encryption data is provided, update encryption keys
+    // This happens when user had encryption enabled and used recovery phrase
+    $encryptionSalt = $input['encryption_salt'] ?? null;
+    $encryptedMek = $input['encrypted_mek'] ?? null;
+
+    if ($encryptionSalt && $encryptedMek) {
+        $pdo = Database::getInstance()->getPdo();
+        $stmt = $pdo->prepare("
+            UPDATE users SET
+                encryption_salt = ?,
+                encrypted_mek = ?,
+                updated_at = CURRENT_TIMESTAMP
+            WHERE id = ?
+        ");
+        $stmt->execute([$encryptionSalt, $encryptedMek, $user['id']]);
+    }
+
     jsonResponse([
         'success' => true,
         'message' => 'Password has been reset successfully. You can now log in.'
@@ -471,6 +494,50 @@ function handleUpdateRecoveryKey() {
     jsonResponse([
         'success' => true,
         'message' => 'Recovery key updated successfully'
+    ]);
+}
+
+// ========================================
+// Verify Password
+// ========================================
+
+function handleVerifyPassword() {
+    if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+        errorResponse('Method not allowed', 405);
+    }
+
+    $user = requireAuth();
+    $input = json_decode(file_get_contents('php://input'), true);
+    $password = $input['password'] ?? '';
+
+    $fullUser = findUserById($user['id']);
+    if (!$fullUser || !verifyPassword($fullUser, $password)) {
+        errorResponse('Incorrect password', 401);
+    }
+
+    jsonResponse(['success' => true]);
+}
+
+// ========================================
+// Get Encryption Settings by Reset Token
+// ========================================
+
+function handleGetEncryptionByToken() {
+    $token = $_GET['token'] ?? '';
+
+    if (empty($token)) {
+        errorResponse('Token is required');
+    }
+
+    $user = findUserByResetToken($token);
+    if (!$user) {
+        errorResponse('Invalid or expired token', 400);
+    }
+
+    jsonResponse([
+        'encryption_enabled' => (bool) ($user['encryption_enabled'] ?? false),
+        'recovery_salt' => $user['recovery_salt'] ?? null,
+        'recovery_encrypted_mek' => $user['recovery_encrypted_mek'] ?? null
     ]);
 }
 
