@@ -1532,6 +1532,14 @@
                     </div>
                     <span class="input-hint">Auto-deposited on the 1st of each month</span>
                 </div>
+                <div class="input-group" id="bucket-initial-deposit-group">
+                    <label for="bucket-initial-deposit">Initial Deposit (optional)</label>
+                    <div class="input-with-prefix">
+                        <span class="input-prefix">R</span>
+                        <input type="number" id="bucket-initial-deposit" placeholder="0.00" step="0.01" min="0">
+                    </div>
+                    <span class="input-hint">Start your bucket with an initial amount</span>
+                </div>
                 <div class="modal-actions">
                     <button type="button" class="btn btn-secondary modal-cancel">Cancel</button>
                     <button type="submit" class="btn btn-primary" id="bucket-submit-btn">Create Bucket</button>

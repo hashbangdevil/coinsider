@@ -248,6 +248,8 @@ const elements = {
     bucketEmojiPreview: document.getElementById('bucket-emoji-preview'),
     bucketEmojiPicker: document.getElementById('bucket-emoji-picker'),
     bucketTarget: document.getElementById('bucket-target'),
+    bucketInitialDeposit: document.getElementById('bucket-initial-deposit'),
+    bucketInitialDepositGroup: document.getElementById('bucket-initial-deposit-group'),
     bucketAdjustModal: document.getElementById('bucket-adjust-modal'),
     bucketAdjustForm: document.getElementById('bucket-adjust-form'),
     adjustModalTitle: document.getElementById('adjust-modal-title'),
@@ -2271,7 +2273,7 @@ async function loadSavingsBuckets() {
     }
 }
 
-async function createSavingsBucket(name, icon, monthlyTarget) {
+async function createSavingsBucket(name, icon, monthlyTarget, initialDeposit = 0) {
     try {
         let body = { name, icon, monthly_target: monthlyTarget };
         body = await encryptBucket(body);
@@ -2283,9 +2285,17 @@ async function createSavingsBucket(name, icon, monthlyTarget) {
 
         bucket = await decryptBucket(bucket);
         state.savingsBuckets.push(bucket);
-        renderSavingsBuckets();
-        updateSavingsSummary();
-        showToast('Savings bucket created');
+
+        // Add initial deposit if specified
+        if (initialDeposit > 0) {
+            await addToBucketSilent(bucket.id, initialDeposit, 'allocation', 'Initial deposit');
+            showToast(`Bucket created with ${formatCurrency(initialDeposit)} deposit`);
+        } else {
+            renderSavingsBuckets();
+            updateSavingsSummary();
+            showToast('Savings bucket created');
+        }
+
         return bucket;
     } catch (error) {
         console.error('Failed to create bucket:', error);
@@ -2369,6 +2379,39 @@ async function addToBucket(bucketId, amount, type, description) {
     } catch (error) {
         console.error('Failed to add to bucket:', error);
         showToast('Failed to process bucket transaction');
+    }
+}
+
+async function addToBucketSilent(bucketId, amount, type, description) {
+    try {
+        let body = {
+            bucket_id: bucketId,
+            amount: amount,
+            type: type,
+            description: description,
+            date: new Date().toISOString().split('T')[0]
+        };
+        body = await encryptSavingsTransaction(body);
+
+        await api('api.php?resource=savings-transactions', {
+            method: 'POST',
+            body
+        });
+
+        // Reload buckets to get updated balance
+        await loadSavingsBuckets();
+
+        // Also reload summary to update available to spend
+        const period = elements.periodSelector?.value || 'this-month';
+        const summary = await api(`api.php?resource=summary&period=${period}`);
+        state.summary = summary;
+        if (state.summary?.categories) {
+            state.summary.categories = await decryptCategories(state.summary.categories);
+        }
+        updateBalances();
+    } catch (error) {
+        console.error('Failed to add to bucket:', error);
+        throw error;
     }
 }
 
@@ -2525,11 +2568,22 @@ function openBucketModal(bucketId = null) {
         elements.bucketIcon.value = currentEditingBucket.icon;
         elements.bucketEmojiPreview.textContent = currentEditingBucket.icon;
         elements.bucketTarget.value = currentEditingBucket.monthly_target || 0;
+        // Hide initial deposit field when editing
+        if (elements.bucketInitialDepositGroup) {
+            elements.bucketInitialDepositGroup.style.display = 'none';
+        }
     } else {
         elements.bucketName.value = '';
         elements.bucketIcon.value = '💰';
         elements.bucketEmojiPreview.textContent = '💰';
         elements.bucketTarget.value = 0;
+        // Show initial deposit field when creating and reset value
+        if (elements.bucketInitialDepositGroup) {
+            elements.bucketInitialDepositGroup.style.display = '';
+        }
+        if (elements.bucketInitialDeposit) {
+            elements.bucketInitialDeposit.value = '';
+        }
     }
 
     openModal(elements.bucketModal);
@@ -2950,11 +3004,12 @@ function setupBucketModals() {
         const name = elements.bucketName.value.trim();
         const icon = elements.bucketIcon.value;
         const monthlyTarget = parseFloat(elements.bucketTarget.value) || 0;
+        const initialDeposit = parseFloat(elements.bucketInitialDeposit?.value) || 0;
 
         if (currentEditingBucket) {
             await updateSavingsBucket(currentEditingBucket.id, name, icon, monthlyTarget);
         } else {
-            await createSavingsBucket(name, icon, monthlyTarget);
+            await createSavingsBucket(name, icon, monthlyTarget, initialDeposit);
         }
 
         closeModal(elements.bucketModal);
