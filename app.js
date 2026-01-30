@@ -15,6 +15,8 @@ const state = {
     transactions: [],
     allTransactions: [],
     recurringTransactions: [],
+    savingsBuckets: [],
+    savingsSummary: null,
     summary: null,
     chartSummary: null,
     spendingSummary: null,
@@ -27,9 +29,11 @@ const state = {
 // Note: amounts are not encrypted to preserve database numeric operations
 // Note: category_name is included for decryption since API returns it via joins
 const ENCRYPTED_FIELDS = {
-    transaction: ['description', 'category_name'],
+    transaction: ['description', 'category_name', 'savings_bucket_name'],
     category: ['name'],
-    recurring: ['description', 'category_name']
+    recurring: ['description', 'category_name'],
+    bucket: ['name'],
+    savingsTransaction: ['description', 'bucket_name']
 };
 
 // Reset state to defaults
@@ -39,6 +43,8 @@ function resetState() {
     state.transactions = [];
     state.allTransactions = [];
     state.recurringTransactions = [];
+    state.savingsBuckets = [];
+    state.savingsSummary = null;
     state.summary = null;
     state.chartSummary = null;
     state.spendingSummary = null;
@@ -103,12 +109,30 @@ const elements = {
     // Header
     userName: document.getElementById('user-name'),
     currentDate: document.getElementById('current-date'),
-    settingsBtn: document.getElementById('settings-btn'),
+    menuBtn: document.getElementById('menu-btn'),
     logoutBtn: document.getElementById('logout-btn'),
-    
-    // Settings
-    settingsModal: document.getElementById('settings-modal'),
-    settingsForm: document.getElementById('settings-form'),
+
+    // Navigation Drawer
+    navDrawer: document.getElementById('nav-drawer'),
+    navDrawerBackdrop: document.getElementById('nav-drawer-backdrop'),
+    navDrawerClose: document.getElementById('nav-drawer-close'),
+    dashboardContent: document.getElementById('dashboard-content'),
+
+    // Menu Sections
+    reportsSection: document.getElementById('reports-section'),
+    savingsSection: document.getElementById('savings-section'),
+    settingsSection: document.getElementById('settings-section'),
+    categoriesMenuSection: document.getElementById('categories-menu-section'),
+    recurringMenuSection: document.getElementById('recurring-menu-section'),
+
+    // Back buttons
+    reportsBackBtn: document.getElementById('reports-back-btn'),
+    savingsBackBtn: document.getElementById('savings-back-btn'),
+    settingsBackBtn: document.getElementById('settings-back-btn'),
+    categoriesBackBtn: document.getElementById('categories-back-btn'),
+    recurringBackBtn: document.getElementById('recurring-back-btn'),
+
+    // Settings (now a section, not modal)
     settingsCurrency: document.getElementById('settings-currency'),
 
     // Change Password
@@ -125,13 +149,18 @@ const elements = {
     // Categories (formerly Budgets)
     categoriesList: document.getElementById('budgets-list'),
     noCategories: document.getElementById('no-budgets'),
-    addCategoryBtn: document.getElementById('add-budget-btn'),
+    addCategoryBtn: document.getElementById('add-category-btn'),
     categoryModal: document.getElementById('budget-modal'),
     categoryForm: document.getElementById('budget-form'),
-    manageCategoriesBtn: document.getElementById('manage-categories-btn'),
-    categoriesListModal: document.getElementById('categories-list-modal'),
     categoriesListContainer: document.getElementById('categories-list-container'),
-    addCategoryFromListBtn: document.getElementById('add-category-from-list-btn'),
+
+    // Recurring (in menu section)
+    addRecurringMenuBtn: document.getElementById('add-recurring-menu-btn'),
+    recurringMenuList: document.getElementById('recurring-menu-list'),
+    noRecurringMenu: document.getElementById('no-recurring-menu'),
+    recurringUpcomingList: document.getElementById('recurring-upcoming-list'),
+    noRecurringUpcoming: document.getElementById('no-recurring-upcoming'),
+    recurringUpcomingDays: document.getElementById('recurring-upcoming-days'),
 
     // Transactions
     transactionsList: document.getElementById('transactions-list'),
@@ -167,7 +196,6 @@ const elements = {
     transactionsPeriodSelector: document.getElementById('transactions-period-selector'),
 
     // Recurring Transactions
-    manageRecurringBtn: document.getElementById('manage-recurring-btn'),
     recurringModal: document.getElementById('recurring-modal'),
     recurringList: document.getElementById('recurring-list'),
     noRecurring: document.getElementById('no-recurring'),
@@ -203,6 +231,45 @@ const elements = {
     encryptionSetupForm: document.getElementById('encryption-setup-form'),
     recoveryPhraseModal: document.getElementById('recovery-phrase-modal'),
     recoveryPhraseDisplay: document.getElementById('recovery-phrase-display'),
+
+    // Savings Buckets
+    savingsBar: document.getElementById('savings-bar'),
+    totalSaved: document.getElementById('total-saved'),
+    availableToSpend: document.getElementById('available-to-spend'),
+    bucketsList: document.getElementById('buckets-list'),
+    noBuckets: document.getElementById('no-buckets'),
+    addBucketBtn: document.getElementById('add-bucket-btn'),
+    bucketModal: document.getElementById('bucket-modal'),
+    bucketForm: document.getElementById('bucket-form'),
+    bucketModalTitle: document.getElementById('bucket-modal-title'),
+    bucketSubmitBtn: document.getElementById('bucket-submit-btn'),
+    bucketName: document.getElementById('bucket-name'),
+    bucketIcon: document.getElementById('bucket-icon'),
+    bucketEmojiPreview: document.getElementById('bucket-emoji-preview'),
+    bucketEmojiPicker: document.getElementById('bucket-emoji-picker'),
+    bucketTarget: document.getElementById('bucket-target'),
+    bucketAdjustModal: document.getElementById('bucket-adjust-modal'),
+    bucketAdjustForm: document.getElementById('bucket-adjust-form'),
+    adjustModalTitle: document.getElementById('adjust-modal-title'),
+    adjustBucketId: document.getElementById('adjust-bucket-id'),
+    adjustBucketInfo: document.getElementById('adjust-bucket-info'),
+    adjustBucketIcon: document.getElementById('adjust-bucket-icon'),
+    adjustBucketName: document.getElementById('adjust-bucket-name'),
+    adjustBucketBalance: document.getElementById('adjust-bucket-balance'),
+    adjustAmount: document.getElementById('adjust-amount'),
+    adjustDescription: document.getElementById('adjust-description'),
+    adjustSubmitBtn: document.getElementById('adjust-submit-btn'),
+    bucketDetailsModal: document.getElementById('bucket-details-modal'),
+    bucketDetailsTitle: document.getElementById('bucket-details-title'),
+    bucketDetailsHeader: document.getElementById('bucket-details-header'),
+    bucketTransactionsList: document.getElementById('bucket-transactions-list'),
+    noBucketTransactions: document.getElementById('no-bucket-transactions'),
+    bucketDepositBtn: document.getElementById('bucket-deposit-btn'),
+    bucketWithdrawBtn: document.getElementById('bucket-withdraw-btn'),
+    bucketEditBtn: document.getElementById('bucket-edit-btn'),
+    bucketDeleteBtn: document.getElementById('bucket-delete-btn'),
+    transactionBucket: document.getElementById('transaction-bucket'),
+    savingsBucketGroup: document.getElementById('savings-bucket-group'),
 
     // Toast
     toast: document.getElementById('toast')
@@ -352,6 +419,36 @@ async function decryptRecurring(data) {
 async function decryptRecurringTransactions(arr) {
     if (!CryptoModule?.isReady()) return arr;
     return CryptoModule.decryptArray(arr, ENCRYPTED_FIELDS.recurring);
+}
+
+async function encryptBucket(data) {
+    if (!isEncryptionEnabled()) return data;
+    return CryptoModule.encryptObject(data, ENCRYPTED_FIELDS.bucket);
+}
+
+async function decryptBucket(data) {
+    if (!CryptoModule?.isReady()) return data;
+    return CryptoModule.decryptObject(data, ENCRYPTED_FIELDS.bucket);
+}
+
+async function decryptBuckets(arr) {
+    if (!CryptoModule?.isReady()) return arr;
+    return CryptoModule.decryptArray(arr, ENCRYPTED_FIELDS.bucket);
+}
+
+async function encryptSavingsTransaction(data) {
+    if (!isEncryptionEnabled()) return data;
+    return CryptoModule.encryptObject(data, ENCRYPTED_FIELDS.savingsTransaction);
+}
+
+async function decryptSavingsTransaction(data) {
+    if (!CryptoModule?.isReady()) return data;
+    return CryptoModule.decryptObject(data, ENCRYPTED_FIELDS.savingsTransaction);
+}
+
+async function decryptSavingsTransactions(arr) {
+    if (!CryptoModule?.isReady()) return arr;
+    return CryptoModule.decryptArray(arr, ENCRYPTED_FIELDS.savingsTransaction);
 }
 
 async function loadEncryptionSettings() {
@@ -1167,11 +1264,12 @@ async function updateUserCurrency(currency) {
 async function loadAppData() {
     try {
         const period = elements.periodSelector?.value || 'this-month';
-        const [categories, transactions, summary, recurring] = await Promise.all([
+        const [categories, transactions, summary, recurring, savingsBucketsData] = await Promise.all([
             api('api.php?resource=categories'),
             api('api.php?resource=transactions&limit=50'),
             api(`api.php?resource=summary&period=${period}`),
-            api('api.php?resource=recurring')
+            api('api.php?resource=recurring'),
+            api('api.php?resource=savings-buckets')
         ]);
 
 
@@ -1180,11 +1278,16 @@ async function loadAppData() {
         let txns = Array.isArray(transactions) ? transactions : [];
         let recur = Array.isArray(recurring) ? recurring : [];
 
+        // Handle savings buckets response (API returns { buckets, summary })
+        let buckets = savingsBucketsData?.buckets || [];
+        let savingsSummary = savingsBucketsData?.summary || null;
+
         // Decrypt data if encryption is enabled
         if (CryptoModule?.isReady()) {
             cats = await decryptCategories(cats);
             txns = await decryptTransactions(txns);
             recur = await decryptRecurringTransactions(recur);
+            buckets = await decryptBuckets(buckets);
 
             // Also decrypt category data in summary
             if (summary?.categories) {
@@ -1195,12 +1298,16 @@ async function loadAppData() {
         state.categories = cats;
         state.transactions = txns;
         state.recurringTransactions = recur;
+        state.savingsBuckets = buckets;
+        state.savingsSummary = savingsSummary;
         state.summary = summary && typeof summary === 'object' ? summary : null;
     } catch (error) {
         console.error('Failed to load data:', error);
         state.categories = [];
         state.transactions = [];
         state.recurringTransactions = [];
+        state.savingsBuckets = [];
+        state.savingsSummary = null;
         state.summary = null;
         showToast('Failed to load data');
     }
@@ -1417,12 +1524,58 @@ function renderCategoryListItem(category) {
 // Helper to open edit modal for category
 let editingCategoryId = null;
 
+function openNewCategoryModal() {
+    editingCategoryId = null;
+    elements.categoryForm.reset();
+    document.getElementById('category-icon').value = '📦';
+    updateEmojiPickerSelection('📦');
+
+    // Reset type toggle to expense and enable it
+    const typeToggle = document.querySelector('.category-type-toggle');
+    if (typeToggle) typeToggle.classList.remove('disabled');
+    document.querySelectorAll('.category-type-toggle .type-btn').forEach(btn => {
+        btn.classList.toggle('active', btn.dataset.type === 'expense');
+    });
+
+    const modalTitle = elements.categoryModal.querySelector('.modal-header h3');
+    if (modalTitle) modalTitle.textContent = 'Add Category';
+
+    openModal(elements.categoryModal);
+}
+
+function openEditCategoryModalFromSection(category) {
+    if (!category) return;
+
+    editingCategoryId = category.id;
+
+    document.getElementById('budget-name').value = category.name;
+    document.getElementById('budget-amount').value = category.monthly_budget || 0;
+    document.getElementById('category-icon').value = category.icon;
+
+    // Update emoji picker selection
+    updateEmojiPickerSelection(category.icon);
+
+    // Set type toggle to category's type (disabled if has transactions)
+    const typeToggle = document.querySelector('.category-type-toggle');
+    const hasTransactions = category.has_transactions === 1 || category.has_transactions === '1' || category.has_transactions === true;
+
+    if (typeToggle) {
+        typeToggle.classList.toggle('disabled', hasTransactions);
+    }
+    document.querySelectorAll('.category-type-toggle .type-btn').forEach(btn => {
+        btn.classList.toggle('active', btn.dataset.type === category.type);
+    });
+
+    // Update modal title
+    const modalTitle = elements.categoryModal.querySelector('.modal-header h3');
+    if (modalTitle) modalTitle.textContent = 'Edit Category';
+
+    openModal(elements.categoryModal);
+}
+
 function openEditCategoryModal(categoryId) {
     const category = state.categories.find(c => c.id === categoryId);
     if (!category) return;
-
-    // Hide the categories list modal (don't use closeModal to avoid parent logic)
-    elements.categoriesListModal.classList.remove('active');
 
     editingCategoryId = categoryId;
 
@@ -1448,17 +1601,20 @@ function openEditCategoryModal(categoryId) {
     const modalTitle = elements.categoryModal.querySelector('.modal-header h3');
     if (modalTitle) modalTitle.textContent = 'Edit Category';
 
-    openModal(elements.categoryModal, elements.categoriesListModal);
+    openModal(elements.categoryModal);
 }
 
 // ========================================
 // Transaction Functions
 // ========================================
 
-async function createTransaction(description, amount, categoryId, type, date) {
+async function createTransaction(description, amount, categoryId, type, date, savingsBucketId = null) {
     try {
         // Encrypt data before sending
         let body = { description, amount, category_id: categoryId, type, date };
+        if (savingsBucketId) {
+            body.savings_bucket_id = savingsBucketId;
+        }
         body = await encryptTransaction(body);
 
         let transaction = await api('api.php?resource=transactions', {
@@ -1470,17 +1626,24 @@ async function createTransaction(description, amount, categoryId, type, date) {
         transaction = await decryptTransaction(transaction);
         state.transactions.unshift(transaction);
 
-        // Refresh summary and categories (with decryption)
+        // Refresh summary, categories, and savings buckets (with decryption)
         const period = elements.periodSelector?.value || 'this-month';
-        const [summary, categories] = await Promise.all([
+        const [summary, categories, savingsBucketsData] = await Promise.all([
             api(`api.php?resource=summary&period=${period}`),
-            api('api.php?resource=categories')
+            api('api.php?resource=categories'),
+            api('api.php?resource=savings-buckets')
         ]);
 
         state.summary = summary;
         state.categories = await decryptCategories(categories);
         if (state.summary?.categories) {
             state.summary.categories = await decryptCategories(state.summary.categories);
+        }
+
+        // Update savings buckets if a bucket was used
+        if (savingsBucketId) {
+            state.savingsBuckets = await decryptBuckets(savingsBucketsData?.buckets || []);
+            state.savingsSummary = savingsBucketsData?.summary || null;
         }
 
         renderAll();
@@ -1515,10 +1678,13 @@ async function deleteTransaction(id) {
     }
 }
 
-async function updateTransaction(id, description, amount, categoryId, type, date) {
+async function updateTransaction(id, description, amount, categoryId, type, date, savingsBucketId = null) {
     try {
         // Encrypt data before sending
         let body = { description, amount, category_id: categoryId, type, date };
+        if (savingsBucketId) {
+            body.savings_bucket_id = savingsBucketId;
+        }
         body = await encryptTransaction(body);
 
         let transaction = await api(`api.php?resource=transactions&id=${id}`, {
@@ -1535,11 +1701,12 @@ async function updateTransaction(id, description, amount, categoryId, type, date
             state.transactions[index] = transaction;
         }
 
-        // Refresh summary and categories (with decryption)
+        // Refresh summary, categories, and savings buckets (with decryption)
         const period = elements.periodSelector?.value || 'this-month';
-        const [summary, categories] = await Promise.all([
+        const [summary, categories, savingsBucketsData] = await Promise.all([
             api(`api.php?resource=summary&period=${period}`),
-            api('api.php?resource=categories')
+            api('api.php?resource=categories'),
+            api('api.php?resource=savings-buckets')
         ]);
 
         state.summary = summary;
@@ -1547,6 +1714,10 @@ async function updateTransaction(id, description, amount, categoryId, type, date
         if (state.summary?.categories) {
             state.summary.categories = await decryptCategories(state.summary.categories);
         }
+
+        // Update savings buckets
+        state.savingsBuckets = await decryptBuckets(savingsBucketsData?.buckets || []);
+        state.savingsSummary = savingsBucketsData?.summary || null;
 
         renderAll();
         showToast('Transaction updated');
@@ -1580,6 +1751,15 @@ function openEditTransactionModal(transactionId) {
     // Select the current category
     if (transaction.category_id) {
         elements.transactionCategory.value = transaction.category_id;
+    }
+
+    // Show/hide savings bucket dropdown based on type and populate it
+    if (elements.savingsBucketGroup) {
+        elements.savingsBucketGroup.style.display = type === 'expense' ? 'block' : 'none';
+    }
+    populateBucketDropdown();
+    if (elements.transactionBucket) {
+        elements.transactionBucket.value = transaction.savings_bucket_id || '';
     }
 
     // Hide recurring options when editing (not applicable for existing transactions)
@@ -1790,6 +1970,71 @@ async function toggleRecurringTransaction(id, isActive) {
 
 let editingRecurringId = null;
 
+function openRecurringFormModal(recurring = null) {
+    if (recurring) {
+        // Editing existing recurring transaction
+        editingRecurringId = recurring.id;
+
+        document.getElementById('recurring-description').value = recurring.description;
+        document.getElementById('recurring-amount').value = recurring.amount;
+        document.getElementById('recurring-frequency').value = recurring.frequency;
+        document.getElementById('recurring-start-date').value = recurring.start_date;
+        document.getElementById('recurring-end-date').value = recurring.end_date || '';
+
+        // Set type toggle
+        const type = recurring.type;
+        document.querySelectorAll('.recurring-type-toggle .type-btn').forEach(btn => {
+            btn.classList.toggle('active', btn.dataset.type === type);
+        });
+
+        // Populate category dropdown and select current category
+        populateCategoryDropdown(elements.recurringCategory, type);
+        if (recurring.category_id) {
+            elements.recurringCategory.value = recurring.category_id;
+        }
+
+        // Hide skip-first checkbox when editing
+        const skipFirstGroup = document.getElementById('skip-first-group');
+        if (skipFirstGroup) skipFirstGroup.style.display = 'none';
+
+        // Update modal title and button
+        const modalTitle = elements.recurringFormModal.querySelector('.modal-header h3');
+        if (modalTitle) modalTitle.textContent = 'Edit Recurring Transaction';
+        const submitBtn = document.getElementById('recurring-submit-btn');
+        if (submitBtn) submitBtn.textContent = 'Save Changes';
+    } else {
+        // Adding new recurring transaction
+        editingRecurringId = null;
+        elements.recurringForm.reset();
+
+        // Reset type toggle to expense
+        document.querySelectorAll('.recurring-type-toggle .type-btn').forEach(btn => {
+            btn.classList.toggle('active', btn.dataset.type === 'expense');
+        });
+
+        // Set default start date to today
+        const today = new Date().toISOString().split('T')[0];
+        document.getElementById('recurring-start-date').value = today;
+
+        // Show skip first checkbox and default to checked
+        const skipFirstGroup = document.getElementById('skip-first-group');
+        const skipFirstCheckbox = document.getElementById('recurring-skip-first');
+        if (skipFirstGroup) skipFirstGroup.style.display = 'block';
+        if (skipFirstCheckbox) skipFirstCheckbox.checked = true;
+
+        // Populate category dropdown with expense categories
+        populateCategoryDropdown(elements.recurringCategory, 'expense');
+
+        // Update modal title and button
+        const modalTitle = elements.recurringFormModal.querySelector('.modal-header h3');
+        if (modalTitle) modalTitle.textContent = 'Add Recurring Transaction';
+        const submitBtn = document.getElementById('recurring-submit-btn');
+        if (submitBtn) submitBtn.textContent = 'Add Recurring';
+    }
+
+    openModal(elements.recurringFormModal);
+}
+
 function openEditRecurringModal(recurringId) {
     const recurring = state.recurringTransactions.find(r => r.id === recurringId);
     if (!recurring) return;
@@ -1977,6 +2222,832 @@ function renderUpcomingList(upcomingTransactions) {
 
         container.insertAdjacentHTML('beforeend', html);
     });
+}
+
+// ========================================
+// Savings Bucket Functions
+// ========================================
+
+function getBucketById(bucketId) {
+    return state.savingsBuckets.find(b => b.id === bucketId) || null;
+}
+
+function getActiveBuckets() {
+    return state.savingsBuckets.filter(b => b.is_active);
+}
+
+function populateBucketDropdown() {
+    const select = elements.transactionBucket;
+    if (!select) return;
+
+    const currentValue = select.value;
+    select.innerHTML = '<option value="">None - use available funds</option>';
+
+    const activeBuckets = getActiveBuckets();
+    activeBuckets.forEach(bucket => {
+        const option = document.createElement('option');
+        option.value = bucket.id;
+        option.textContent = `${bucket.icon} ${bucket.name} (${formatCurrency(bucket.current_balance)})`;
+        select.appendChild(option);
+    });
+
+    // Restore previous selection if still valid
+    if (currentValue && activeBuckets.some(b => b.id == currentValue)) {
+        select.value = currentValue;
+    }
+}
+
+async function loadSavingsBuckets() {
+    try {
+        const data = await api('api.php?resource=savings-buckets');
+        let buckets = data?.buckets || [];
+        buckets = await decryptBuckets(buckets);
+        state.savingsBuckets = buckets;
+        state.savingsSummary = data?.summary || null;
+        renderSavingsBuckets();
+        updateSavingsSummary();
+    } catch (error) {
+        console.error('Failed to load savings buckets:', error);
+    }
+}
+
+async function createSavingsBucket(name, icon, monthlyTarget) {
+    try {
+        let body = { name, icon, monthly_target: monthlyTarget };
+        body = await encryptBucket(body);
+
+        let bucket = await api('api.php?resource=savings-buckets', {
+            method: 'POST',
+            body
+        });
+
+        bucket = await decryptBucket(bucket);
+        state.savingsBuckets.push(bucket);
+        renderSavingsBuckets();
+        updateSavingsSummary();
+        showToast('Savings bucket created');
+        return bucket;
+    } catch (error) {
+        console.error('Failed to create bucket:', error);
+        showToast('Failed to create bucket');
+        return null;
+    }
+}
+
+async function updateSavingsBucket(id, name, icon, monthlyTarget) {
+    try {
+        let body = { name, icon, monthly_target: monthlyTarget };
+        body = await encryptBucket(body);
+
+        let bucket = await api(`api.php?resource=savings-buckets&id=${id}`, {
+            method: 'PUT',
+            body
+        });
+
+        bucket = await decryptBucket(bucket);
+        const index = state.savingsBuckets.findIndex(b => b.id === id);
+        if (index !== -1) {
+            state.savingsBuckets[index] = bucket;
+        }
+        renderSavingsBuckets();
+        showToast('Savings bucket updated');
+        return bucket;
+    } catch (error) {
+        console.error('Failed to update bucket:', error);
+        showToast('Failed to update bucket');
+        return null;
+    }
+}
+
+async function deleteSavingsBucket(id) {
+    try {
+        await api(`api.php?resource=savings-buckets&id=${id}`, { method: 'DELETE' });
+        state.savingsBuckets = state.savingsBuckets.filter(b => b.id !== id);
+
+        // Reload savings summary
+        const data = await api('api.php?resource=savings-buckets');
+        state.savingsSummary = data?.summary || null;
+
+        renderSavingsBuckets();
+        updateSavingsSummary();
+        showToast('Savings bucket deleted');
+    } catch (error) {
+        console.error('Failed to delete bucket:', error);
+        showToast('Failed to delete bucket');
+    }
+}
+
+async function addToBucket(bucketId, amount, type, description) {
+    try {
+        let body = {
+            bucket_id: bucketId,
+            amount: amount,
+            type: type,
+            description: description,
+            date: new Date().toISOString().split('T')[0]
+        };
+        body = await encryptSavingsTransaction(body);
+
+        await api('api.php?resource=savings-transactions', {
+            method: 'POST',
+            body
+        });
+
+        // Reload buckets to get updated balance
+        await loadSavingsBuckets();
+
+        // Also reload summary to update available to spend
+        const period = elements.periodSelector?.value || 'this-month';
+        const summary = await api(`api.php?resource=summary&period=${period}`);
+        state.summary = summary;
+        if (state.summary?.categories) {
+            state.summary.categories = await decryptCategories(state.summary.categories);
+        }
+        updateBalances();
+
+        showToast(type === 'allocation' ? 'Deposit added' : 'Withdrawal processed');
+    } catch (error) {
+        console.error('Failed to add to bucket:', error);
+        showToast('Failed to process bucket transaction');
+    }
+}
+
+async function loadBucketDetails(bucketId) {
+    try {
+        const bucket = await api(`api.php?resource=savings-buckets&id=${bucketId}`);
+        const decryptedBucket = await decryptBucket(bucket);
+
+        // Decrypt transactions in the bucket
+        if (decryptedBucket.transactions) {
+            decryptedBucket.transactions = await decryptSavingsTransactions(decryptedBucket.transactions);
+        }
+
+        return decryptedBucket;
+    } catch (error) {
+        console.error('Failed to load bucket details:', error);
+        return null;
+    }
+}
+
+function updateSavingsSummary() {
+    if (!elements.totalSaved || !elements.availableToSpend) return;
+
+    const summary = state.savingsSummary;
+    const hasBuckets = state.savingsBuckets && state.savingsBuckets.length > 0;
+
+    // Hide savings bar if user has no buckets
+    if (elements.savingsBar) {
+        elements.savingsBar.style.display = hasBuckets ? 'flex' : 'none';
+    }
+
+    if (summary && hasBuckets) {
+        elements.totalSaved.textContent = formatCurrency(summary.total_saved || 0);
+        elements.availableToSpend.textContent = formatCurrency(summary.available_to_spend || 0);
+
+        // Color code available to spend
+        if (summary.available_to_spend < 0) {
+            elements.availableToSpend.classList.add('negative');
+            elements.availableToSpend.classList.remove('available');
+        } else {
+            elements.availableToSpend.classList.remove('negative');
+            elements.availableToSpend.classList.add('available');
+        }
+    } else {
+        elements.totalSaved.textContent = formatCurrency(0);
+        elements.availableToSpend.textContent = formatCurrency(0);
+    }
+}
+
+function renderSavingsBuckets() {
+    const container = elements.bucketsList;
+    const emptyState = elements.noBuckets;
+    if (!container) return;
+
+    const buckets = state.savingsBuckets || [];
+
+    if (buckets.length === 0) {
+        container.innerHTML = '';
+        container.appendChild(emptyState);
+        emptyState.style.display = 'flex';
+        return;
+    }
+
+    emptyState.style.display = 'none';
+    container.innerHTML = '';
+
+    buckets.forEach(bucket => {
+        const card = renderBucketCard(bucket);
+        container.appendChild(card);
+    });
+
+    // Also update the transaction modal dropdown
+    populateBucketDropdown();
+}
+
+function renderBucketCard(bucket) {
+    const card = document.createElement('div');
+    card.className = `bucket-card${bucket.is_active ? '' : ' inactive'}`;
+    card.dataset.bucketId = bucket.id;
+
+    const balance = bucket.current_balance || 0;
+    const target = bucket.monthly_target || 0;
+    const progressPercent = target > 0 ? Math.min((balance / target) * 100, 100) : 0;
+    const isNegative = balance < 0;
+
+    card.innerHTML = `
+        <div class="bucket-header">
+            <div class="bucket-icon">${escapeHtml(bucket.icon)}</div>
+            <div class="bucket-info">
+                <h4>${escapeHtml(bucket.name)}</h4>
+                <span class="bucket-balance ${isNegative ? 'negative' : ''}">${formatCurrency(balance)}</span>
+            </div>
+            <div class="bucket-actions">
+                <button class="btn-icon bucket-deposit-action" title="Deposit">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <line x1="12" y1="5" x2="12" y2="19"/>
+                        <line x1="5" y1="12" x2="19" y2="12"/>
+                    </svg>
+                </button>
+                <button class="btn-icon bucket-withdraw-action" title="Withdraw">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <line x1="5" y1="12" x2="19" y2="12"/>
+                    </svg>
+                </button>
+            </div>
+        </div>
+        ${target > 0 ? `
+            <div class="bucket-progress">
+                <div class="bucket-progress-bar ${isNegative ? 'negative' : ''}" style="width: ${progressPercent}%"></div>
+            </div>
+            <div class="bucket-footer">
+                <span>Monthly: ${formatCurrency(target)}</span>
+                <span>${progressPercent.toFixed(0)}% of goal</span>
+            </div>
+        ` : ''}
+    `;
+
+    // Click on card to view details
+    card.addEventListener('click', (e) => {
+        if (!e.target.closest('.bucket-actions')) {
+            openBucketDetailsModal(bucket.id);
+        }
+    });
+
+    // Deposit button
+    card.querySelector('.bucket-deposit-action')?.addEventListener('click', (e) => {
+        e.stopPropagation();
+        openBucketAdjustModal(bucket.id, 'allocation');
+    });
+
+    // Withdraw button
+    card.querySelector('.bucket-withdraw-action')?.addEventListener('click', (e) => {
+        e.stopPropagation();
+        openBucketAdjustModal(bucket.id, 'withdrawal');
+    });
+
+    return card;
+}
+
+// ========================================
+// Savings Bucket Modals
+// ========================================
+
+let currentEditingBucket = null;
+
+function openBucketModal(bucketId = null) {
+    currentEditingBucket = bucketId ? getBucketById(bucketId) : null;
+
+    elements.bucketModalTitle.textContent = currentEditingBucket ? 'Edit Savings Bucket' : 'Add Savings Bucket';
+    elements.bucketSubmitBtn.textContent = currentEditingBucket ? 'Save Changes' : 'Create Bucket';
+
+    if (currentEditingBucket) {
+        elements.bucketName.value = currentEditingBucket.name;
+        elements.bucketIcon.value = currentEditingBucket.icon;
+        elements.bucketEmojiPreview.textContent = currentEditingBucket.icon;
+        elements.bucketTarget.value = currentEditingBucket.monthly_target || 0;
+    } else {
+        elements.bucketName.value = '';
+        elements.bucketIcon.value = '💰';
+        elements.bucketEmojiPreview.textContent = '💰';
+        elements.bucketTarget.value = 0;
+    }
+
+    openModal(elements.bucketModal);
+}
+
+let currentAdjustType = 'allocation';
+
+function openBucketAdjustModal(bucketId, type = 'allocation') {
+    const bucket = getBucketById(bucketId);
+    if (!bucket) return;
+
+    currentAdjustType = type;
+    elements.adjustBucketId.value = bucketId;
+    elements.adjustModalTitle.textContent = type === 'allocation' ? 'Deposit to Bucket' : 'Withdraw from Bucket';
+    elements.adjustBucketIcon.textContent = bucket.icon;
+    elements.adjustBucketName.textContent = bucket.name;
+    elements.adjustBucketBalance.textContent = formatCurrency(bucket.current_balance);
+    elements.adjustAmount.value = '';
+    elements.adjustDescription.value = '';
+    elements.adjustSubmitBtn.textContent = type === 'allocation' ? 'Confirm Deposit' : 'Confirm Withdrawal';
+
+    // Update toggle buttons
+    const toggleBtns = elements.bucketAdjustModal.querySelectorAll('.adjust-type-toggle .type-btn');
+    toggleBtns.forEach(btn => {
+        btn.classList.toggle('active', btn.dataset.type === type);
+    });
+
+    openModal(elements.bucketAdjustModal);
+}
+
+let currentViewingBucket = null;
+
+async function openBucketDetailsModal(bucketId) {
+    const bucket = await loadBucketDetails(bucketId);
+    if (!bucket) return;
+
+    currentViewingBucket = bucket;
+
+    elements.bucketDetailsTitle.textContent = `${bucket.icon} ${bucket.name}`;
+
+    // Render header with balance and monthly target
+    elements.bucketDetailsHeader.innerHTML = `
+        <div class="bucket-detail-balance">
+            <span class="label">Current Balance</span>
+            <span class="value ${bucket.current_balance < 0 ? 'negative' : ''}">${formatCurrency(bucket.current_balance)}</span>
+        </div>
+        ${bucket.monthly_target > 0 ? `
+            <div class="bucket-detail-target">
+                <span class="label">Monthly Target</span>
+                <span class="value">${formatCurrency(bucket.monthly_target)}</span>
+            </div>
+        ` : ''}
+    `;
+
+    // Render transactions
+    renderBucketTransactions(bucket.transactions || []);
+
+    openModal(elements.bucketDetailsModal);
+}
+
+function renderBucketTransactions(transactions) {
+    const container = elements.bucketTransactionsList;
+    const emptyState = elements.noBucketTransactions;
+
+    if (transactions.length === 0) {
+        container.innerHTML = '';
+        emptyState.style.display = 'flex';
+        return;
+    }
+
+    emptyState.style.display = 'none';
+    container.innerHTML = '';
+
+    transactions.forEach(tx => {
+        const isDeposit = tx.type === 'allocation' || tx.type === 'adjustment' && tx.amount > 0;
+        const item = document.createElement('div');
+        item.className = `bucket-transaction-item ${isDeposit ? 'deposit' : 'withdrawal'}`;
+        item.innerHTML = `
+            <div class="bucket-tx-info">
+                <span class="bucket-tx-description">${escapeHtml(tx.description || (isDeposit ? 'Deposit' : 'Withdrawal'))}</span>
+                <span class="bucket-tx-date">${formatDate(tx.date)}</span>
+            </div>
+            <span class="bucket-tx-amount ${isDeposit ? 'positive' : 'negative'}">
+                ${isDeposit ? '+' : '-'}${formatCurrency(Math.abs(tx.amount))}
+            </span>
+        `;
+        container.appendChild(item);
+    });
+}
+
+// ========================================
+// Navigation Drawer
+// ========================================
+
+function openNavDrawer() {
+    elements.navDrawer?.classList.add('active');
+    elements.navDrawerBackdrop?.classList.add('active');
+    document.body.style.overflow = 'hidden';
+}
+
+function closeNavDrawer() {
+    elements.navDrawer?.classList.remove('active');
+    elements.navDrawerBackdrop?.classList.remove('active');
+    document.body.style.overflow = '';
+}
+
+function showMenuSection(sectionName) {
+    // Hide dashboard content
+    elements.dashboardContent?.classList.add('hidden');
+
+    // Hide all menu sections
+    const menuSections = document.querySelectorAll('.menu-section');
+    menuSections.forEach(section => {
+        section.style.display = 'none';
+    });
+
+    // Show the selected section
+    switch (sectionName) {
+        case 'reports':
+            elements.reportsSection.style.display = 'block';
+            break;
+        case 'categories':
+            elements.categoriesMenuSection.style.display = 'block';
+            renderCategoriesInSection();
+            break;
+        case 'recurring':
+            elements.recurringMenuSection.style.display = 'block';
+            renderRecurringInSection();
+            break;
+        case 'savings':
+            elements.savingsSection.style.display = 'block';
+            renderSavingsBuckets();
+            break;
+        case 'settings':
+            elements.settingsSection.style.display = 'block';
+            elements.settingsCurrency.value = state.user?.currency || 'ZAR';
+            updateEncryptionStatusText();
+            break;
+    }
+
+    closeNavDrawer();
+}
+
+function showDashboard() {
+    // Hide all menu sections
+    const menuSections = document.querySelectorAll('.menu-section');
+    menuSections.forEach(section => {
+        section.style.display = 'none';
+    });
+
+    // Show dashboard content
+    elements.dashboardContent?.classList.remove('hidden');
+}
+
+function updateEncryptionStatusText() {
+    const statusText = document.getElementById('encryption-status-text');
+    if (statusText) {
+        if (state.user?.encryption_enabled) {
+            statusText.textContent = 'Your data is encrypted';
+        } else {
+            statusText.textContent = 'Protect your financial data';
+        }
+    }
+}
+
+function renderCategoriesInSection() {
+    const container = elements.categoriesListContainer;
+    if (!container) return;
+
+    container.innerHTML = '';
+
+    if (state.categories.length === 0) {
+        container.innerHTML = `
+            <div class="empty-state">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                    <rect x="3" y="3" width="18" height="18" rx="2"/>
+                    <line x1="3" y1="9" x2="21" y2="9"/>
+                    <line x1="9" y1="21" x2="9" y2="9"/>
+                </svg>
+                <p>No categories yet</p>
+                <span>Create your first category to get started</span>
+            </div>
+        `;
+        return;
+    }
+
+    // Group by type
+    const expenses = state.categories.filter(c => c.type === 'expense');
+    const incomes = state.categories.filter(c => c.type === 'income');
+
+    if (expenses.length > 0) {
+        const expenseHeader = document.createElement('h4');
+        expenseHeader.className = 'category-group-header';
+        expenseHeader.textContent = 'Expense Categories';
+        container.appendChild(expenseHeader);
+
+        expenses.forEach(cat => {
+            container.appendChild(createCategoryListItem(cat));
+        });
+    }
+
+    if (incomes.length > 0) {
+        const incomeHeader = document.createElement('h4');
+        incomeHeader.className = 'category-group-header';
+        incomeHeader.textContent = 'Income Categories';
+        container.appendChild(incomeHeader);
+
+        incomes.forEach(cat => {
+            container.appendChild(createCategoryListItem(cat));
+        });
+    }
+}
+
+function createCategoryListItem(category) {
+    const item = document.createElement('div');
+    item.className = 'category-list-item';
+    item.innerHTML = `
+        <div class="category-list-icon">${category.icon}</div>
+        <div class="category-list-info">
+            <span class="category-list-name">${category.name}</span>
+            ${category.budget_amount > 0 ? `<span class="category-list-budget">${formatCurrency(category.budget_amount)}/mo</span>` : ''}
+        </div>
+        <div class="category-list-actions">
+            <button class="btn-icon btn-small" data-edit="${category.id}" title="Edit">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
+                    <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
+                </svg>
+            </button>
+            <button class="btn-icon btn-small btn-danger-ghost" data-delete="${category.id}" title="Delete">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <polyline points="3 6 5 6 21 6"/>
+                    <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>
+                </svg>
+            </button>
+        </div>
+    `;
+
+    // Edit button
+    item.querySelector('[data-edit]').addEventListener('click', (e) => {
+        e.stopPropagation();
+        openEditCategoryModalFromSection(category);
+    });
+
+    // Delete button
+    item.querySelector('[data-delete]').addEventListener('click', async (e) => {
+        e.stopPropagation();
+        if (confirm(`Delete "${category.name}"? Transactions will keep their data but won't have a category.`)) {
+            await deleteCategory(category.id);
+            renderCategoriesInSection();
+        }
+    });
+
+    return item;
+}
+
+function renderRecurringInSection() {
+    const container = elements.recurringMenuList;
+    const emptyState = elements.noRecurringMenu;
+    if (!container || !emptyState) return;
+
+    // Clear existing items except empty state
+    Array.from(container.children).forEach(child => {
+        if (!child.classList.contains('empty-state')) {
+            child.remove();
+        }
+    });
+
+    const recurring = state.recurringTransactions.filter(r => r.is_active);
+
+    if (recurring.length === 0) {
+        emptyState.style.display = 'flex';
+        return;
+    }
+
+    emptyState.style.display = 'none';
+
+    recurring.forEach(rule => {
+        const category = getCategoryById(rule.category_id);
+        const item = document.createElement('div');
+        item.className = `recurring-item ${rule.is_active ? '' : 'paused'}`;
+        item.innerHTML = `
+            <div class="recurring-content">
+                <div class="recurring-icon ${rule.type}">${category.icon}</div>
+                <div class="recurring-info">
+                    <div class="recurring-description">${rule.description}</div>
+                    <div class="recurring-meta">
+                        <span>${rule.frequency === 'monthly' ? 'Monthly' : 'Yearly'}</span>
+                        <span>•</span>
+                        <span>Day ${new Date(rule.start_date).getDate()}</span>
+                    </div>
+                </div>
+            </div>
+            <span class="recurring-amount ${rule.type}">${rule.type === 'income' ? '+' : '-'}${formatCurrency(rule.amount)}</span>
+        `;
+
+        item.addEventListener('click', () => {
+            openRecurringFormModal(rule);
+        });
+
+        container.appendChild(item);
+    });
+}
+
+function setupNavigationDrawer() {
+    // Menu button opens drawer
+    elements.menuBtn?.addEventListener('click', openNavDrawer);
+
+    // Close button and backdrop close drawer
+    elements.navDrawerClose?.addEventListener('click', closeNavDrawer);
+    elements.navDrawerBackdrop?.addEventListener('click', closeNavDrawer);
+
+    // Navigation items
+    document.querySelectorAll('.nav-item[data-section]').forEach(item => {
+        item.addEventListener('click', () => {
+            const section = item.dataset.section;
+            showMenuSection(section);
+        });
+    });
+
+    // Back buttons
+    elements.reportsBackBtn?.addEventListener('click', showDashboard);
+    elements.savingsBackBtn?.addEventListener('click', showDashboard);
+    elements.settingsBackBtn?.addEventListener('click', showDashboard);
+    elements.categoriesBackBtn?.addEventListener('click', showDashboard);
+    elements.recurringBackBtn?.addEventListener('click', showDashboard);
+
+    // Add category button in categories section
+    elements.addCategoryBtn?.addEventListener('click', () => openNewCategoryModal());
+
+    // Add recurring button in recurring section
+    elements.addRecurringMenuBtn?.addEventListener('click', () => openRecurringFormModal());
+
+    // Recurring tabs in section
+    const recurringSection = elements.recurringMenuSection;
+    if (recurringSection) {
+        recurringSection.querySelectorAll('.recurring-tab').forEach(tab => {
+            tab.addEventListener('click', () => {
+                recurringSection.querySelectorAll('.recurring-tab').forEach(t => t.classList.remove('active'));
+                recurringSection.querySelectorAll('.recurring-tab-content').forEach(c => c.classList.remove('active'));
+                tab.classList.add('active');
+                const tabId = `recurring-${tab.dataset.tab}-tab`;
+                document.getElementById(tabId)?.classList.add('active');
+
+                if (tab.dataset.tab === 'upcoming') {
+                    renderUpcomingInSection();
+                }
+            });
+        });
+
+        // Upcoming days input
+        elements.recurringUpcomingDays?.addEventListener('change', renderUpcomingInSection);
+    }
+
+    // Handle keyboard escape to close drawer
+    document.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape' && elements.navDrawer?.classList.contains('active')) {
+            closeNavDrawer();
+        }
+    });
+}
+
+async function renderUpcomingInSection() {
+    const days = parseInt(elements.recurringUpcomingDays?.value) || 7;
+    const container = elements.recurringUpcomingList;
+    const emptyState = elements.noRecurringUpcoming;
+    if (!container || !emptyState) return;
+
+    // Clear existing items except empty state
+    Array.from(container.children).forEach(child => {
+        if (!child.classList.contains('empty-state')) {
+            child.remove();
+        }
+    });
+
+    try {
+        let upcoming = await api(`api.php?resource=recurring&upcoming=1&days=${days}`);
+        upcoming = await decryptRecurringTransactions(Array.isArray(upcoming) ? upcoming : []);
+
+        if (upcoming.length === 0) {
+            emptyState.style.display = 'flex';
+            return;
+        }
+
+        emptyState.style.display = 'none';
+
+        upcoming.forEach(recurring => {
+            const category = getCategoryById(recurring.category_id);
+            const nextDate = new Date(recurring.next_occurrence);
+            const itemEl = document.createElement('div');
+            itemEl.className = 'upcoming-item';
+            itemEl.innerHTML = `
+                <div class="upcoming-date">${formatDate(nextDate)}</div>
+                <div class="upcoming-content">
+                    <div class="upcoming-icon ${recurring.type}">${category.icon}</div>
+                    <div class="upcoming-info">
+                        <span class="upcoming-description">${escapeHtml(recurring.description)}</span>
+                    </div>
+                    <span class="upcoming-amount ${recurring.type}">${recurring.type === 'income' ? '+' : '-'}${formatCurrency(recurring.amount)}</span>
+                </div>
+            `;
+            container.appendChild(itemEl);
+        });
+    } catch (error) {
+        console.error('Failed to load upcoming recurring:', error);
+        emptyState.style.display = 'flex';
+    }
+}
+
+function setupBucketModals() {
+    // Add bucket button
+    elements.addBucketBtn?.addEventListener('click', () => openBucketModal());
+
+    // Bucket form submit
+    elements.bucketForm?.addEventListener('submit', async (e) => {
+        e.preventDefault();
+
+        const name = elements.bucketName.value.trim();
+        const icon = elements.bucketIcon.value;
+        const monthlyTarget = parseFloat(elements.bucketTarget.value) || 0;
+
+        if (currentEditingBucket) {
+            await updateSavingsBucket(currentEditingBucket.id, name, icon, monthlyTarget);
+        } else {
+            await createSavingsBucket(name, icon, monthlyTarget);
+        }
+
+        closeModal(elements.bucketModal);
+    });
+
+    // Bucket emoji picker
+    elements.bucketEmojiPicker?.querySelectorAll('.emoji-option').forEach(btn => {
+        btn.addEventListener('click', () => {
+            const emoji = btn.dataset.emoji;
+            elements.bucketIcon.value = emoji;
+            elements.bucketEmojiPreview.textContent = emoji;
+        });
+    });
+
+    // Bucket adjust form submit
+    elements.bucketAdjustForm?.addEventListener('submit', async (e) => {
+        e.preventDefault();
+
+        const bucketId = parseInt(elements.adjustBucketId.value);
+        const amount = parseFloat(elements.adjustAmount.value);
+        const description = elements.adjustDescription.value.trim();
+
+        if (amount <= 0) {
+            showToast('Please enter a valid amount');
+            return;
+        }
+
+        await addToBucket(bucketId, amount, currentAdjustType, description);
+        closeModal(elements.bucketAdjustModal);
+    });
+
+    // Adjust type toggle
+    elements.bucketAdjustModal?.querySelectorAll('.adjust-type-toggle .type-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+            currentAdjustType = btn.dataset.type;
+            elements.adjustModalTitle.textContent = currentAdjustType === 'allocation' ? 'Deposit to Bucket' : 'Withdraw from Bucket';
+            elements.adjustSubmitBtn.textContent = currentAdjustType === 'allocation' ? 'Confirm Deposit' : 'Confirm Withdrawal';
+
+            elements.bucketAdjustModal.querySelectorAll('.adjust-type-toggle .type-btn').forEach(b => {
+                b.classList.toggle('active', b === btn);
+            });
+        });
+    });
+
+    // Bucket details modal actions
+    elements.bucketDepositBtn?.addEventListener('click', () => {
+        if (currentViewingBucket) {
+            closeModal(elements.bucketDetailsModal);
+            openBucketAdjustModal(currentViewingBucket.id, 'allocation');
+        }
+    });
+
+    elements.bucketWithdrawBtn?.addEventListener('click', () => {
+        if (currentViewingBucket) {
+            closeModal(elements.bucketDetailsModal);
+            openBucketAdjustModal(currentViewingBucket.id, 'withdrawal');
+        }
+    });
+
+    elements.bucketEditBtn?.addEventListener('click', () => {
+        if (currentViewingBucket) {
+            closeModal(elements.bucketDetailsModal);
+            openBucketModal(currentViewingBucket.id);
+        }
+    });
+
+    elements.bucketDeleteBtn?.addEventListener('click', async () => {
+        if (currentViewingBucket && confirm('Delete this savings bucket? This will also delete all associated transactions.')) {
+            closeModal(elements.bucketDetailsModal);
+            await deleteSavingsBucket(currentViewingBucket.id);
+        }
+    });
+
+    // Show/hide savings bucket dropdown based on transaction type
+    setupTransactionBucketToggle();
+}
+
+function setupTransactionBucketToggle() {
+    // Watch for transaction type changes to show/hide bucket dropdown
+    const transactionTypeToggle = elements.transactionModal?.querySelector('.transaction-type-toggle');
+    if (transactionTypeToggle) {
+        transactionTypeToggle.querySelectorAll('.type-btn').forEach(btn => {
+            btn.addEventListener('click', () => {
+                const isExpense = btn.dataset.type === 'expense';
+                if (elements.savingsBucketGroup) {
+                    elements.savingsBucketGroup.style.display = isExpense ? 'block' : 'none';
+                }
+                if (!isExpense && elements.transactionBucket) {
+                    elements.transactionBucket.value = '';
+                }
+            });
+        });
+    }
 }
 
 // ========================================
@@ -2339,6 +3410,8 @@ function renderAll() {
     renderTransactions();
     updateBalances();
     renderChart();
+    renderSavingsBuckets();
+    updateSavingsSummary();
     updateCurrencyPrefixes();
 }
 
@@ -2369,30 +3442,6 @@ function closeModal(modal) {
 }
 
 function setupModals() {
-    // Category Modal (formerly Budget Modal)
-    elements.addCategoryBtn.addEventListener('click', () => {
-        elements.categoryForm.reset();
-        editingCategoryId = null;
-
-        // Reset modal title
-        const modalTitle = elements.categoryModal.querySelector('.modal-header h3');
-        if (modalTitle) modalTitle.textContent = 'Add Category';
-
-        // Reset type toggle to expense and enable it
-        const typeToggle = document.querySelector('.category-type-toggle');
-        if (typeToggle) typeToggle.classList.remove('disabled');
-        document.querySelectorAll('.category-type-toggle .type-btn').forEach(btn => {
-            btn.classList.toggle('active', btn.dataset.type === 'expense');
-        });
-
-        // Set default icon value
-        const iconInput = document.getElementById('category-icon');
-        if (iconInput) iconInput.value = '📦';
-        updateEmojiPickerSelection('📦');
-
-        openModal(elements.categoryModal);
-    });
-
     // Category type toggle - use event delegation
     const categoryTypeToggle = document.querySelector('.category-type-toggle');
     if (categoryTypeToggle) {
@@ -2430,9 +3479,9 @@ function setupModals() {
 
         editingCategoryId = null;
 
-        // Re-render the categories list if we're returning to it
-        if (modalParent === elements.categoriesListModal) {
-            renderCategoriesListModal();
+        // Re-render the categories section if it's visible
+        if (elements.categoriesMenuSection?.style.display !== 'none') {
+            renderCategoriesInSection();
         }
 
         closeModal(elements.categoryModal);
@@ -2449,6 +3498,15 @@ function setupModals() {
 
         // Populate category dropdown with expense categories by default
         populateCategoryDropdown(elements.transactionCategory, 'expense');
+
+        // Show savings bucket dropdown (expense is default) and populate it
+        if (elements.savingsBucketGroup) {
+            elements.savingsBucketGroup.style.display = 'block';
+        }
+        populateBucketDropdown();
+        if (elements.transactionBucket) {
+            elements.transactionBucket.value = '';
+        }
 
         // Show recurring toggle and reset options
         const recurringToggle = document.getElementById('recurring-toggle');
@@ -2492,6 +3550,7 @@ function setupModals() {
         const date = document.getElementById('transaction-date').value;
         const type = document.querySelector('.transaction-type-toggle .type-btn.active').dataset.type;
         const isRecurring = elements.transactionRecurring?.checked || false;
+        const savingsBucketId = elements.transactionBucket?.value ? parseInt(elements.transactionBucket.value) : null;
 
         if (!categoryId) {
             showToast('Please select a category');
@@ -2499,49 +3558,37 @@ function setupModals() {
         }
 
         if (editingTransactionId) {
-            await updateTransaction(editingTransactionId, description, parseFloat(amount), parseInt(categoryId), type, date);
+            await updateTransaction(editingTransactionId, description, parseFloat(amount), parseInt(categoryId), type, date, savingsBucketId);
         } else if (isRecurring) {
             // Create recurring transaction instead
             const frequency = document.getElementById('transaction-frequency').value;
             const endDate = document.getElementById('transaction-end-date').value || null;
             await createRecurringTransaction(description, parseFloat(amount), parseInt(categoryId), type, frequency, date, endDate);
         } else {
-            await createTransaction(description, parseFloat(amount), parseInt(categoryId), type, date);
+            await createTransaction(description, parseFloat(amount), parseInt(categoryId), type, date, savingsBucketId);
         }
 
         editingTransactionId = null;
         closeModal(elements.transactionModal);
     });
     
-    // Settings Modal
-    elements.settingsBtn.addEventListener('click', () => {
-        // Set current currency value
-        elements.settingsCurrency.value = state.user?.currency || 'ZAR';
-        openModal(elements.settingsModal);
-    });
-    
-    elements.settingsForm.addEventListener('submit', async (e) => {
-        e.preventDefault();
-        const currency = elements.settingsCurrency.value;
+    // Navigation Drawer
+    setupNavigationDrawer();
+
+    // Currency selector in settings section
+    elements.settingsCurrency?.addEventListener('change', async (e) => {
+        const currency = e.target.value;
         await updateUserCurrency(currency);
-        closeModal(elements.settingsModal);
+        showToast('Currency updated');
     });
 
-    // Manage Categories button in Settings
-    elements.manageCategoriesBtn.addEventListener('click', () => {
-        elements.settingsModal.classList.remove('active');
-        renderCategoriesListModal();
-        openModal(elements.categoriesListModal, elements.settingsModal);
-    });
-
-    // Change Password button in Settings
+    // Change Password button in Settings section
     elements.changePasswordBtn?.addEventListener('click', () => {
-        elements.settingsModal.classList.remove('active');
         elements.changePasswordForm.reset();
         // Reset strength meter visibility
         const meter = elements.changePasswordModal.querySelector('.password-strength');
         if (meter) meter.style.display = 'none';
-        openModal(elements.changePasswordModal, elements.settingsModal);
+        openModal(elements.changePasswordModal);
     });
 
     // Change Password form submission
@@ -2619,40 +3666,11 @@ function setupModals() {
         }
     });
 
-    // Add Category from List Modal
-    elements.addCategoryFromListBtn.addEventListener('click', () => {
-        elements.categoriesListModal.classList.remove('active');
-        elements.categoryForm.reset();
-        editingCategoryId = null;
-
-        const modalTitle = elements.categoryModal.querySelector('.modal-header h3');
-        if (modalTitle) modalTitle.textContent = 'Add Category';
-
-        // Reset type toggle to expense
-        const typeToggle = document.querySelector('.category-type-toggle');
-        if (typeToggle) typeToggle.classList.remove('disabled');
-        document.querySelectorAll('.category-type-toggle .type-btn').forEach(btn => {
-            btn.classList.toggle('active', btn.dataset.type === 'expense');
-        });
-
-        const iconInput = document.getElementById('category-icon');
-        if (iconInput) iconInput.value = '📦';
-        updateEmojiPickerSelection('📦');
-
-        openModal(elements.categoryModal, elements.categoriesListModal);
-    });
-
     // Recurring transaction toggle in transaction modal
     elements.transactionRecurring?.addEventListener('change', (e) => {
         if (elements.recurringOptions) {
             elements.recurringOptions.style.display = e.target.checked ? 'block' : 'none';
         }
-    });
-
-    // Manage Recurring Transactions button in Settings
-    elements.manageRecurringBtn?.addEventListener('click', () => {
-        elements.settingsModal.classList.remove('active');
-        openRecurringModal(false); // false = show "All Recurring" tab
     });
 
     // Add Recurring button in recurring modal
@@ -2739,6 +3757,12 @@ function setupModals() {
         }
 
         editingRecurringId = null;
+
+        // Re-render the recurring section if it's visible
+        if (elements.recurringMenuSection?.style.display !== 'none') {
+            renderRecurringInSection();
+        }
+
         closeModal(elements.recurringFormModal);
     });
 
@@ -2980,9 +4004,8 @@ async function registerServiceWorker() {
 // ========================================
 
 function setupEncryptionHandlers() {
-    // Data Encryption button in settings modal - opens encryption settings
+    // Data Encryption button in settings section - opens encryption settings modal
     elements.dataEncryptionBtn?.addEventListener('click', () => {
-        closeModal(elements.settingsModal);
         updateEncryptionSettingsModal();
         openModal(elements.encryptionSettingsModal);
     });
@@ -3745,6 +4768,7 @@ async function init() {
     setupPasswordToggles();
     setupPasswordStrength();
     setupEncryptionHandlers();
+    setupBucketModals();
 
     // Period selector change handler (balance card)
     elements.periodSelector?.addEventListener('change', () => {

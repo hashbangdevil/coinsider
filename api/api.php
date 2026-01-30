@@ -33,6 +33,12 @@ switch ($resource) {
     case 'budget-comparison':
         handleBudgetComparison($method);
         break;
+    case 'savings-buckets':
+        handleSavingsBuckets($method, $id);
+        break;
+    case 'savings-transactions':
+        handleSavingsTransactions($method, $id);
+        break;
     case '':
         jsonResponse(['message' => 'Budget Manager API', 'version' => '1.0']);
         break;
@@ -226,15 +232,20 @@ function handleTransactions($method, $id) {
                 errorResponse('Type must be "income" or "expense"');
             }
 
+            // Check for optional savings bucket
+            $savingsBucketId = isset($data['savings_bucket_id']) ? intval($data['savings_bucket_id']) : null;
+            if ($savingsBucketId === 0) $savingsBucketId = null;
+
             if ($hasCategoryId) {
-                // New flow with category_id
-                $transaction = createTransactionWithCategoryId(
+                // New flow with category_id (and optional savings bucket)
+                $transaction = createTransactionWithSavings(
                     $userId,
                     trim($data['description']),
                     floatval($data['amount']),
                     intval($data['category_id']),
                     $data['type'],
-                    $data['date']
+                    $data['date'],
+                    $savingsBucketId
                 );
 
                 if (!$transaction) {
@@ -275,16 +286,21 @@ function handleTransactions($method, $id) {
                 errorResponse('Type must be "income" or "expense"');
             }
 
+            // Check for optional savings bucket
+            $savingsBucketId = isset($data['savings_bucket_id']) ? intval($data['savings_bucket_id']) : null;
+            if ($savingsBucketId === 0) $savingsBucketId = null;
+
             if ($hasCategoryId) {
-                // New flow with category_id
-                $transaction = updateTransactionWithCategoryId(
+                // New flow with category_id (and optional savings bucket)
+                $transaction = updateTransactionWithSavings(
                     $userId,
                     $id,
                     trim($data['description']),
                     floatval($data['amount']),
                     intval($data['category_id']),
                     $data['type'],
-                    $data['date']
+                    $data['date'],
+                    $savingsBucketId
                 );
 
                 if (!$transaction) {
@@ -315,7 +331,7 @@ function handleTransactions($method, $id) {
                 errorResponse('Transaction ID is required');
             }
 
-            $deleted = deleteTransaction($userId, $id);
+            $deleted = deleteTransactionWithSavings($userId, $id);
             if (!$deleted) {
                 errorResponse('Transaction not found', 404);
             }
@@ -605,13 +621,17 @@ function handleSummary($method) {
             }
     }
 
+    // Include savings summary
+    $savingsSummary = getSavingsSummary($userId);
+
     jsonResponse([
         'period' => $period,
         'periodLabel' => $periodLabel,
         'income' => $totals['income'],
         'expense' => $totals['expense'],
         'balance' => $totals['income'] - $totals['expense'],
-        'categories' => $categoryTotals
+        'categories' => $categoryTotals,
+        'savings' => $savingsSummary
     ]);
 }
 
@@ -739,4 +759,232 @@ function handleBudgetComparison($method) {
         'period' => $period,
         'categories' => $comparison
     ]);
+}
+
+// ========================================
+// Savings Buckets Handler
+// ========================================
+
+function handleSavingsBuckets($method, $id) {
+    $user = requireAuth();
+    $userId = $user['id'];
+
+    // Check if monthly allocations are needed (on GET requests)
+    if ($method === 'GET') {
+        $today = date('Y-m-d');
+        $currentMonth = date('Y-m');
+        $lastAllocationDate = getLastAllocationDate($userId);
+
+        // If it's a new month and allocations haven't been generated
+        if (!$lastAllocationDate || strpos($lastAllocationDate, $currentMonth) !== 0) {
+            // Only auto-allocate on or after the 1st of the month
+            if (date('d') >= 1) {
+                generateMonthlyAllocations($userId);
+            }
+        }
+    }
+
+    switch ($method) {
+        case 'GET':
+            if ($id) {
+                $bucket = getSavingsBucket($userId, $id);
+                if (!$bucket) {
+                    errorResponse('Savings bucket not found', 404);
+                }
+                // Include recent transactions for this bucket
+                $bucket['transactions'] = getSavingsTransactions($userId, $id, 20);
+                jsonResponse($bucket);
+            } else {
+                $buckets = getSavingsBuckets($userId);
+                // Also return savings summary
+                $summary = getSavingsSummary($userId);
+                jsonResponse([
+                    'buckets' => $buckets,
+                    'summary' => $summary
+                ]);
+            }
+            break;
+
+        case 'POST':
+            $data = json_decode(file_get_contents('php://input'), true);
+
+            // Check for manual allocation action
+            if (isset($data['action']) && $data['action'] === 'allocate') {
+                $generated = generateMonthlyAllocations($userId);
+                jsonResponse(['generated' => $generated, 'count' => count($generated)]);
+                break;
+            }
+
+            if (empty($data['name'])) {
+                errorResponse('Name is required');
+            }
+
+            $icon = isset($data['icon']) ? trim($data['icon']) : '💰';
+            $color = isset($data['color']) ? $data['color'] : null;
+            $monthlyTarget = isset($data['monthly_target']) ? floatval($data['monthly_target']) : 0;
+
+            try {
+                $bucket = createSavingsBucket($userId, $data['name'], $icon, $color, $monthlyTarget);
+                jsonResponse($bucket, 201);
+            } catch (PDOException $e) {
+                if (strpos($e->getMessage(), 'UNIQUE constraint') !== false) {
+                    errorResponse('A savings bucket with this name already exists');
+                }
+                throw $e;
+            }
+            break;
+
+        case 'PUT':
+            if (!$id) {
+                errorResponse('Bucket ID is required');
+            }
+
+            $data = json_decode(file_get_contents('php://input'), true);
+
+            // Check for toggle action
+            if (isset($data['action'])) {
+                switch ($data['action']) {
+                    case 'activate':
+                        $bucket = toggleSavingsBucket($userId, $id, true);
+                        if (!$bucket) {
+                            errorResponse('Savings bucket not found', 404);
+                        }
+                        jsonResponse($bucket);
+                        break;
+
+                    case 'deactivate':
+                        $bucket = toggleSavingsBucket($userId, $id, false);
+                        if (!$bucket) {
+                            errorResponse('Savings bucket not found', 404);
+                        }
+                        jsonResponse($bucket);
+                        break;
+
+                    default:
+                        errorResponse('Invalid action. Use "activate" or "deactivate"');
+                }
+                break;
+            }
+
+            if (empty($data['name'])) {
+                errorResponse('Name is required');
+            }
+
+            $icon = isset($data['icon']) ? trim($data['icon']) : '💰';
+            $monthlyTarget = isset($data['monthly_target']) ? floatval($data['monthly_target']) : 0;
+
+            try {
+                $bucket = updateSavingsBucket($userId, $id, $data['name'], $icon, $monthlyTarget);
+                if (!$bucket) {
+                    errorResponse('Savings bucket not found', 404);
+                }
+                jsonResponse($bucket);
+            } catch (PDOException $e) {
+                if (strpos($e->getMessage(), 'UNIQUE constraint') !== false) {
+                    errorResponse('A savings bucket with this name already exists');
+                }
+                throw $e;
+            }
+            break;
+
+        case 'DELETE':
+            if (!$id) {
+                errorResponse('Bucket ID is required');
+            }
+
+            $bucket = getSavingsBucket($userId, $id);
+            if (!$bucket) {
+                errorResponse('Savings bucket not found', 404);
+            }
+
+            $deleted = deleteSavingsBucket($userId, $id);
+            if (!$deleted) {
+                errorResponse('Failed to delete savings bucket', 500);
+            }
+
+            jsonResponse(['success' => true]);
+            break;
+
+        default:
+            errorResponse('Method not allowed', 405);
+    }
+}
+
+// ========================================
+// Savings Transactions Handler
+// ========================================
+
+function handleSavingsTransactions($method, $id) {
+    $user = requireAuth();
+    $userId = $user['id'];
+
+    switch ($method) {
+        case 'GET':
+            if ($id) {
+                $transaction = getSavingsTransaction($userId, $id);
+                if (!$transaction) {
+                    errorResponse('Savings transaction not found', 404);
+                }
+                jsonResponse($transaction);
+            } else {
+                $bucketId = isset($_GET['bucket_id']) ? intval($_GET['bucket_id']) : null;
+                $limit = isset($_GET['limit']) ? intval($_GET['limit']) : 100;
+                $transactions = getSavingsTransactions($userId, $bucketId, $limit);
+                jsonResponse($transactions);
+            }
+            break;
+
+        case 'POST':
+            $data = json_decode(file_get_contents('php://input'), true);
+
+            if (empty($data['bucket_id']) || !isset($data['amount']) || empty($data['type'])) {
+                errorResponse('bucket_id, amount, and type are required');
+            }
+
+            if (!in_array($data['type'], ['allocation', 'withdrawal', 'adjustment'])) {
+                errorResponse('Type must be "allocation", "withdrawal", or "adjustment"');
+            }
+
+            $amount = floatval($data['amount']);
+            if ($amount <= 0) {
+                errorResponse('Amount must be greater than 0');
+            }
+
+            $description = isset($data['description']) ? trim($data['description']) : null;
+            $date = isset($data['date']) ? $data['date'] : date('Y-m-d');
+            $linkedTransactionId = isset($data['linked_transaction_id']) ? intval($data['linked_transaction_id']) : null;
+
+            $transaction = addSavingsTransaction(
+                $userId,
+                intval($data['bucket_id']),
+                $amount,
+                $data['type'],
+                $description,
+                $date,
+                $linkedTransactionId
+            );
+
+            if (!$transaction) {
+                errorResponse('Invalid bucket or failed to create transaction');
+            }
+
+            jsonResponse($transaction, 201);
+            break;
+
+        case 'DELETE':
+            if (!$id) {
+                errorResponse('Transaction ID is required');
+            }
+
+            $deleted = deleteSavingsTransaction($userId, $id);
+            if (!$deleted) {
+                errorResponse('Savings transaction not found', 404);
+            }
+
+            jsonResponse(['success' => true]);
+            break;
+
+        default:
+            errorResponse('Method not allowed', 405);
+    }
 }

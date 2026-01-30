@@ -24,7 +24,7 @@
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
 
     <!-- Centralized CSS -->
-    <link rel="stylesheet" href="styles.css?v=57">
+    <link rel="stylesheet" href="styles.css?v=62">
 </head>
 <body>
     <!-- Auth Screen (Login/Signup/Forgot Password) -->
@@ -38,7 +38,7 @@
                     </svg>
                 </div>
                 <h1 class="login-title">Budget</h1>
-                <p class="login-subtitle">TTTTake control of your finances</p>
+                <p class="login-subtitle">Take control of your finances</p>
             </div>
             
             <!-- Login Form -->
@@ -258,10 +258,11 @@
                         </div>
                     </div>
                 </div>
-                <button class="btn-icon" id="settings-btn" title="Settings">
+                <button class="btn-icon" id="menu-btn" title="Menu">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                        <circle cx="12" cy="12" r="3"/>
-                        <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/>
+                        <line x1="3" y1="6" x2="21" y2="6"/>
+                        <line x1="3" y1="12" x2="21" y2="12"/>
+                        <line x1="3" y1="18" x2="21" y2="18"/>
                     </svg>
                 </button>
                 <button class="btn-icon" id="logout-btn" title="Logout">
@@ -273,6 +274,79 @@
                 </button>
             </div>
         </header>
+
+        <!-- Navigation Drawer -->
+        <div class="nav-drawer-backdrop" id="nav-drawer-backdrop"></div>
+        <nav class="nav-drawer" id="nav-drawer">
+            <div class="nav-drawer-header">
+                <div class="nav-drawer-title">Menu</div>
+                <button class="btn-icon nav-drawer-close" id="nav-drawer-close">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <line x1="18" y1="6" x2="6" y2="18"/>
+                        <line x1="6" y1="6" x2="18" y2="18"/>
+                    </svg>
+                </button>
+            </div>
+            <div class="nav-drawer-items">
+                <button class="nav-item" data-section="reports">
+                    <div class="nav-item-icon">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M21.21 15.89A10 10 0 1 1 8 2.83"/>
+                            <path d="M22 12A10 10 0 0 0 12 2v10z"/>
+                        </svg>
+                    </div>
+                    <span class="nav-item-label">Reports</span>
+                    <span class="nav-item-desc">Spending charts & trends</span>
+                </button>
+                <button class="nav-item" data-section="categories">
+                    <div class="nav-item-icon">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <rect x="3" y="3" width="18" height="18" rx="2"/>
+                            <line x1="3" y1="9" x2="21" y2="9"/>
+                            <line x1="9" y1="21" x2="9" y2="9"/>
+                        </svg>
+                    </div>
+                    <span class="nav-item-label">Budget Categories</span>
+                    <span class="nav-item-desc">Manage expense & income types</span>
+                </button>
+                <button class="nav-item" data-section="recurring">
+                    <div class="nav-item-icon">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <polyline points="23 4 23 10 17 10"/>
+                            <polyline points="1 20 1 14 7 14"/>
+                            <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/>
+                        </svg>
+                    </div>
+                    <span class="nav-item-label">Recurring Transactions</span>
+                    <span class="nav-item-desc">Automatic monthly & yearly entries</span>
+                </button>
+                <button class="nav-item" data-section="savings">
+                    <div class="nav-item-icon">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M19 5c-1.5 0-2.8 1.4-3 2-3.5-1.5-11-.3-11 5 0 1.8 0 3 2 4.5V20h4v-2h3v2h4v-4c1-.5 1.7-1 2-2h2v-4h-2c0-1-.5-1.5-1-2h0V5z"/>
+                            <path d="M2 9v1c0 1.1.9 2 2 2h1"/>
+                            <path d="M16 11h0"/>
+                        </svg>
+                    </div>
+                    <span class="nav-item-label">Savings Buckets</span>
+                    <span class="nav-item-desc">Goals & envelope budgeting</span>
+                </button>
+                <div class="nav-divider"></div>
+                <button class="nav-item" data-section="settings">
+                    <div class="nav-item-icon">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <circle cx="12" cy="12" r="3"/>
+                            <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/>
+                        </svg>
+                    </div>
+                    <span class="nav-item-label">Settings</span>
+                    <span class="nav-item-desc">Password & encryption</span>
+                </button>
+            </div>
+        </nav>
+
+        <!-- Dashboard Content (Balance + Transactions) -->
+        <div class="dashboard-content" id="dashboard-content">
 
         <!-- Balance Overview -->
         <section class="balance-card">
@@ -318,6 +392,17 @@
                         <span class="stat-label">Expenses</span>
                         <span class="stat-value" id="total-expenses">$0.00</span>
                     </div>
+                </div>
+            </div>
+            <div class="savings-bar" id="savings-bar">
+                <div class="savings-bar-item">
+                    <span class="savings-bar-label">In Savings Buckets</span>
+                    <span class="savings-bar-value" id="total-saved">R0.00</span>
+                </div>
+                <div class="savings-bar-divider"></div>
+                <div class="savings-bar-item">
+                    <span class="savings-bar-label">Available to Spend</span>
+                    <span class="savings-bar-value available" id="available-to-spend">R0.00</span>
                 </div>
             </div>
         </section>
@@ -382,49 +467,270 @@
             </div>
         </section>
 
-        <!-- Reports Section -->
-        <section class="section">
-            <div class="section-header" id="chart-header">
-                <h3 class="section-title">Spending by Category</h3>
-                <select class="period-selector" id="chart-period-selector">
-                    <option value="this-month">This Month</option>
-                    <option value="last-month">Last Month</option>
-                    <option value="this-year">This Year</option>
-                    <option value="last-year">Last Year</option>
-                    <option value="all-time">All Time</option>
-                    <option value="custom">Custom Range...</option>
-                </select>
+        </div><!-- End dashboard-content -->
+
+        <!-- Reports Section (hidden on dashboard, accessed via menu) -->
+        <section class="section menu-section" id="reports-section" style="display: none;">
+            <div class="section-header">
+                <button class="btn-back" id="reports-back-btn">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <polyline points="15 18 9 12 15 6"/>
+                    </svg>
+                </button>
+                <h3 class="section-title">Reports</h3>
+                <div></div>
             </div>
-            <div class="chart-wrapper clickable" id="chart-wrapper">
-                <div class="chart-container" id="chart-container">
-                    <div class="empty-state" id="no-chart">
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
-                            <path d="M21.21 15.89A10 10 0 1 1 8 2.83"/>
-                            <path d="M22 12A10 10 0 0 0 12 2v10z"/>
-                        </svg>
-                        <p>No data to display</p>
-                        <span>Add transactions to see reports</span>
+
+            <!-- Spending by Category -->
+            <div class="report-card">
+                <div class="report-card-header">
+                    <h4>Spending by Category</h4>
+                    <select class="period-selector" id="chart-period-selector">
+                        <option value="this-month">This Month</option>
+                        <option value="last-month">Last Month</option>
+                        <option value="this-year">This Year</option>
+                        <option value="last-year">Last Year</option>
+                        <option value="all-time">All Time</option>
+                        <option value="custom">Custom Range...</option>
+                    </select>
+                </div>
+                <div class="chart-wrapper clickable" id="chart-wrapper">
+                    <div class="chart-container" id="chart-container">
+                        <div class="empty-state" id="no-chart">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                                <path d="M21.21 15.89A10 10 0 1 1 8 2.83"/>
+                                <path d="M22 12A10 10 0 0 0 12 2v10z"/>
+                            </svg>
+                            <p>No data to display</p>
+                            <span>Add transactions to see reports</span>
+                        </div>
+                        <div class="chart-with-legend" id="chart-with-legend" style="display: none;">
+                            <div class="legend-column" id="legend-left"></div>
+                            <canvas id="expense-chart"></canvas>
+                            <div class="legend-column" id="legend-right"></div>
+                        </div>
                     </div>
-                    <div class="chart-with-legend" id="chart-with-legend" style="display: none;">
-                        <div class="legend-column" id="legend-left"></div>
-                        <canvas id="expense-chart"></canvas>
-                        <div class="legend-column" id="legend-right"></div>
-                    </div>
+                </div>
+            </div>
+
+            <!-- Spending Trends -->
+            <div class="report-card" id="trends-section">
+                <div class="report-card-header">
+                    <h4>Spending Trends</h4>
+                    <select class="period-selector" id="trends-range-selector">
+                        <option value="6">Last 6 Months</option>
+                        <option value="12" selected>Last 12 Months</option>
+                    </select>
+                </div>
+                <div class="trends-chart-container">
+                    <canvas id="trends-chart"></canvas>
                 </div>
             </div>
         </section>
 
-        <!-- Trends Section -->
-        <section class="section" id="trends-section">
+        <!-- Savings Buckets Section (hidden on dashboard, accessed via menu) -->
+        <section class="section menu-section" id="savings-section" style="display: none;">
             <div class="section-header">
-                <h3 class="section-title">Spending Trends</h3>
-                <select class="period-selector" id="trends-range-selector">
-                    <option value="6">Last 6 Months</option>
-                    <option value="12" selected>Last 12 Months</option>
-                </select>
+                <button class="btn-back" id="savings-back-btn">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <polyline points="15 18 9 12 15 6"/>
+                    </svg>
+                </button>
+                <h3 class="section-title">Savings Buckets</h3>
+                <button class="btn btn-small" id="add-bucket-btn">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <line x1="12" y1="5" x2="12" y2="19"/>
+                        <line x1="5" y1="12" x2="19" y2="12"/>
+                    </svg>
+                    <span>Add</span>
+                </button>
             </div>
-            <div class="trends-chart-container">
-                <canvas id="trends-chart"></canvas>
+            <div class="buckets-list" id="buckets-list">
+                <div class="empty-state" id="no-buckets">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                        <path d="M19 11h-6V5h-2v6H5v2h6v6h2v-6h6z"/>
+                        <circle cx="12" cy="12" r="10"/>
+                    </svg>
+                    <p>No savings buckets yet</p>
+                    <span>Create a bucket to start saving for goals</span>
+                </div>
+            </div>
+        </section>
+
+        <!-- Settings Section (accessed via menu) -->
+        <section class="section menu-section" id="settings-section" style="display: none;">
+            <div class="section-header">
+                <button class="btn-back" id="settings-back-btn">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <polyline points="15 18 9 12 15 6"/>
+                    </svg>
+                </button>
+                <h3 class="section-title">Settings</h3>
+                <div></div>
+            </div>
+
+            <div class="settings-cards">
+                <!-- Currency Setting -->
+                <div class="settings-card">
+                    <div class="settings-card-header">
+                        <div class="settings-card-icon">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <line x1="12" y1="1" x2="12" y2="23"/>
+                                <path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/>
+                            </svg>
+                        </div>
+                        <div class="settings-card-info">
+                            <h4>Currency</h4>
+                            <p>Display format for amounts</p>
+                        </div>
+                    </div>
+                    <select id="settings-currency" class="settings-select">
+                        <option value="ZAR">🇿🇦 ZAR - South African Rand</option>
+                        <option value="USD">🇺🇸 USD - US Dollar</option>
+                        <option value="EUR">🇪🇺 EUR - Euro</option>
+                        <option value="GBP">🇬🇧 GBP - British Pound</option>
+                        <option value="AUD">🇦🇺 AUD - Australian Dollar</option>
+                        <option value="CAD">🇨🇦 CAD - Canadian Dollar</option>
+                        <option value="JPY">🇯🇵 JPY - Japanese Yen</option>
+                        <option value="CHF">🇨🇭 CHF - Swiss Franc</option>
+                        <option value="CNY">🇨🇳 CNY - Chinese Yuan</option>
+                        <option value="INR">🇮🇳 INR - Indian Rupee</option>
+                        <option value="BRL">🇧🇷 BRL - Brazilian Real</option>
+                        <option value="KES">🇰🇪 KES - Kenyan Shilling</option>
+                        <option value="NGN">🇳🇬 NGN - Nigerian Naira</option>
+                    </select>
+                </div>
+
+                <!-- Change Password -->
+                <button class="settings-card settings-card-btn" id="change-password-btn">
+                    <div class="settings-card-header">
+                        <div class="settings-card-icon">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>
+                                <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
+                            </svg>
+                        </div>
+                        <div class="settings-card-info">
+                            <h4>Change Password</h4>
+                            <p>Update your login credentials</p>
+                        </div>
+                    </div>
+                    <svg class="settings-card-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <polyline points="9 18 15 12 9 6"/>
+                    </svg>
+                </button>
+
+                <!-- Data Encryption -->
+                <button class="settings-card settings-card-btn" id="data-encryption-btn">
+                    <div class="settings-card-header">
+                        <div class="settings-card-icon encryption-icon">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+                            </svg>
+                        </div>
+                        <div class="settings-card-info">
+                            <h4>Data Encryption</h4>
+                            <p id="encryption-status-text">Protect your financial data</p>
+                        </div>
+                    </div>
+                    <svg class="settings-card-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <polyline points="9 18 15 12 9 6"/>
+                    </svg>
+                </button>
+            </div>
+        </section>
+
+        <!-- Budget Categories Section (accessed via menu) -->
+        <section class="section menu-section" id="categories-menu-section" style="display: none;">
+            <div class="section-header">
+                <button class="btn-back" id="categories-back-btn">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <polyline points="15 18 9 12 15 6"/>
+                    </svg>
+                </button>
+                <h3 class="section-title">Budget Categories</h3>
+                <button class="btn btn-small" id="add-category-btn">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <line x1="12" y1="5" x2="12" y2="19"/>
+                        <line x1="5" y1="12" x2="19" y2="12"/>
+                    </svg>
+                    <span>Add</span>
+                </button>
+            </div>
+            <div class="categories-list-container" id="categories-list-container">
+                <!-- Categories will be rendered here by JavaScript -->
+            </div>
+        </section>
+
+        <!-- Recurring Transactions Section (accessed via menu) -->
+        <section class="section menu-section" id="recurring-menu-section" style="display: none;">
+            <div class="section-header">
+                <button class="btn-back" id="recurring-back-btn">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <polyline points="15 18 9 12 15 6"/>
+                    </svg>
+                </button>
+                <h3 class="section-title">Recurring Transactions</h3>
+                <button class="btn btn-small" id="add-recurring-menu-btn">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <line x1="12" y1="5" x2="12" y2="19"/>
+                        <line x1="5" y1="12" x2="19" y2="12"/>
+                    </svg>
+                    <span>Add</span>
+                </button>
+            </div>
+
+            <!-- Tab Navigation -->
+            <div class="recurring-tabs">
+                <button type="button" class="recurring-tab active" data-tab="all">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:18px;height:18px;">
+                        <polyline points="23 4 23 10 17 10"/>
+                        <polyline points="1 20 1 14 7 14"/>
+                        <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/>
+                    </svg>
+                    All Recurring
+                </button>
+                <button type="button" class="recurring-tab" data-tab="upcoming">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:18px;height:18px;">
+                        <circle cx="12" cy="12" r="10"/>
+                        <polyline points="12 6 12 12 16 14"/>
+                    </svg>
+                    Coming Up
+                </button>
+            </div>
+
+            <!-- Upcoming Tab Content -->
+            <div class="recurring-tab-content" id="recurring-upcoming-tab">
+                <div class="upcoming-controls">
+                    <span>Show upcoming in next</span>
+                    <input type="number" id="recurring-upcoming-days" value="7" min="1" max="365" class="days-input">
+                    <span>days</span>
+                </div>
+                <div class="upcoming-list" id="recurring-upcoming-list">
+                    <div class="empty-state" id="no-recurring-upcoming">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                            <circle cx="12" cy="12" r="10"/>
+                            <polyline points="12 6 12 12 16 14"/>
+                        </svg>
+                        <p>No upcoming transactions</p>
+                        <span>Nothing scheduled in this time period</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- All Rules Tab Content -->
+            <div class="recurring-tab-content active" id="recurring-all-tab">
+                <div class="recurring-list" id="recurring-menu-list">
+                    <div class="empty-state" id="no-recurring-menu">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                            <polyline points="23 4 23 10 17 10"/>
+                            <polyline points="1 20 1 14 7 14"/>
+                            <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/>
+                        </svg>
+                        <p>No recurring transactions</p>
+                        <span>Set up automatic transactions like rent, subscriptions, or salary</span>
+                    </div>
+                </div>
             </div>
         </section>
 
@@ -540,6 +846,13 @@
                     <label for="transaction-date">Date</label>
                     <input type="date" id="transaction-date" required>
                 </div>
+                <div class="input-group" id="savings-bucket-group" style="display: none;">
+                    <label for="transaction-bucket">Fund from Savings (optional)</label>
+                    <select id="transaction-bucket">
+                        <option value="">None - use available funds</option>
+                        <!-- Buckets populated dynamically by JavaScript -->
+                    </select>
+                </div>
                 <div class="recurring-toggle" id="recurring-toggle">
                     <label class="checkbox-label">
                         <input type="checkbox" id="transaction-recurring">
@@ -564,106 +877,6 @@
                     <button type="submit" class="btn btn-primary" id="transaction-submit-btn">Add Transaction</button>
                 </div>
             </form>
-        </div>
-    </div>
-
-    <!-- Settings Modal -->
-    <div class="modal" id="settings-modal">
-        <div class="modal-backdrop"></div>
-        <div class="modal-content">
-            <div class="modal-header">
-                <h3>Settings</h3>
-                <button class="btn-icon modal-close">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                        <line x1="18" y1="6" x2="6" y2="18"/>
-                        <line x1="6" y1="6" x2="18" y2="18"/>
-                    </svg>
-                </button>
-            </div>
-            <div class="settings-section">
-                <button type="button" class="btn btn-secondary btn-full" id="manage-categories-btn">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width: 20px; height: 20px; margin-right: 8px;">
-                        <rect x="3" y="3" width="18" height="18" rx="2"/>
-                        <line x1="3" y1="9" x2="21" y2="9"/>
-                        <line x1="9" y1="21" x2="9" y2="9"/>
-                    </svg>
-                    Manage Budget Categories
-                </button>
-                <button type="button" class="btn btn-secondary btn-full" id="manage-recurring-btn" style="margin-top: var(--space-sm);">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width: 20px; height: 20px; margin-right: 8px;">
-                        <polyline points="23 4 23 10 17 10"/>
-                        <polyline points="1 20 1 14 7 14"/>
-                        <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/>
-                    </svg>
-                    Manage Recurring Transactions
-                </button>
-                <button type="button" class="btn btn-secondary btn-full" id="change-password-btn" style="margin-top: var(--space-sm);">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width: 20px; height: 20px; margin-right: 8px;">
-                        <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>
-                        <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
-                    </svg>
-                    Change Password
-                </button>
-                <button type="button" class="btn btn-secondary btn-full" id="data-encryption-btn" style="margin-top: var(--space-sm);">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width: 20px; height: 20px; margin-right: 8px;">
-                        <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>
-                        <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
-                    </svg>
-                    Data Encryption
-                </button>
-            </div>
-            <form id="settings-form" class="modal-form">
-                <div class="input-group">
-                    <label for="settings-currency">Currency</label>
-                    <select id="settings-currency" required>
-                        <option value="ZAR">🇿🇦 ZAR - South African Rand</option>
-                        <option value="USD">🇺🇸 USD - US Dollar</option>
-                        <option value="EUR">🇪🇺 EUR - Euro</option>
-                        <option value="GBP">🇬🇧 GBP - British Pound</option>
-                        <option value="AUD">🇦🇺 AUD - Australian Dollar</option>
-                        <option value="CAD">🇨🇦 CAD - Canadian Dollar</option>
-                        <option value="JPY">🇯🇵 JPY - Japanese Yen</option>
-                        <option value="CHF">🇨🇭 CHF - Swiss Franc</option>
-                        <option value="CNY">🇨🇳 CNY - Chinese Yuan</option>
-                        <option value="INR">🇮🇳 INR - Indian Rupee</option>
-                        <option value="BRL">🇧🇷 BRL - Brazilian Real</option>
-                        <option value="KES">🇰🇪 KES - Kenyan Shilling</option>
-                        <option value="NGN">🇳🇬 NGN - Nigerian Naira</option>
-                    </select>
-                </div>
-                <div class="modal-actions">
-                    <button type="button" class="btn btn-secondary modal-cancel">Cancel</button>
-                    <button type="submit" class="btn btn-primary">Save Settings</button>
-                </div>
-            </form>
-        </div>
-    </div>
-
-    <!-- Categories List Modal -->
-    <div class="modal" id="categories-list-modal">
-        <div class="modal-backdrop"></div>
-        <div class="modal-content modal-large">
-            <div class="modal-header">
-                <h3>Budget Categories</h3>
-                <button class="btn-icon modal-close">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                        <line x1="18" y1="6" x2="6" y2="18"/>
-                        <line x1="6" y1="6" x2="18" y2="18"/>
-                    </svg>
-                </button>
-            </div>
-            <div class="modal-body">
-                <div class="categories-list-container" id="categories-list-container">
-                    <!-- Categories will be rendered here by JavaScript -->
-                </div>
-                <button type="button" class="btn btn-primary btn-full" id="add-category-from-list-btn">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width: 20px; height: 20px; margin-right: 8px;">
-                        <line x1="12" y1="5" x2="12" y2="19"/>
-                        <line x1="5" y1="12" x2="19" y2="12"/>
-                    </svg>
-                    Add New Category
-                </button>
-            </div>
         </div>
     </div>
 
@@ -1262,6 +1475,171 @@
         </div>
     </div>
 
+    <!-- Add/Edit Savings Bucket Modal -->
+    <div class="modal" id="bucket-modal">
+        <div class="modal-backdrop"></div>
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3 id="bucket-modal-title">Add Savings Bucket</h3>
+                <button class="btn-icon modal-close">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <line x1="18" y1="6" x2="6" y2="18"/>
+                        <line x1="6" y1="6" x2="18" y2="18"/>
+                    </svg>
+                </button>
+            </div>
+            <form id="bucket-form" class="modal-form">
+                <div class="input-group">
+                    <label>Icon</label>
+                    <input type="hidden" id="bucket-icon" value="💰">
+                    <div class="emoji-preview" id="bucket-emoji-preview">💰</div>
+                </div>
+                <div class="emoji-picker" id="bucket-emoji-picker">
+                    <button type="button" class="emoji-option" data-emoji="💰">💰</button>
+                    <button type="button" class="emoji-option" data-emoji="🏦">🏦</button>
+                    <button type="button" class="emoji-option" data-emoji="🎯">🎯</button>
+                    <button type="button" class="emoji-option" data-emoji="✈️">✈️</button>
+                    <button type="button" class="emoji-option" data-emoji="🏠">🏠</button>
+                    <button type="button" class="emoji-option" data-emoji="🚗">🚗</button>
+                    <button type="button" class="emoji-option" data-emoji="🎓">🎓</button>
+                    <button type="button" class="emoji-option" data-emoji="💍">💍</button>
+                    <button type="button" class="emoji-option" data-emoji="🏥">🏥</button>
+                    <button type="button" class="emoji-option" data-emoji="📱">📱</button>
+                    <button type="button" class="emoji-option" data-emoji="🎁">🎁</button>
+                    <button type="button" class="emoji-option" data-emoji="🎄">🎄</button>
+                    <button type="button" class="emoji-option" data-emoji="🏖️">🏖️</button>
+                    <button type="button" class="emoji-option" data-emoji="🛋️">🛋️</button>
+                    <button type="button" class="emoji-option" data-emoji="👶">👶</button>
+                    <button type="button" class="emoji-option" data-emoji="🐕">🐕</button>
+                    <button type="button" class="emoji-option" data-emoji="💻">💻</button>
+                    <button type="button" class="emoji-option" data-emoji="📚">📚</button>
+                    <button type="button" class="emoji-option" data-emoji="🎮">🎮</button>
+                    <button type="button" class="emoji-option" data-emoji="⚡">⚡</button>
+                    <button type="button" class="emoji-option" data-emoji="🔒">🔒</button>
+                    <button type="button" class="emoji-option" data-emoji="🌟">🌟</button>
+                    <button type="button" class="emoji-option" data-emoji="🎉">🎉</button>
+                    <button type="button" class="emoji-option" data-emoji="📦">📦</button>
+                </div>
+                <div class="input-group">
+                    <label for="bucket-name">Bucket Name</label>
+                    <input type="text" id="bucket-name" placeholder="e.g., Vacation Fund" required>
+                </div>
+                <div class="input-group">
+                    <label for="bucket-target">Monthly Allocation (optional)</label>
+                    <div class="input-with-prefix">
+                        <span class="input-prefix">R</span>
+                        <input type="number" id="bucket-target" placeholder="0.00" step="0.01" min="0" value="0">
+                    </div>
+                    <span class="input-hint">Auto-deposited on the 1st of each month</span>
+                </div>
+                <div class="modal-actions">
+                    <button type="button" class="btn btn-secondary modal-cancel">Cancel</button>
+                    <button type="submit" class="btn btn-primary" id="bucket-submit-btn">Create Bucket</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Bucket Adjustment Modal (Deposit/Withdraw) -->
+    <div class="modal" id="bucket-adjust-modal">
+        <div class="modal-backdrop"></div>
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3 id="adjust-modal-title">Add to Bucket</h3>
+                <button class="btn-icon modal-close">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <line x1="18" y1="6" x2="6" y2="18"/>
+                        <line x1="6" y1="6" x2="18" y2="18"/>
+                    </svg>
+                </button>
+            </div>
+            <form id="bucket-adjust-form" class="modal-form">
+                <input type="hidden" id="adjust-bucket-id">
+                <div class="bucket-adjust-info" id="adjust-bucket-info">
+                    <span class="adjust-bucket-icon" id="adjust-bucket-icon">💰</span>
+                    <span class="adjust-bucket-name" id="adjust-bucket-name">Bucket Name</span>
+                    <span class="adjust-bucket-balance" id="adjust-bucket-balance">R0.00</span>
+                </div>
+                <div class="adjust-type-toggle">
+                    <button type="button" class="type-btn active" data-type="allocation">Deposit</button>
+                    <button type="button" class="type-btn" data-type="withdrawal">Withdraw</button>
+                </div>
+                <div class="input-group">
+                    <label for="adjust-amount">Amount</label>
+                    <div class="input-with-prefix">
+                        <span class="input-prefix">R</span>
+                        <input type="number" id="adjust-amount" placeholder="0.00" step="0.01" min="0.01" required>
+                    </div>
+                </div>
+                <div class="input-group">
+                    <label for="adjust-description">Note (optional)</label>
+                    <input type="text" id="adjust-description" placeholder="What's this for?">
+                </div>
+                <div class="modal-actions">
+                    <button type="button" class="btn btn-secondary modal-cancel">Cancel</button>
+                    <button type="submit" class="btn btn-primary" id="adjust-submit-btn">Confirm Deposit</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Bucket Details Modal -->
+    <div class="modal" id="bucket-details-modal">
+        <div class="modal-backdrop"></div>
+        <div class="modal-content modal-large">
+            <div class="modal-header">
+                <h3 id="bucket-details-title">Bucket Details</h3>
+                <button class="btn-icon modal-close">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <line x1="18" y1="6" x2="6" y2="18"/>
+                        <line x1="6" y1="6" x2="18" y2="18"/>
+                    </svg>
+                </button>
+            </div>
+            <div class="modal-body">
+                <div class="bucket-details-header" id="bucket-details-header">
+                    <!-- Bucket info rendered here -->
+                </div>
+                <div class="bucket-details-actions">
+                    <button type="button" class="btn btn-primary" id="bucket-deposit-btn">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width: 18px; height: 18px; margin-right: 6px;">
+                            <line x1="12" y1="5" x2="12" y2="19"/>
+                            <line x1="5" y1="12" x2="19" y2="12"/>
+                        </svg>
+                        Deposit
+                    </button>
+                    <button type="button" class="btn btn-secondary" id="bucket-withdraw-btn">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width: 18px; height: 18px; margin-right: 6px;">
+                            <line x1="5" y1="12" x2="19" y2="12"/>
+                        </svg>
+                        Withdraw
+                    </button>
+                    <button type="button" class="btn btn-secondary" id="bucket-edit-btn">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width: 18px; height: 18px; margin-right: 6px;">
+                            <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
+                            <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
+                        </svg>
+                        Edit
+                    </button>
+                    <button type="button" class="btn btn-danger" id="bucket-delete-btn">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width: 18px; height: 18px; margin-right: 6px;">
+                            <polyline points="3 6 5 6 21 6"/>
+                            <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>
+                        </svg>
+                        Delete
+                    </button>
+                </div>
+                <h4 class="bucket-history-title">Transaction History</h4>
+                <div class="bucket-transactions-list" id="bucket-transactions-list">
+                    <div class="empty-state" id="no-bucket-transactions">
+                        <p>No transactions yet</p>
+                        <span>Deposits and withdrawals will appear here</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <!-- Toast Notification -->
     <div class="toast" id="toast">
         <span class="toast-message"></span>
@@ -1274,6 +1652,6 @@
     <script src="crypto.js?v=2"></script>
 
     <!-- App JavaScript -->
-    <script src="app.js?v=35"></script>
+    <script src="app.js?v=39"></script>
 </body>
 </html>

@@ -156,6 +156,49 @@ class Database {
             // Column already exists, ignore
         }
 
+        // Savings buckets table
+        $this->pdo->exec("
+            CREATE TABLE IF NOT EXISTS savings_buckets (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                user_id INTEGER NOT NULL,
+                name TEXT NOT NULL,
+                icon TEXT DEFAULT '💰',
+                color TEXT,
+                monthly_target REAL DEFAULT 0,
+                current_balance REAL DEFAULT 0,
+                is_active INTEGER DEFAULT 1,
+                created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+                UNIQUE(user_id, name)
+            )
+        ");
+
+        // Savings transactions table
+        $this->pdo->exec("
+            CREATE TABLE IF NOT EXISTS savings_transactions (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                user_id INTEGER NOT NULL,
+                bucket_id INTEGER NOT NULL,
+                amount REAL NOT NULL,
+                type TEXT NOT NULL CHECK (type IN ('allocation', 'withdrawal', 'adjustment')),
+                description TEXT,
+                date DATE NOT NULL,
+                linked_transaction_id INTEGER,
+                created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+                FOREIGN KEY (bucket_id) REFERENCES savings_buckets(id) ON DELETE CASCADE,
+                FOREIGN KEY (linked_transaction_id) REFERENCES transactions(id) ON DELETE SET NULL
+            )
+        ");
+
+        // Add savings_bucket_id column to transactions (migration for existing DBs)
+        try {
+            $this->pdo->exec("ALTER TABLE transactions ADD COLUMN savings_bucket_id INTEGER REFERENCES savings_buckets(id) ON DELETE SET NULL");
+        } catch (PDOException $e) {
+            // Column already exists, ignore
+        }
+
         // Indexes
         $this->pdo->exec("CREATE INDEX IF NOT EXISTS idx_users_email ON users(email)");
         $this->pdo->exec("CREATE INDEX IF NOT EXISTS idx_users_reset_token ON users(reset_token)");
@@ -166,6 +209,10 @@ class Database {
         $this->pdo->exec("CREATE INDEX IF NOT EXISTS idx_recurring_user ON recurring_transactions(user_id)");
         $this->pdo->exec("CREATE INDEX IF NOT EXISTS idx_recurring_next ON recurring_transactions(next_occurrence)");
         $this->pdo->exec("CREATE INDEX IF NOT EXISTS idx_transactions_recurring ON transactions(recurring_id)");
+        $this->pdo->exec("CREATE INDEX IF NOT EXISTS idx_savings_buckets_user ON savings_buckets(user_id)");
+        $this->pdo->exec("CREATE INDEX IF NOT EXISTS idx_savings_transactions_user ON savings_transactions(user_id)");
+        $this->pdo->exec("CREATE INDEX IF NOT EXISTS idx_savings_transactions_bucket ON savings_transactions(bucket_id)");
+        $this->pdo->exec("CREATE INDEX IF NOT EXISTS idx_transactions_savings_bucket ON transactions(savings_bucket_id)");
     }
 }
 
@@ -581,9 +628,11 @@ function migrateAllUsers() {
 function getTransactions($userId, $limit = 100) {
     $pdo = Database::getInstance()->getPdo();
     $stmt = $pdo->prepare("
-        SELECT t.*, c.name as category_name, c.icon as category_icon, c.color as category_color
+        SELECT t.*, c.name as category_name, c.icon as category_icon, c.color as category_color,
+               sb.name as savings_bucket_name, sb.icon as savings_bucket_icon
         FROM transactions t
         LEFT JOIN categories c ON t.category_id = c.id
+        LEFT JOIN savings_buckets sb ON t.savings_bucket_id = sb.id
         WHERE t.user_id = ?
         ORDER BY t.date DESC, t.created_at DESC
         LIMIT ?
@@ -595,9 +644,11 @@ function getTransactions($userId, $limit = 100) {
 function getTransaction($userId, $transactionId) {
     $pdo = Database::getInstance()->getPdo();
     $stmt = $pdo->prepare("
-        SELECT t.*, c.name as category_name, c.icon as category_icon, c.color as category_color
+        SELECT t.*, c.name as category_name, c.icon as category_icon, c.color as category_color,
+               sb.name as savings_bucket_name, sb.icon as savings_bucket_icon
         FROM transactions t
         LEFT JOIN categories c ON t.category_id = c.id
+        LEFT JOIN savings_buckets sb ON t.savings_bucket_id = sb.id
         WHERE t.id = ? AND t.user_id = ?
     ");
     $stmt->execute([$transactionId, $userId]);
@@ -1219,9 +1270,11 @@ function getTransactionsFiltered($userId, $limit = 100, $categoryId = null, $sta
     $pdo = Database::getInstance()->getPdo();
 
     $sql = "
-        SELECT t.*, c.name as category_name, c.icon as category_icon, c.color as category_color
+        SELECT t.*, c.name as category_name, c.icon as category_icon, c.color as category_color,
+               sb.name as savings_bucket_name, sb.icon as savings_bucket_icon
         FROM transactions t
         LEFT JOIN categories c ON t.category_id = c.id
+        LEFT JOIN savings_buckets sb ON t.savings_bucket_id = sb.id
         WHERE t.user_id = ?
     ";
     $params = [$userId];
@@ -1310,4 +1363,468 @@ function getTrends($userId, $type = 'both', $granularity = 'monthly', $months = 
     }
 
     return array_values($trends);
+}
+
+// ========================================
+// Savings Bucket Functions
+// ========================================
+
+function getSavingsBuckets($userId) {
+    $pdo = Database::getInstance()->getPdo();
+    $stmt = $pdo->prepare("
+        SELECT * FROM savings_buckets
+        WHERE user_id = ?
+        ORDER BY is_active DESC, name ASC
+    ");
+    $stmt->execute([$userId]);
+    return $stmt->fetchAll();
+}
+
+function getSavingsBucket($userId, $bucketId) {
+    $pdo = Database::getInstance()->getPdo();
+    $stmt = $pdo->prepare("SELECT * FROM savings_buckets WHERE id = ? AND user_id = ?");
+    $stmt->execute([$bucketId, $userId]);
+    return $stmt->fetch();
+}
+
+function createSavingsBucket($userId, $name, $icon = '💰', $color = null, $monthlyTarget = 0) {
+    $pdo = Database::getInstance()->getPdo();
+
+    // Auto-assign color from palette based on bucket count
+    if (!$color) {
+        $stmt = $pdo->prepare("SELECT COUNT(*) as count FROM savings_buckets WHERE user_id = ?");
+        $stmt->execute([$userId]);
+        $count = $stmt->fetch()['count'];
+        $color = CATEGORY_COLORS[$count % count(CATEGORY_COLORS)];
+    }
+
+    $stmt = $pdo->prepare("
+        INSERT INTO savings_buckets (user_id, name, icon, color, monthly_target)
+        VALUES (?, ?, ?, ?, ?)
+    ");
+    $stmt->execute([$userId, trim($name), $icon, $color, $monthlyTarget]);
+    return getSavingsBucket($userId, $pdo->lastInsertId());
+}
+
+function updateSavingsBucket($userId, $bucketId, $name, $icon, $monthlyTarget) {
+    $pdo = Database::getInstance()->getPdo();
+    $stmt = $pdo->prepare("
+        UPDATE savings_buckets
+        SET name = ?, icon = ?, monthly_target = ?, updated_at = CURRENT_TIMESTAMP
+        WHERE id = ? AND user_id = ?
+    ");
+    $stmt->execute([trim($name), $icon, $monthlyTarget, $bucketId, $userId]);
+    return getSavingsBucket($userId, $bucketId);
+}
+
+function deleteSavingsBucket($userId, $bucketId) {
+    $pdo = Database::getInstance()->getPdo();
+    // Savings transactions will cascade delete
+    // Linked regular transactions will have savings_bucket_id set to NULL
+    $stmt = $pdo->prepare("DELETE FROM savings_buckets WHERE id = ? AND user_id = ?");
+    $stmt->execute([$bucketId, $userId]);
+    return $stmt->rowCount() > 0;
+}
+
+function toggleSavingsBucket($userId, $bucketId, $isActive) {
+    $pdo = Database::getInstance()->getPdo();
+    $stmt = $pdo->prepare("
+        UPDATE savings_buckets
+        SET is_active = ?, updated_at = CURRENT_TIMESTAMP
+        WHERE id = ? AND user_id = ?
+    ");
+    $stmt->execute([$isActive ? 1 : 0, $bucketId, $userId]);
+    return getSavingsBucket($userId, $bucketId);
+}
+
+// ========================================
+// Savings Transaction Functions
+// ========================================
+
+function getSavingsTransactions($userId, $bucketId = null, $limit = 100) {
+    $pdo = Database::getInstance()->getPdo();
+
+    if ($bucketId !== null) {
+        $stmt = $pdo->prepare("
+            SELECT st.*, sb.name as bucket_name, sb.icon as bucket_icon
+            FROM savings_transactions st
+            LEFT JOIN savings_buckets sb ON st.bucket_id = sb.id
+            WHERE st.user_id = ? AND st.bucket_id = ?
+            ORDER BY st.date DESC, st.created_at DESC
+            LIMIT ?
+        ");
+        $stmt->execute([$userId, $bucketId, $limit]);
+    } else {
+        $stmt = $pdo->prepare("
+            SELECT st.*, sb.name as bucket_name, sb.icon as bucket_icon
+            FROM savings_transactions st
+            LEFT JOIN savings_buckets sb ON st.bucket_id = sb.id
+            WHERE st.user_id = ?
+            ORDER BY st.date DESC, st.created_at DESC
+            LIMIT ?
+        ");
+        $stmt->execute([$userId, $limit]);
+    }
+
+    return $stmt->fetchAll();
+}
+
+function getSavingsTransaction($userId, $transactionId) {
+    $pdo = Database::getInstance()->getPdo();
+    $stmt = $pdo->prepare("
+        SELECT st.*, sb.name as bucket_name, sb.icon as bucket_icon
+        FROM savings_transactions st
+        LEFT JOIN savings_buckets sb ON st.bucket_id = sb.id
+        WHERE st.id = ? AND st.user_id = ?
+    ");
+    $stmt->execute([$transactionId, $userId]);
+    return $stmt->fetch();
+}
+
+// Internal function - does not manage transactions (for use within other transactions)
+function _addSavingsTransactionInternal($pdo, $userId, $bucketId, $amount, $type, $description, $date, $linkedTransactionId = null) {
+    // Calculate balance change (allocations add, withdrawals subtract)
+    $balanceChange = ($type === 'withdrawal') ? -abs($amount) : abs($amount);
+
+    // Insert the savings transaction
+    $stmt = $pdo->prepare("
+        INSERT INTO savings_transactions (user_id, bucket_id, amount, type, description, date, linked_transaction_id)
+        VALUES (?, ?, ?, ?, ?, ?, ?)
+    ");
+    $stmt->execute([$userId, $bucketId, abs($amount), $type, $description, $date, $linkedTransactionId]);
+    $transactionId = $pdo->lastInsertId();
+
+    // Update bucket balance
+    $stmt = $pdo->prepare("
+        UPDATE savings_buckets
+        SET current_balance = current_balance + ?, updated_at = CURRENT_TIMESTAMP
+        WHERE id = ? AND user_id = ?
+    ");
+    $stmt->execute([$balanceChange, $bucketId, $userId]);
+
+    return $transactionId;
+}
+
+function addSavingsTransaction($userId, $bucketId, $amount, $type, $description, $date, $linkedTransactionId = null) {
+    $pdo = Database::getInstance()->getPdo();
+
+    // Verify bucket exists and belongs to user
+    $bucket = getSavingsBucket($userId, $bucketId);
+    if (!$bucket) {
+        return null;
+    }
+
+    $pdo->beginTransaction();
+    try {
+        $transactionId = _addSavingsTransactionInternal($pdo, $userId, $bucketId, $amount, $type, $description, $date, $linkedTransactionId);
+        $pdo->commit();
+        return getSavingsTransaction($userId, $transactionId);
+    } catch (Exception $e) {
+        $pdo->rollBack();
+        throw $e;
+    }
+}
+
+// Internal function - does not manage transactions (for use within other transactions)
+function _deleteSavingsTransactionInternal($pdo, $userId, $transactionId, $transaction) {
+    // Calculate reverse balance change
+    $balanceChange = ($transaction['type'] === 'withdrawal') ? abs($transaction['amount']) : -abs($transaction['amount']);
+
+    // Delete the transaction
+    $stmt = $pdo->prepare("DELETE FROM savings_transactions WHERE id = ? AND user_id = ?");
+    $stmt->execute([$transactionId, $userId]);
+
+    // Update bucket balance
+    $stmt = $pdo->prepare("
+        UPDATE savings_buckets
+        SET current_balance = current_balance + ?, updated_at = CURRENT_TIMESTAMP
+        WHERE id = ? AND user_id = ?
+    ");
+    $stmt->execute([$balanceChange, $transaction['bucket_id'], $userId]);
+
+    return true;
+}
+
+function deleteSavingsTransaction($userId, $transactionId) {
+    $pdo = Database::getInstance()->getPdo();
+
+    // Get the transaction first to know the amount and type
+    $transaction = getSavingsTransaction($userId, $transactionId);
+    if (!$transaction) {
+        return false;
+    }
+
+    $pdo->beginTransaction();
+    try {
+        _deleteSavingsTransactionInternal($pdo, $userId, $transactionId, $transaction);
+        $pdo->commit();
+        return true;
+    } catch (Exception $e) {
+        $pdo->rollBack();
+        throw $e;
+    }
+}
+
+// ========================================
+// Monthly Allocation Functions
+// ========================================
+
+function getLastAllocationDate($userId) {
+    $pdo = Database::getInstance()->getPdo();
+    $stmt = $pdo->prepare("
+        SELECT MAX(date) as last_date
+        FROM savings_transactions
+        WHERE user_id = ? AND type = 'allocation' AND description LIKE 'Monthly allocation%'
+    ");
+    $stmt->execute([$userId]);
+    $result = $stmt->fetch();
+    return $result['last_date'];
+}
+
+function generateMonthlyAllocations($userId) {
+    $pdo = Database::getInstance()->getPdo();
+    $today = date('Y-m-d');
+    $currentMonth = date('Y-m');
+
+    // Check if allocations already generated for this month
+    $lastDate = getLastAllocationDate($userId);
+    if ($lastDate && strpos($lastDate, $currentMonth) === 0) {
+        return []; // Already allocated this month
+    }
+
+    // Get all active buckets with monthly_target > 0
+    $stmt = $pdo->prepare("
+        SELECT * FROM savings_buckets
+        WHERE user_id = ? AND is_active = 1 AND monthly_target > 0
+    ");
+    $stmt->execute([$userId]);
+    $buckets = $stmt->fetchAll();
+
+    $generated = [];
+    foreach ($buckets as $bucket) {
+        $result = addSavingsTransaction(
+            $userId,
+            $bucket['id'],
+            $bucket['monthly_target'],
+            'allocation',
+            'Monthly allocation',
+            $today
+        );
+        if ($result) {
+            $generated[] = $result;
+        }
+    }
+
+    return $generated;
+}
+
+// ========================================
+// Savings Summary Functions
+// ========================================
+
+function getSavingsSummary($userId) {
+    $pdo = Database::getInstance()->getPdo();
+
+    // Get total saved across all buckets
+    $stmt = $pdo->prepare("
+        SELECT COALESCE(SUM(current_balance), 0) as total_saved
+        FROM savings_buckets
+        WHERE user_id = ? AND is_active = 1
+    ");
+    $stmt->execute([$userId]);
+    $result = $stmt->fetch();
+    $totalSaved = (float) $result['total_saved'];
+
+    // Get all-time balance (income - expense)
+    $totals = getAllTimeTotals($userId);
+    $allTimeBalance = $totals['income'] - $totals['expense'];
+
+    // Available to spend = all-time balance - total saved in buckets
+    $availableToSpend = $allTimeBalance - $totalSaved;
+
+    return [
+        'total_saved' => $totalSaved,
+        'all_time_balance' => $allTimeBalance,
+        'available_to_spend' => $availableToSpend
+    ];
+}
+
+// ========================================
+// Modified Transaction Functions for Savings
+// ========================================
+
+function createTransactionWithSavings($userId, $description, $amount, $categoryId, $type, $date, $savingsBucketId = null) {
+    $pdo = Database::getInstance()->getPdo();
+
+    // Get the category to validate and get a name for the legacy column
+    $category = getCategory($userId, $categoryId);
+    if (!$category) {
+        return null;
+    }
+
+    // Validate category type matches transaction type
+    if ($category['type'] !== $type) {
+        return null;
+    }
+
+    // If savings bucket specified, validate it
+    if ($savingsBucketId !== null) {
+        $bucket = getSavingsBucket($userId, $savingsBucketId);
+        if (!$bucket) {
+            return null;
+        }
+        // Only expenses can be funded from savings
+        if ($type !== 'expense') {
+            $savingsBucketId = null;
+        }
+    }
+
+    $pdo->beginTransaction();
+    try {
+        $stmt = $pdo->prepare("
+            INSERT INTO transactions (user_id, description, amount, category, category_id, type, date, savings_bucket_id)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        ");
+        $stmt->execute([$userId, $description, $amount, $category['name'], $categoryId, $type, $date, $savingsBucketId]);
+        $transactionId = $pdo->lastInsertId();
+
+        // If expense is funded from savings bucket, create a withdrawal
+        if ($savingsBucketId !== null && $type === 'expense') {
+            _addSavingsTransactionInternal(
+                $pdo,
+                $userId,
+                $savingsBucketId,
+                $amount,
+                'withdrawal',
+                "Expense: $description",
+                $date,
+                $transactionId
+            );
+        }
+
+        $pdo->commit();
+        return getTransaction($userId, $transactionId);
+    } catch (Exception $e) {
+        $pdo->rollBack();
+        throw $e;
+    }
+}
+
+function updateTransactionWithSavings($userId, $transactionId, $description, $amount, $categoryId, $type, $date, $savingsBucketId = null) {
+    $pdo = Database::getInstance()->getPdo();
+
+    // Get the existing transaction
+    $existingTransaction = getTransaction($userId, $transactionId);
+    if (!$existingTransaction) {
+        return null;
+    }
+
+    // Get the category to validate
+    $category = getCategory($userId, $categoryId);
+    if (!$category) {
+        return null;
+    }
+
+    // Validate category type matches transaction type
+    if ($category['type'] !== $type) {
+        return null;
+    }
+
+    // If savings bucket specified, validate it
+    if ($savingsBucketId !== null) {
+        $bucket = getSavingsBucket($userId, $savingsBucketId);
+        if (!$bucket) {
+            return null;
+        }
+        // Only expenses can be funded from savings
+        if ($type !== 'expense') {
+            $savingsBucketId = null;
+        }
+    }
+
+    $pdo->beginTransaction();
+    try {
+        // Remove old savings transaction if any was linked
+        if ($existingTransaction['savings_bucket_id']) {
+            // Find and delete the linked savings transaction
+            $stmt = $pdo->prepare("
+                SELECT st.*, sb.name as bucket_name, sb.icon as bucket_icon
+                FROM savings_transactions st
+                LEFT JOIN savings_buckets sb ON st.bucket_id = sb.id
+                WHERE st.linked_transaction_id = ? AND st.user_id = ?
+            ");
+            $stmt->execute([$transactionId, $userId]);
+            $linkedSavings = $stmt->fetch();
+            if ($linkedSavings) {
+                _deleteSavingsTransactionInternal($pdo, $userId, $linkedSavings['id'], $linkedSavings);
+            }
+        }
+
+        // Update the transaction
+        $stmt = $pdo->prepare("
+            UPDATE transactions
+            SET description = ?, amount = ?, category = ?, category_id = ?, type = ?, date = ?, savings_bucket_id = ?
+            WHERE id = ? AND user_id = ?
+        ");
+        $stmt->execute([$description, $amount, $category['name'], $categoryId, $type, $date, $savingsBucketId, $transactionId, $userId]);
+
+        // If expense is funded from savings bucket, create a new withdrawal
+        if ($savingsBucketId !== null && $type === 'expense') {
+            _addSavingsTransactionInternal(
+                $pdo,
+                $userId,
+                $savingsBucketId,
+                $amount,
+                'withdrawal',
+                "Expense: $description",
+                $date,
+                $transactionId
+            );
+        }
+
+        $pdo->commit();
+        return getTransaction($userId, $transactionId);
+    } catch (Exception $e) {
+        $pdo->rollBack();
+        throw $e;
+    }
+}
+
+function deleteTransactionWithSavings($userId, $transactionId) {
+    $pdo = Database::getInstance()->getPdo();
+
+    // Get the existing transaction
+    $existingTransaction = getTransaction($userId, $transactionId);
+    if (!$existingTransaction) {
+        return false;
+    }
+
+    $pdo->beginTransaction();
+    try {
+        // Remove linked savings transaction if any
+        if ($existingTransaction['savings_bucket_id']) {
+            $stmt = $pdo->prepare("
+                SELECT st.*, sb.name as bucket_name, sb.icon as bucket_icon
+                FROM savings_transactions st
+                LEFT JOIN savings_buckets sb ON st.bucket_id = sb.id
+                WHERE st.linked_transaction_id = ? AND st.user_id = ?
+            ");
+            $stmt->execute([$transactionId, $userId]);
+            $linkedSavings = $stmt->fetch();
+            if ($linkedSavings) {
+                _deleteSavingsTransactionInternal($pdo, $userId, $linkedSavings['id'], $linkedSavings);
+            }
+        }
+
+        // Delete the transaction
+        $stmt = $pdo->prepare("DELETE FROM transactions WHERE id = ? AND user_id = ?");
+        $stmt->execute([$transactionId, $userId]);
+        $result = $stmt->rowCount() > 0;
+
+        $pdo->commit();
+        return $result;
+    } catch (Exception $e) {
+        $pdo->rollBack();
+        throw $e;
+    }
 }
