@@ -18,9 +18,6 @@ switch ($resource) {
     case 'categories':
         handleCategories($method, $id);
         break;
-    case 'budgets':
-        handleBudgets($method, $id);
-        break;
     case 'transactions':
         handleTransactions($method, $id);
         break;
@@ -29,6 +26,12 @@ switch ($resource) {
         break;
     case 'summary':
         handleSummary($method);
+        break;
+    case 'trends':
+        handleTrends($method);
+        break;
+    case 'budget-comparison':
+        handleBudgetComparison($method);
         break;
     case '':
         jsonResponse(['message' => 'Budget Manager API', 'version' => '1.0']);
@@ -173,100 +176,6 @@ function handleCategories($method, $id) {
 }
 
 // ========================================
-// Budget Handlers
-// ========================================
-
-function handleBudgets($method, $id) {
-    $user = requireAuth();
-    $userId = $user['id'];
-    
-    switch ($method) {
-        case 'GET':
-            if ($id) {
-                $budget = getBudget($userId, $id);
-                if (!$budget) {
-                    errorResponse('Budget not found', 404);
-                }
-                $yearMonth = date('Y-m');
-                $budget['spent'] = getBudgetSpent($userId, $budget['category'], $yearMonth);
-                jsonResponse($budget);
-            } else {
-                $budgets = getBudgets($userId);
-                $yearMonth = date('Y-m');
-                
-                foreach ($budgets as &$budget) {
-                    $budget['spent'] = getBudgetSpent($userId, $budget['category'], $yearMonth);
-                }
-                
-                jsonResponse($budgets);
-            }
-            break;
-            
-        case 'POST':
-            $data = json_decode(file_get_contents('php://input'), true);
-            
-            if (empty($data['name']) || !isset($data['amount']) || empty($data['category'])) {
-                errorResponse('Name, amount, and category are required');
-            }
-            
-            $budget = createBudget(
-                $userId,
-                trim($data['name']),
-                floatval($data['amount']),
-                trim($data['category'])
-            );
-            
-            $budget['spent'] = 0;
-            jsonResponse($budget, 201);
-            break;
-            
-        case 'PUT':
-            if (!$id) {
-                errorResponse('Budget ID is required');
-            }
-            
-            $data = json_decode(file_get_contents('php://input'), true);
-            
-            if (empty($data['name']) || !isset($data['amount']) || empty($data['category'])) {
-                errorResponse('Name, amount, and category are required');
-            }
-            
-            $budget = updateBudget(
-                $userId,
-                $id,
-                trim($data['name']),
-                floatval($data['amount']),
-                trim($data['category'])
-            );
-            
-            if (!$budget) {
-                errorResponse('Budget not found', 404);
-            }
-            
-            $yearMonth = date('Y-m');
-            $budget['spent'] = getBudgetSpent($userId, $budget['category'], $yearMonth);
-            jsonResponse($budget);
-            break;
-            
-        case 'DELETE':
-            if (!$id) {
-                errorResponse('Budget ID is required');
-            }
-            
-            $deleted = deleteBudget($userId, $id);
-            if (!$deleted) {
-                errorResponse('Budget not found', 404);
-            }
-            
-            jsonResponse(['success' => true]);
-            break;
-            
-        default:
-            errorResponse('Method not allowed', 405);
-    }
-}
-
-// ========================================
 // Transaction Handlers
 // ========================================
 
@@ -287,7 +196,16 @@ function handleTransactions($method, $id) {
                 jsonResponse($transaction);
             } else {
                 $limit = isset($_GET['limit']) ? intval($_GET['limit']) : 100;
-                $transactions = getTransactions($userId, $limit);
+                $categoryId = isset($_GET['category_id']) ? intval($_GET['category_id']) : null;
+                $startDate = isset($_GET['start_date']) ? $_GET['start_date'] : null;
+                $endDate = isset($_GET['end_date']) ? $_GET['end_date'] : null;
+
+                // Use filtered query if any filter params are provided
+                if ($categoryId !== null || $startDate !== null || $endDate !== null) {
+                    $transactions = getTransactionsFiltered($userId, $limit, $categoryId, $startDate, $endDate);
+                } else {
+                    $transactions = getTransactions($userId, $limit);
+                }
                 jsonResponse($transactions);
             }
             break;
@@ -612,7 +530,7 @@ function handleSummary($method) {
     $user = requireAuth();
     $userId = $user['id'];
 
-    // Support period parameter: this-month, last-month, this-year, last-year, all-time
+    // Support period parameter: this-month, last-month, this-year, last-year, all-time, custom
     $period = $_GET['period'] ?? 'this-month';
 
     $now = new DateTime();
@@ -655,6 +573,27 @@ function handleSummary($method) {
             $periodLabel = 'All Time';
             break;
 
+        case 'custom':
+            $startDate = $_GET['start_date'] ?? null;
+            $endDate = $_GET['end_date'] ?? null;
+
+            if (!$startDate || !$endDate) {
+                errorResponse('Custom period requires start_date and end_date parameters');
+            }
+
+            // Validate date format
+            if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $startDate) || !preg_match('/^\d{4}-\d{2}-\d{2}$/', $endDate)) {
+                errorResponse('Invalid date format. Use YYYY-MM-DD');
+            }
+
+            $totals = getCustomRangeTotals($userId, $startDate, $endDate);
+            $categoryTotals = getCategoryTotalsForDateRange($userId, $startDate, $endDate);
+
+            $startDt = new DateTime($startDate);
+            $endDt = new DateTime($endDate);
+            $periodLabel = $startDt->format('M j, Y') . ' - ' . $endDt->format('M j, Y');
+            break;
+
         default:
             // Fallback: treat as month format (YYYY-MM) for backward compatibility
             if (preg_match('/^\d{4}-\d{2}$/', $period)) {
@@ -662,7 +601,7 @@ function handleSummary($method) {
                 $categoryTotals = getCategoryTotalsWithDetails($userId, $period);
                 $periodLabel = $period;
             } else {
-                errorResponse('Invalid period. Use: this-month, last-month, this-year, last-year, all-time');
+                errorResponse('Invalid period. Use: this-month, last-month, this-year, last-year, all-time, custom');
             }
     }
 
@@ -673,5 +612,131 @@ function handleSummary($method) {
         'expense' => $totals['expense'],
         'balance' => $totals['income'] - $totals['expense'],
         'categories' => $categoryTotals
+    ]);
+}
+
+// ========================================
+// Trends Handler
+// ========================================
+
+function handleTrends($method) {
+    if ($method !== 'GET') {
+        errorResponse('Method not allowed', 405);
+    }
+
+    $user = requireAuth();
+    $userId = $user['id'];
+
+    $type = $_GET['type'] ?? 'both';
+    $granularity = $_GET['granularity'] ?? 'monthly';
+    $months = isset($_GET['months']) ? intval($_GET['months']) : 12;
+    $categoryId = isset($_GET['category_id']) ? intval($_GET['category_id']) : null;
+
+    // Validate type
+    if (!in_array($type, ['income', 'expense', 'both'])) {
+        errorResponse('Type must be income, expense, or both');
+    }
+
+    // Clamp months
+    $months = max(1, min($months, 24));
+
+    $trends = getTrends($userId, $type, $granularity, $months, $categoryId);
+
+    jsonResponse([
+        'type' => $type,
+        'granularity' => $granularity,
+        'months' => $months,
+        'data' => $trends
+    ]);
+}
+
+// ========================================
+// Budget Comparison Handler
+// ========================================
+
+function handleBudgetComparison($method) {
+    if ($method !== 'GET') {
+        errorResponse('Method not allowed', 405);
+    }
+
+    $user = requireAuth();
+    $userId = $user['id'];
+
+    $period = $_GET['period'] ?? 'this-month';
+
+    $now = new DateTime();
+
+    switch ($period) {
+        case 'this-month':
+            $yearMonth = $now->format('Y-m');
+            $categories = getCategoryTotalsWithDetails($userId, $yearMonth);
+            $multiplier = 1;
+            break;
+
+        case 'last-month':
+            $lastMonth = (clone $now)->modify('-1 month');
+            $yearMonth = $lastMonth->format('Y-m');
+            $categories = getCategoryTotalsWithDetails($userId, $yearMonth);
+            $multiplier = 1;
+            break;
+
+        case 'this-year':
+            $year = $now->format('Y');
+            $categories = getCategoryTotalsForYear($userId, $year);
+            $multiplier = 12;
+            break;
+
+        case 'last-year':
+            $lastYear = (clone $now)->modify('-1 year');
+            $year = $lastYear->format('Y');
+            $categories = getCategoryTotalsForYear($userId, $year);
+            $multiplier = 12;
+            break;
+
+        case 'custom':
+            $startDate = $_GET['start_date'] ?? null;
+            $endDate = $_GET['end_date'] ?? null;
+
+            if (!$startDate || !$endDate) {
+                errorResponse('Custom period requires start_date and end_date parameters');
+            }
+
+            $categories = getCategoryTotalsForDateRange($userId, $startDate, $endDate);
+
+            // Calculate months for budget comparison
+            $start = new DateTime($startDate);
+            $end = new DateTime($endDate);
+            $interval = $start->diff($end);
+            $multiplier = max(1, ($interval->y * 12) + $interval->m + ($interval->d > 0 ? 1 : 0));
+            break;
+
+        default:
+            $categories = getCategoryTotalsWithDetails($userId, $now->format('Y-m'));
+            $multiplier = 1;
+    }
+
+    // Calculate comparison data
+    $comparison = [];
+    foreach ($categories as $cat) {
+        $budget = (float) ($cat['monthly_budget'] ?? 0) * $multiplier;
+        $spent = (float) ($cat['spent'] ?? 0);
+        $variance = $budget - $spent;
+        $percentage = $budget > 0 ? round(($spent / $budget) * 100, 1) : 0;
+
+        $comparison[] = [
+            'id' => $cat['id'],
+            'name' => $cat['name'],
+            'icon' => $cat['icon'],
+            'color' => $cat['color'],
+            'budget' => $budget,
+            'spent' => $spent,
+            'variance' => $variance,
+            'percentage' => $percentage
+        ];
+    }
+
+    jsonResponse([
+        'period' => $period,
+        'categories' => $comparison
     ]);
 }

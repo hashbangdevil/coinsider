@@ -89,20 +89,6 @@ class Database {
             }
         }
 
-        // Budgets table
-        $this->pdo->exec("
-            CREATE TABLE IF NOT EXISTS budgets (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                user_id INTEGER NOT NULL,
-                name TEXT NOT NULL,
-                amount REAL NOT NULL,
-                category TEXT NOT NULL,
-                created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-                updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-                FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
-            )
-        ");
-
         // Transactions table
         $this->pdo->exec("
             CREATE TABLE IF NOT EXISTS transactions (
@@ -173,7 +159,6 @@ class Database {
         // Indexes
         $this->pdo->exec("CREATE INDEX IF NOT EXISTS idx_users_email ON users(email)");
         $this->pdo->exec("CREATE INDEX IF NOT EXISTS idx_users_reset_token ON users(reset_token)");
-        $this->pdo->exec("CREATE INDEX IF NOT EXISTS idx_budgets_user ON budgets(user_id)");
         $this->pdo->exec("CREATE INDEX IF NOT EXISTS idx_transactions_user ON transactions(user_id)");
         $this->pdo->exec("CREATE INDEX IF NOT EXISTS idx_transactions_date ON transactions(date)");
         $this->pdo->exec("CREATE INDEX IF NOT EXISTS idx_categories_user ON categories(user_id)");
@@ -336,56 +321,6 @@ function disableEncryption($userId) {
         WHERE id = ?
     ");
     $stmt->execute([$userId]);
-}
-
-// ========================================
-// Budget Functions
-// ========================================
-
-function getBudgets($userId) {
-    $pdo = Database::getInstance()->getPdo();
-    $stmt = $pdo->prepare("
-        SELECT * FROM budgets 
-        WHERE user_id = ? 
-        ORDER BY created_at DESC
-    ");
-    $stmt->execute([$userId]);
-    return $stmt->fetchAll();
-}
-
-function getBudget($userId, $budgetId) {
-    $pdo = Database::getInstance()->getPdo();
-    $stmt = $pdo->prepare("SELECT * FROM budgets WHERE id = ? AND user_id = ?");
-    $stmt->execute([$budgetId, $userId]);
-    return $stmt->fetch();
-}
-
-function createBudget($userId, $name, $amount, $category) {
-    $pdo = Database::getInstance()->getPdo();
-    $stmt = $pdo->prepare("
-        INSERT INTO budgets (user_id, name, amount, category) 
-        VALUES (?, ?, ?, ?)
-    ");
-    $stmt->execute([$userId, $name, $amount, $category]);
-    return getBudget($userId, $pdo->lastInsertId());
-}
-
-function updateBudget($userId, $budgetId, $name, $amount, $category) {
-    $pdo = Database::getInstance()->getPdo();
-    $stmt = $pdo->prepare("
-        UPDATE budgets 
-        SET name = ?, amount = ?, category = ?, updated_at = CURRENT_TIMESTAMP 
-        WHERE id = ? AND user_id = ?
-    ");
-    $stmt->execute([$name, $amount, $category, $budgetId, $userId]);
-    return getBudget($userId, $budgetId);
-}
-
-function deleteBudget($userId, $budgetId) {
-    $pdo = Database::getInstance()->getPdo();
-    $stmt = $pdo->prepare("DELETE FROM budgets WHERE id = ? AND user_id = ?");
-    $stmt->execute([$budgetId, $userId]);
-    return $stmt->rowCount() > 0;
 }
 
 // ========================================
@@ -915,34 +850,6 @@ function getCategoryTotalsAllTime($userId) {
     return $results;
 }
 
-// Legacy function - keep for backward compatibility
-function getCategoryTotals($userId, $yearMonth) {
-    $pdo = Database::getInstance()->getPdo();
-    $stmt = $pdo->prepare("
-        SELECT
-            category,
-            SUM(amount) as total
-        FROM transactions
-        WHERE user_id = ? AND type = 'expense' AND strftime('%Y-%m', date) = ?
-        GROUP BY category
-        ORDER BY total DESC
-    ");
-    $stmt->execute([$userId, $yearMonth]);
-    return $stmt->fetchAll();
-}
-
-function getBudgetSpent($userId, $category, $yearMonth) {
-    $pdo = Database::getInstance()->getPdo();
-    $stmt = $pdo->prepare("
-        SELECT COALESCE(SUM(amount), 0) as spent
-        FROM transactions
-        WHERE user_id = ? AND type = 'expense' AND category = ? AND strftime('%Y-%m', date) = ?
-    ");
-    $stmt->execute([$userId, $category, $yearMonth]);
-    $result = $stmt->fetch();
-    return (float) $result['spent'];
-}
-
 // ========================================
 // Recurring Transaction Functions
 // ========================================
@@ -1238,4 +1145,169 @@ function getUpcomingRecurringTransactions($userId, $days = 7) {
     ");
     $stmt->execute([$userId, $today, $endDate]);
     return $stmt->fetchAll();
+}
+
+// ========================================
+// Custom Date Range Functions
+// ========================================
+
+function getCustomRangeTotals($userId, $startDate, $endDate) {
+    $pdo = Database::getInstance()->getPdo();
+    $stmt = $pdo->prepare("
+        SELECT
+            type,
+            SUM(amount) as total
+        FROM transactions
+        WHERE user_id = ? AND date >= ? AND date <= ?
+        GROUP BY type
+    ");
+    $stmt->execute([$userId, $startDate, $endDate]);
+
+    $results = $stmt->fetchAll();
+    $totals = ['income' => 0, 'expense' => 0];
+
+    foreach ($results as $row) {
+        $totals[$row['type']] = (float) $row['total'];
+    }
+
+    return $totals;
+}
+
+function getCategoryTotalsForDateRange($userId, $startDate, $endDate) {
+    $pdo = Database::getInstance()->getPdo();
+    $stmt = $pdo->prepare("
+        SELECT
+            c.id,
+            c.name,
+            c.icon,
+            c.color,
+            c.monthly_budget,
+            COALESCE(SUM(t.amount), 0) as spent
+        FROM categories c
+        LEFT JOIN transactions t ON c.id = t.category_id
+            AND t.type = 'expense'
+            AND t.date >= ?
+            AND t.date <= ?
+        WHERE c.user_id = ? AND c.type = 'expense'
+        GROUP BY c.id, c.name, c.icon, c.color, c.monthly_budget
+        ORDER BY spent DESC
+    ");
+    $stmt->execute([$startDate, $endDate, $userId]);
+    $results = $stmt->fetchAll();
+
+    // Calculate months in range for budget comparison
+    $start = new DateTime($startDate);
+    $end = new DateTime($endDate);
+    $interval = $start->diff($end);
+    $months = max(1, ($interval->y * 12) + $interval->m + ($interval->d > 0 ? 1 : 0));
+
+    foreach ($results as &$row) {
+        $row['spent'] = (float) $row['spent'];
+        $row['monthly_budget'] = (float) $row['monthly_budget'];
+        $periodBudget = $row['monthly_budget'] * $months;
+        if ($periodBudget > 0) {
+            $row['percentage'] = round(($row['spent'] / $periodBudget) * 100, 1);
+        } else {
+            $row['percentage'] = 0;
+        }
+    }
+
+    return $results;
+}
+
+function getTransactionsFiltered($userId, $limit = 100, $categoryId = null, $startDate = null, $endDate = null) {
+    $pdo = Database::getInstance()->getPdo();
+
+    $sql = "
+        SELECT t.*, c.name as category_name, c.icon as category_icon, c.color as category_color
+        FROM transactions t
+        LEFT JOIN categories c ON t.category_id = c.id
+        WHERE t.user_id = ?
+    ";
+    $params = [$userId];
+
+    if ($categoryId !== null) {
+        $sql .= " AND t.category_id = ?";
+        $params[] = $categoryId;
+    }
+
+    if ($startDate !== null) {
+        $sql .= " AND t.date >= ?";
+        $params[] = $startDate;
+    }
+
+    if ($endDate !== null) {
+        $sql .= " AND t.date <= ?";
+        $params[] = $endDate;
+    }
+
+    $sql .= " ORDER BY t.date DESC, t.created_at DESC LIMIT ?";
+    $params[] = $limit;
+
+    $stmt = $pdo->prepare($sql);
+    $stmt->execute($params);
+    return $stmt->fetchAll();
+}
+
+// ========================================
+// Trends Functions
+// ========================================
+
+function getTrends($userId, $type = 'both', $granularity = 'monthly', $months = 12, $categoryId = null) {
+    $pdo = Database::getInstance()->getPdo();
+
+    $endDate = date('Y-m-d');
+    $startDate = (new DateTime())->modify("-{$months} months")->format('Y-m-01');
+
+    $sql = "
+        SELECT
+            strftime('%Y-%m', date) as period,
+            type,
+            SUM(amount) as total
+        FROM transactions
+        WHERE user_id = ? AND date >= ? AND date <= ?
+    ";
+    $params = [$userId, $startDate, $endDate];
+
+    if ($type !== 'both') {
+        $sql .= " AND type = ?";
+        $params[] = $type;
+    }
+
+    if ($categoryId !== null) {
+        $sql .= " AND category_id = ?";
+        $params[] = $categoryId;
+    }
+
+    $sql .= " GROUP BY period, type ORDER BY period ASC";
+
+    $stmt = $pdo->prepare($sql);
+    $stmt->execute($params);
+    $results = $stmt->fetchAll();
+
+    // Build a complete timeline with zero-filled months
+    $trends = [];
+    $current = new DateTime($startDate);
+    $end = new DateTime($endDate);
+
+    while ($current <= $end) {
+        $period = $current->format('Y-m');
+        $trends[$period] = [
+            'period' => $period,
+            'label' => $current->format('M Y'),
+            'income' => 0,
+            'expense' => 0
+        ];
+        $current->modify('+1 month');
+    }
+
+    // Fill in actual values
+    foreach ($results as $row) {
+        $period = $row['period'];
+        if (isset($trends[$period])) {
+            $trends[$period][$row['type']] = (float) $row['total'];
+        }
+    }
+
+    return array_values($trends);
 }

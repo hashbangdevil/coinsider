@@ -48,6 +48,9 @@ const CryptoModule = {
     mek: null,
     isUnlocked: false,
 
+    // Session storage key (survives soft refreshes within same tab)
+    SESSION_KEY: 'budget_manager_session_key',
+
     // Initialize - call after page load
     init() {
         this.mek = null;
@@ -520,9 +523,86 @@ const CryptoModule = {
     // Clear remembered key
     forgetKey() {
         localStorage.removeItem(this.STORAGE_KEY);
+    },
+
+    // Session key methods (uses localStorage for mobile compatibility, cleared on logout)
+
+    // Save MEK to localStorage for current login session
+    async saveToSession() {
+        if (!this.mek) return false;
+
+        try {
+            // Generate a random session key
+            const sessionKey = await crypto.subtle.generateKey(
+                { name: 'AES-GCM', length: 256 },
+                true,
+                ['wrapKey', 'unwrapKey']
+            );
+
+            // Export session key
+            const sessionKeyRaw = await crypto.subtle.exportKey('raw', sessionKey);
+
+            // Wrap MEK with session key
+            const wrappedMEK = await this.wrapMEK(this.mek, sessionKey);
+
+            // Store in localStorage (more reliable on mobile than sessionStorage)
+            const data = {
+                sessionKey: this.bufferToBase64(sessionKeyRaw),
+                wrappedMEK: wrappedMEK,
+                isSessionKey: true  // Flag to distinguish from "remember me" keys
+            };
+            localStorage.setItem(this.SESSION_KEY, JSON.stringify(data));
+
+            return true;
+        } catch (error) {
+            console.error('Failed to save to session:', error);
+            return false;
+        }
+    },
+
+    // Check if there's a session key
+    hasSessionKey() {
+        return localStorage.getItem(this.SESSION_KEY) !== null;
+    },
+
+    // Restore MEK from localStorage session key
+    async unlockFromSession() {
+        try {
+            const stored = localStorage.getItem(this.SESSION_KEY);
+            if (!stored) return false;
+
+            const data = JSON.parse(stored);
+
+            // Restore session key
+            const sessionKeyRaw = this.base64ToBuffer(data.sessionKey);
+            const sessionKey = await crypto.subtle.importKey(
+                'raw',
+                sessionKeyRaw,
+                { name: 'AES-GCM', length: 256 },
+                false,
+                ['unwrapKey']
+            );
+
+            // Unwrap MEK
+            const mek = await this.unwrapMEK(data.wrappedMEK, sessionKey);
+
+            // Store in memory
+            this.mek = mek;
+            this.isUnlocked = true;
+
+            return true;
+        } catch (error) {
+            console.error('Failed to unlock from session:', error);
+            localStorage.removeItem(this.SESSION_KEY);
+            return false;
+        }
+    },
+
+    // Clear session key (called on logout)
+    clearSession() {
+        localStorage.removeItem(this.SESSION_KEY);
     }
 };
 
 // Export for use in app.js
 window.CryptoModule = CryptoModule;
-console.log('crypto.js loaded successfully');

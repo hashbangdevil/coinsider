@@ -38,7 +38,7 @@
                     </svg>
                 </div>
                 <h1 class="login-title">Budget</h1>
-                <p class="login-subtitle">Take control of your finances</p>
+                <p class="login-subtitle">TTTTake control of your finances</p>
             </div>
             
             <!-- Login Form -->
@@ -284,7 +284,14 @@
                     <option value="this-year">This Year</option>
                     <option value="last-year">Last Year</option>
                     <option value="all-time">All Time</option>
+                    <option value="custom">Custom Range...</option>
                 </select>
+            </div>
+            <div class="custom-date-range" id="custom-date-range" style="display: none;">
+                <input type="date" id="custom-start-date">
+                <span>to</span>
+                <input type="date" id="custom-end-date">
+                <button class="btn btn-small" id="apply-custom-range">Apply</button>
             </div>
             <div class="balance-amount" id="total-balance">$0.00</div>
             <div class="balance-stats">
@@ -385,6 +392,7 @@
                     <option value="this-year">This Year</option>
                     <option value="last-year">Last Year</option>
                     <option value="all-time">All Time</option>
+                    <option value="custom">Custom Range...</option>
                 </select>
             </div>
             <div class="chart-wrapper clickable" id="chart-wrapper">
@@ -403,6 +411,20 @@
                         <div class="legend-column" id="legend-right"></div>
                     </div>
                 </div>
+            </div>
+        </section>
+
+        <!-- Trends Section -->
+        <section class="section" id="trends-section">
+            <div class="section-header">
+                <h3 class="section-title">Spending Trends</h3>
+                <select class="period-selector" id="trends-range-selector">
+                    <option value="6">Last 6 Months</option>
+                    <option value="12" selected>Last 12 Months</option>
+                </select>
+            </div>
+            <div class="trends-chart-container">
+                <canvas id="trends-chart"></canvas>
             </div>
         </section>
 
@@ -659,26 +681,67 @@
                 </button>
             </div>
             <div class="modal-body">
-                <select class="period-selector" id="spending-period-selector">
-                    <option value="this-month">This Month</option>
-                    <option value="last-month">Last Month</option>
-                    <option value="this-year">This Year</option>
-                    <option value="last-year">Last Year</option>
-                    <option value="all-time">All Time</option>
-                </select>
-                <div class="spending-table-container">
-                    <table class="spending-table" id="spending-table">
-                        <thead>
-                            <tr>
-                                <th class="sortable" data-sort="name">Category</th>
-                                <th class="sortable" data-sort="spent">Spent</th>
-                                <th class="sortable" data-sort="budget">Budget</th>
-                                <th class="sortable" data-sort="percent">% Used</th>
-                            </tr>
-                        </thead>
-                        <tbody id="spending-table-body">
-                        </tbody>
-                    </table>
+                <div class="spending-controls">
+                    <select class="period-selector" id="spending-period-selector">
+                        <option value="this-month">This Month</option>
+                        <option value="last-month">Last Month</option>
+                        <option value="this-year">This Year</option>
+                        <option value="last-year">Last Year</option>
+                        <option value="all-time">All Time</option>
+                        <option value="custom">Custom Range...</option>
+                    </select>
+                    <div class="view-toggle">
+                        <button class="toggle-btn active" data-view="table">Table</button>
+                        <button class="toggle-btn" data-view="comparison">Budget vs Actual</button>
+                    </div>
+                </div>
+                <div class="custom-date-range spending-custom-range" id="spending-custom-range" style="display: none;">
+                    <input type="date" id="spending-custom-start">
+                    <span>to</span>
+                    <input type="date" id="spending-custom-end">
+                    <button class="btn btn-small" id="apply-spending-custom">Apply</button>
+                </div>
+                <div id="spending-table-view">
+                    <div class="spending-table-container">
+                        <table class="spending-table" id="spending-table">
+                            <thead>
+                                <tr>
+                                    <th class="sortable" data-sort="name">Category</th>
+                                    <th class="sortable" data-sort="spent">Spent</th>
+                                    <th class="sortable" data-sort="budget">Budget</th>
+                                    <th class="sortable" data-sort="percent">% Used</th>
+                                </tr>
+                            </thead>
+                            <tbody id="spending-table-body">
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+                <div id="budget-comparison-view" style="display: none;">
+                    <div class="comparison-list" id="comparison-list"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Category Transactions Modal -->
+    <div class="modal" id="category-transactions-modal">
+        <div class="modal-backdrop"></div>
+        <div class="modal-content modal-large">
+            <div class="modal-header">
+                <h3 id="category-modal-title">Category Transactions</h3>
+                <button class="btn-icon modal-close">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <line x1="18" y1="6" x2="6" y2="18"/>
+                        <line x1="6" y1="6" x2="18" y2="18"/>
+                    </svg>
+                </button>
+            </div>
+            <div class="modal-body">
+                <div class="category-summary" id="category-summary"></div>
+                <div class="transactions-modal-list" id="category-transactions-list"></div>
+                <div class="transactions-modal-empty" id="category-transactions-empty" style="display: none;">
+                    <p>No transactions found for this category</p>
                 </div>
             </div>
         </div>
@@ -719,6 +782,7 @@
                             <option value="this-year">This Year</option>
                             <option value="last-year">Last Year</option>
                             <option value="all-time">All Time</option>
+                            <option value="custom">Custom Range...</option>
                         </select>
                     </div>
                 </div>
@@ -1207,9 +1271,9 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/zxcvbn/4.4.2/zxcvbn.js"></script>
 
     <!-- Encryption Module -->
-    <script src="crypto.js?v=1"></script>
+    <script src="crypto.js?v=2"></script>
 
     <!-- App JavaScript -->
-    <script src="app.js?v=30"></script>
+    <script src="app.js?v=35"></script>
 </body>
 </html>

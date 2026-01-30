@@ -44,9 +44,10 @@ function resetState() {
     state.spendingSummary = null;
     state.encryptionSettings = null;
     state.encryptionPending = false;
-    // Lock the crypto module
+    // Lock the crypto module and clear session
     if (window.CryptoModule) {
         CryptoModule.lock();
+        CryptoModule.clearSession();
     }
 }
 
@@ -375,6 +376,8 @@ async function unlockEncryption(password) {
             state.encryptionSettings.encryption_salt,
             state.encryptionSettings.encrypted_mek
         );
+        // Save to session storage for soft refresh persistence
+        await CryptoModule.saveToSession();
         return true;
     } catch (error) {
         console.error('Failed to unlock encryption:', error);
@@ -393,6 +396,8 @@ async function unlockWithRecovery(recoveryPhrase) {
             state.encryptionSettings.recovery_salt,
             state.encryptionSettings.recovery_encrypted_mek
         );
+        // Save to session storage for soft refresh persistence
+        await CryptoModule.saveToSession();
         return true;
     } catch (error) {
         console.error('Failed to unlock with recovery:', error);
@@ -816,7 +821,6 @@ function updateEmojiPickerSelection(emoji) {
 async function api(endpoint, options = {}) {
     const url = `${API_BASE}/${endpoint}`;
     
-    console.log('API Request:', url, options.method || 'GET');
     
     const config = {
         credentials: 'include',
@@ -843,7 +847,6 @@ async function api(endpoint, options = {}) {
         }
         
         const data = await response.json();
-        console.log('API Response:', data);
         
         if (!response.ok) {
             throw new Error(data.error || 'API error');
@@ -872,15 +875,12 @@ function showAuthForm(formName) {
 
 async function checkAuthStatus() {
     try {
-        console.log('Checking auth status...');
         const data = await api('auth.php?action=status');
         
         if (data.authenticated && data.user) {
             state.user = data.user;
-            console.log('User authenticated:', data.user);
             return true;
         }
-        console.log('User not authenticated');
         return false;
     } catch (error) {
         console.error('Auth check failed:', error);
@@ -905,11 +905,9 @@ async function handleLogin(e) {
 
         if (data.success && data.user) {
             state.user = data.user;
-            console.log('Login successful');
 
             // Check if encryption is enabled
             if (state.user.encryption_enabled) {
-                console.log('Encryption enabled, loading settings...');
                 await loadEncryptionSettings();
 
                 // Try to unlock with remembered key first
@@ -917,7 +915,8 @@ async function handleLogin(e) {
                 if (CryptoModule?.hasRememberedKey()) {
                     unlocked = await CryptoModule.unlockWithRememberedKey();
                     if (unlocked) {
-                        console.log('Unlocked with remembered key');
+                        // Save to session for soft refresh persistence
+                        await CryptoModule.saveToSession();
                     }
                 }
 
@@ -940,7 +939,6 @@ async function handleLogin(e) {
                 }
             }
 
-            console.log('Loading app data...');
             await loadAppData();
             showAppScreen();
             showToast(`Welcome back, ${state.user.name}!`);
@@ -970,9 +968,7 @@ async function handleSignup(e) {
         
         if (data.success && data.user) {
             state.user = data.user;
-            console.log('Signup successful, loading data...');
             await loadAppData();
-            console.log('Data loaded, state.budgets is:', state.budgets);
             showAppScreen();
             showToast(`Welcome, ${state.user.name}!`);
         }
@@ -1129,6 +1125,9 @@ async function handleLogout() {
         console.error('Logout error:', error);
     }
 
+    // Clear session encryption key
+    CryptoModule?.clearSession();
+
     state.user = null;
     state.categories = [];
     state.transactions = [];
@@ -1175,10 +1174,6 @@ async function loadAppData() {
             api('api.php?resource=recurring')
         ]);
 
-        console.log('Loaded categories:', categories);
-        console.log('Loaded transactions:', transactions);
-        console.log('Loaded summary:', summary);
-        console.log('Loaded recurring:', recurring);
 
         // Ensure arrays (API might return object with error)
         let cats = Array.isArray(categories) ? categories : [];
@@ -1305,7 +1300,6 @@ function renderCategories() {
     // Get expense categories with budget > 0 (show budget tracking)
     const categories = Array.isArray(state.categories) ? state.categories : [];
     const expenseCategories = categories.filter(c => c.type === 'expense');
-    console.log('Rendering categories:', expenseCategories);
 
     if (expenseCategories.length === 0) {
         if (elements.noCategories) elements.noCategories.style.display = 'flex';
@@ -1610,7 +1604,6 @@ function renderTransactions() {
 
     // Always use a local array variable to prevent errors
     const transactions = Array.isArray(state.transactions) ? state.transactions : [];
-    console.log('Rendering transactions:', transactions);
 
     if (transactions.length === 0) {
         if (elements.noTransactions) elements.noTransactions.style.display = 'flex';
@@ -2294,12 +2287,12 @@ function renderSpendingTable(sortKey = 'spent', sortDir = 'desc') {
         const percentDisplay = cat.budget > 0 ? `${cat.percent.toFixed(0)}%` : '—';
 
         return `
-            <tr>
+            <tr onclick="openCategoryDrilldown(${cat.id})" style="cursor: pointer;">
                 <td>
                     <div class="category-cell">
                         <span class="category-color" style="background: ${cat.color}"></span>
                         <span class="category-icon">${cat.icon}</span>
-                        ${cat.name}
+                        ${escapeHtml(cat.name)}
                     </div>
                 </td>
                 <td class="amount-cell">${formatCurrency(cat.spent)}</td>
@@ -2333,6 +2326,12 @@ function showAppScreen() {
     renderAll();
     updateEncryptionButton();
     showScreen('app');
+
+    // Load trends chart
+    if (document.getElementById('trends-chart')) {
+        const months = parseInt(document.getElementById('trends-range-selector')?.value) || 12;
+        loadTrends(months);
+    }
 }
 
 function renderAll() {
@@ -2971,9 +2970,7 @@ async function registerServiceWorker() {
     if ('serviceWorker' in navigator) {
         try {
             const registration = await navigator.serviceWorker.register('sw.js');
-            console.log('Service Worker registered:', registration.scope);
         } catch (error) {
-            console.log('Service Worker registration failed:', error);
         }
     }
 }
@@ -3277,17 +3274,413 @@ function updateEncryptionSettingsModal() {
 }
 
 // ========================================
+// Custom Date Range State
+// ========================================
+
+let customDateRange = {
+    startDate: null,
+    endDate: null
+};
+
+// ========================================
+// Custom Date Range Functions
+// ========================================
+
+function showCustomDateRange(containerId) {
+    const container = document.getElementById(containerId);
+    if (container) {
+        container.style.display = 'flex';
+        // Set default dates if not already set
+        const startInput = container.querySelector('input[type="date"]:first-of-type');
+        const endInput = container.querySelector('input[type="date"]:last-of-type');
+        if (startInput && !startInput.value) {
+            const start = new Date();
+            start.setMonth(start.getMonth() - 1);
+            startInput.value = start.toISOString().split('T')[0];
+        }
+        if (endInput && !endInput.value) {
+            endInput.value = new Date().toISOString().split('T')[0];
+        }
+    }
+}
+
+function hideCustomDateRange(containerId) {
+    const container = document.getElementById(containerId);
+    if (container) {
+        container.style.display = 'none';
+    }
+}
+
+async function applyCustomRange(startDate, endDate) {
+    if (!startDate || !endDate) {
+        showToast('Please select both start and end dates');
+        return;
+    }
+    if (startDate > endDate) {
+        showToast('Start date must be before end date');
+        return;
+    }
+    customDateRange = { startDate, endDate };
+
+    try {
+        const summary = await api(`api.php?resource=summary&period=custom&start_date=${startDate}&end_date=${endDate}`);
+        state.summary = summary;
+        if (state.summary?.categories && CryptoModule?.isReady()) {
+            state.summary.categories = await decryptCategories(state.summary.categories);
+        }
+        updateBalances();
+        renderChart();
+    } catch (error) {
+        showToast('Failed to load custom range data');
+    }
+}
+
+// ========================================
+// Category Drill-Down Functions
+// ========================================
+
+async function openCategoryDrilldown(categoryId, period = null) {
+    const category = state.categories.find(c => c.id === categoryId);
+    if (!category) return;
+
+    const spendingPeriod = period || elements.spendingPeriodSelector?.value || 'this-month';
+
+    // Build query params
+    let queryParams = `category_id=${categoryId}&limit=500`;
+
+    if (spendingPeriod === 'custom' && customDateRange.startDate && customDateRange.endDate) {
+        queryParams += `&start_date=${customDateRange.startDate}&end_date=${customDateRange.endDate}`;
+    } else {
+        const { start, end } = getDateRangeForPeriod(spendingPeriod);
+        if (start && end) {
+            queryParams += `&start_date=${start.toISOString().split('T')[0]}&end_date=${end.toISOString().split('T')[0]}`;
+        }
+    }
+
+    try {
+        let transactions = await api(`api.php?resource=transactions&${queryParams}`);
+        transactions = await decryptTransactions(Array.isArray(transactions) ? transactions : []);
+
+        renderCategoryDrilldown(category, transactions, spendingPeriod);
+
+        // Close spending modal if open
+        closeModal(elements.spendingModal);
+        openModal(document.getElementById('category-transactions-modal'));
+    } catch (error) {
+        console.error('Failed to load category transactions:', error);
+        showToast('Failed to load transactions');
+    }
+}
+
+function renderCategoryDrilldown(category, transactions, period) {
+    const titleEl = document.getElementById('category-modal-title');
+    const summaryEl = document.getElementById('category-summary');
+    const listEl = document.getElementById('category-transactions-list');
+    const emptyEl = document.getElementById('category-transactions-empty');
+
+    if (titleEl) {
+        titleEl.textContent = `${category.icon} ${category.name}`;
+    }
+
+    // Calculate total spent
+    const totalSpent = transactions.reduce((sum, t) => sum + parseFloat(t.amount), 0);
+    const budget = category.monthly_budget || 0;
+
+    // Get period label
+    let periodLabel = period;
+    if (period === 'custom' && customDateRange.startDate && customDateRange.endDate) {
+        const start = new Date(customDateRange.startDate);
+        const end = new Date(customDateRange.endDate);
+        periodLabel = `${start.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} - ${end.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}`;
+    } else {
+        periodLabel = period.split('-').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
+    }
+
+    // Render summary header
+    if (summaryEl) {
+        summaryEl.innerHTML = `
+            <div class="category-summary-icon" style="background: ${category.color}20; color: ${category.color}">
+                ${category.icon}
+            </div>
+            <div class="category-summary-info">
+                <div class="category-summary-name">${escapeHtml(category.name)}</div>
+                <div class="category-summary-period">${periodLabel}</div>
+            </div>
+            <div class="category-summary-amount">
+                <div class="category-summary-spent">${formatCurrency(totalSpent)}</div>
+                ${budget > 0 ? `<div class="category-summary-budget">of ${formatCurrency(budget)} budget</div>` : ''}
+            </div>
+        `;
+    }
+
+    // Render transactions list
+    if (listEl) {
+        if (transactions.length === 0) {
+            listEl.style.display = 'none';
+            if (emptyEl) emptyEl.style.display = 'block';
+        } else {
+            listEl.style.display = 'flex';
+            if (emptyEl) emptyEl.style.display = 'none';
+
+            listEl.innerHTML = transactions.map(transaction => {
+                const isIncome = transaction.type === 'income';
+                return `
+                    <div class="transaction-item" data-id="${transaction.id}" onclick="openEditTransactionModal(${transaction.id})">
+                        <div class="transaction-content">
+                            <div class="transaction-icon ${transaction.type}" style="background: ${isIncome ? 'var(--color-success-light)' : category.color + '20'}">
+                                ${category.icon}
+                            </div>
+                            <div class="transaction-info">
+                                <div class="transaction-description">${escapeHtml(transaction.description)}</div>
+                                <div class="transaction-meta">${formatDate(transaction.date)}</div>
+                            </div>
+                            <div class="transaction-amount ${transaction.type}">
+                                ${isIncome ? '+' : '-'}${formatCurrency(transaction.amount)}
+                            </div>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        }
+    }
+}
+
+// ========================================
+// Budget vs Actual Comparison
+// ========================================
+
+async function loadBudgetComparison(period = 'this-month') {
+    let url = `api.php?resource=budget-comparison&period=${period}`;
+
+    if (period === 'custom' && customDateRange.startDate && customDateRange.endDate) {
+        url += `&start_date=${customDateRange.startDate}&end_date=${customDateRange.endDate}`;
+    }
+
+    try {
+        const data = await api(url);
+        let categories = data.categories || [];
+
+        // Decrypt if needed
+        if (CryptoModule?.isReady()) {
+            categories = await decryptCategories(categories);
+        }
+
+        renderBudgetComparison(categories);
+    } catch (error) {
+        console.error('Failed to load budget comparison:', error);
+        showToast('Failed to load comparison data');
+    }
+}
+
+function renderBudgetComparison(categories) {
+    const container = document.getElementById('comparison-list');
+    if (!container) return;
+
+    if (categories.length === 0) {
+        container.innerHTML = '<p style="text-align: center; color: var(--text-tertiary); padding: var(--space-xl);">No expense categories found</p>';
+        return;
+    }
+
+    // Filter to only show categories with budget > 0 or spending > 0
+    const relevantCategories = categories.filter(c => c.budget > 0 || c.spent > 0);
+
+    if (relevantCategories.length === 0) {
+        container.innerHTML = '<p style="text-align: center; color: var(--text-tertiary); padding: var(--space-xl);">No budgets or spending to compare</p>';
+        return;
+    }
+
+    // Find max value for scaling
+    const maxValue = Math.max(...relevantCategories.map(c => Math.max(c.budget, c.spent)));
+
+    container.innerHTML = relevantCategories.map(cat => {
+        const budgetWidth = maxValue > 0 ? (cat.budget / maxValue) * 100 : 0;
+        const spentWidth = maxValue > 0 ? (cat.spent / maxValue) * 100 : 0;
+
+        let statusClass = 'under';
+        if (cat.budget > 0 && cat.percentage >= 100) {
+            statusClass = 'over';
+        } else if (cat.budget > 0 && cat.percentage >= 80) {
+            statusClass = 'near';
+        }
+
+        const percentDisplay = cat.budget > 0 ? `${Math.round(cat.percentage)}%` : '—';
+
+        return `
+            <div class="comparison-row" onclick="openCategoryDrilldown(${cat.id})">
+                <div class="comparison-category">
+                    <div class="comparison-icon" style="background: ${cat.color}20">
+                        ${cat.icon}
+                    </div>
+                    <span class="comparison-name">${escapeHtml(cat.name)}</span>
+                </div>
+                <div class="comparison-bar-container">
+                    ${cat.budget > 0 ? `<div class="comparison-budget-bar" style="width: ${budgetWidth}%"></div>` : ''}
+                    <div class="comparison-actual-bar ${statusClass}" style="width: ${spentWidth}%"></div>
+                </div>
+                <div class="comparison-values">
+                    <span class="comparison-spent">${formatCurrency(cat.spent)}</span>
+                    <span class="comparison-budget">${cat.budget > 0 ? 'of ' + formatCurrency(cat.budget) : 'no budget'}</span>
+                </div>
+                <span class="comparison-percent ${statusClass}">${percentDisplay}</span>
+            </div>
+        `;
+    }).join('');
+}
+
+// ========================================
+// Spending Trends Functions
+// ========================================
+
+async function loadTrends(months = 12) {
+    try {
+        const data = await api(`api.php?resource=trends&months=${months}`);
+        renderTrendsChart(data.data || []);
+    } catch (error) {
+        console.error('Failed to load trends:', error);
+        showToast('Failed to load trends data');
+    }
+}
+
+function renderTrendsChart(data) {
+    const canvas = document.getElementById('trends-chart');
+    if (!canvas) return;
+
+    const ctx = canvas.getContext('2d');
+    const container = canvas.parentElement;
+
+    // Set canvas dimensions
+    const dpr = window.devicePixelRatio || 1;
+    const width = container.clientWidth - 32; // Account for padding
+    const height = 220;
+
+    canvas.width = width * dpr;
+    canvas.height = height * dpr;
+    canvas.style.width = width + 'px';
+    canvas.style.height = height + 'px';
+    ctx.scale(dpr, dpr);
+
+    // Clear canvas
+    ctx.clearRect(0, 0, width, height);
+
+    if (data.length === 0) {
+        ctx.fillStyle = getComputedStyle(document.documentElement).getPropertyValue('--text-tertiary').trim() || '#a8a9b8';
+        ctx.font = '14px Outfit, system-ui, sans-serif';
+        ctx.textAlign = 'center';
+        ctx.fillText('No data available', width / 2, height / 2);
+        return;
+    }
+
+    // Chart dimensions
+    const padding = { top: 20, right: 20, bottom: 40, left: 60 };
+    const chartWidth = width - padding.left - padding.right;
+    const chartHeight = height - padding.top - padding.bottom;
+
+    // Calculate max value for scaling
+    const maxValue = Math.max(...data.flatMap(d => [d.income, d.expense]), 1);
+    const roundedMax = Math.ceil(maxValue / 1000) * 1000;
+
+    // Colors
+    const incomeColor = getComputedStyle(document.documentElement).getPropertyValue('--color-success').trim() || '#5ce5a5';
+    const expenseColor = getComputedStyle(document.documentElement).getPropertyValue('--color-danger').trim() || '#ff7a8a';
+    const textColor = getComputedStyle(document.documentElement).getPropertyValue('--text-tertiary').trim() || '#a8a9b8';
+    const gridColor = getComputedStyle(document.documentElement).getPropertyValue('--border-color').trim() || 'rgba(255, 255, 255, 0.12)';
+
+    // Draw grid lines
+    ctx.strokeStyle = gridColor;
+    ctx.lineWidth = 1;
+    const gridLines = 4;
+    for (let i = 0; i <= gridLines; i++) {
+        const y = padding.top + (chartHeight / gridLines) * i;
+        ctx.beginPath();
+        ctx.moveTo(padding.left, y);
+        ctx.lineTo(width - padding.right, y);
+        ctx.stroke();
+
+        // Y-axis labels
+        const value = roundedMax - (roundedMax / gridLines) * i;
+        ctx.fillStyle = textColor;
+        ctx.font = '11px Outfit, system-ui, sans-serif';
+        ctx.textAlign = 'right';
+        ctx.fillText(formatCompactCurrency(value), padding.left - 8, y + 4);
+    }
+
+    // Bar dimensions
+    const groupWidth = chartWidth / data.length;
+    const barWidth = Math.min(groupWidth * 0.35, 24);
+    const barGap = 4;
+
+    // Draw bars
+    data.forEach((item, index) => {
+        const x = padding.left + groupWidth * index + groupWidth / 2;
+
+        // Income bar
+        const incomeHeight = (item.income / roundedMax) * chartHeight;
+        ctx.fillStyle = incomeColor;
+        ctx.beginPath();
+        ctx.roundRect(x - barWidth - barGap/2, padding.top + chartHeight - incomeHeight, barWidth, incomeHeight, 3);
+        ctx.fill();
+
+        // Expense bar
+        const expenseHeight = (item.expense / roundedMax) * chartHeight;
+        ctx.fillStyle = expenseColor;
+        ctx.beginPath();
+        ctx.roundRect(x + barGap/2, padding.top + chartHeight - expenseHeight, barWidth, expenseHeight, 3);
+        ctx.fill();
+
+        // X-axis label
+        ctx.fillStyle = textColor;
+        ctx.font = '10px Outfit, system-ui, sans-serif';
+        ctx.textAlign = 'center';
+        const labelParts = item.label.split(' ');
+        ctx.fillText(labelParts[0], x, height - padding.bottom + 16);
+        if (labelParts[1]) {
+            ctx.fillText(labelParts[1], x, height - padding.bottom + 28);
+        }
+    });
+
+    // Draw legend
+    const legendY = 10;
+    const legendX = width - padding.right;
+
+    ctx.fillStyle = incomeColor;
+    ctx.beginPath();
+    ctx.roundRect(legendX - 100, legendY, 12, 12, 2);
+    ctx.fill();
+    ctx.fillStyle = textColor;
+    ctx.font = '11px Outfit, system-ui, sans-serif';
+    ctx.textAlign = 'left';
+    ctx.fillText('Income', legendX - 84, legendY + 10);
+
+    ctx.fillStyle = expenseColor;
+    ctx.beginPath();
+    ctx.roundRect(legendX - 40, legendY, 12, 12, 2);
+    ctx.fill();
+    ctx.fillStyle = textColor;
+    ctx.fillText('Expense', legendX - 24, legendY + 10);
+}
+
+function formatCompactCurrency(value) {
+    const currency = state.user?.currency || 'ZAR';
+    const config = CURRENCIES[currency] || CURRENCIES.ZAR;
+
+    if (value >= 1000000) {
+        return config.symbol + (value / 1000000).toFixed(1) + 'M';
+    } else if (value >= 1000) {
+        return config.symbol + (value / 1000).toFixed(0) + 'K';
+    }
+    return config.symbol + value.toFixed(0);
+}
+
+// ========================================
 // Initialize App
 // ========================================
 
 async function init() {
-    console.log('App initializing...');
     showScreen('loading');
 
     // Initialize crypto module
     if (window.CryptoModule) {
         CryptoModule.init();
-        console.log('CryptoModule initialized');
     } else {
         console.warn('CryptoModule not available');
     }
@@ -3295,34 +3688,33 @@ async function init() {
     try {
         // Check if already authenticated
         const isAuthenticated = await checkAuthStatus();
-        console.log('Auth status:', isAuthenticated);
 
         if (isAuthenticated) {
             // Check encryption status
             if (state.user?.encryption_enabled) {
                 await loadEncryptionSettings();
 
-                // Try to unlock with remembered key first
-                if (CryptoModule?.hasRememberedKey()) {
-                    const unlocked = await CryptoModule.unlockWithRememberedKey();
+                let unlocked = false;
+
+                // Try session storage first (survives soft refresh)
+                if (CryptoModule?.hasSessionKey()) {
+                    unlocked = await CryptoModule.unlockFromSession();
+                }
+
+                // Try remembered key from localStorage
+                if (!unlocked && CryptoModule?.hasRememberedKey()) {
+                    unlocked = await CryptoModule.unlockWithRememberedKey();
                     if (unlocked) {
-                        console.log('Unlocked with remembered key');
-                        await loadAppData();
-                        showAppScreen();
-                    } else {
-                        // Remembered key failed - show recovery modal
-                        // (With unified password, user should login again to unlock)
-                        state.encryptionPending = true;
-                        showScreen('app');
-                        // Show recovery form directly
-                        elements.encryptionUnlockForm.style.display = 'none';
-                        elements.encryptionRecoveryForm.style.display = 'block';
-                        openModal(elements.encryptionUnlockModal);
-                        showToast('Please use your recovery phrase or login again');
+                        // Also save to session for future soft refreshes
+                        await CryptoModule.saveToSession();
                     }
+                }
+
+                if (unlocked) {
+                    await loadAppData();
+                    showAppScreen();
                 } else {
-                    // No remembered key - redirect to login so user can enter password
-                    // Logout and show auth screen
+                    // No stored key - redirect to login so user can enter password
                     await api('auth.php?action=logout', { method: 'POST' });
                     resetState();
                     showScreen('auth');
@@ -3356,18 +3748,144 @@ async function init() {
 
     // Period selector change handler (balance card)
     elements.periodSelector?.addEventListener('change', () => {
-        loadSummary();
+        const period = elements.periodSelector.value;
+        if (period === 'custom') {
+            showCustomDateRange('custom-date-range');
+        } else {
+            hideCustomDateRange('custom-date-range');
+            loadSummary();
+        }
+    });
+
+    // Apply custom range button (balance card)
+    document.getElementById('apply-custom-range')?.addEventListener('click', () => {
+        const startDate = document.getElementById('custom-start-date').value;
+        const endDate = document.getElementById('custom-end-date').value;
+        applyCustomRange(startDate, endDate);
     });
 
     // Chart period selector change handler
     elements.chartPeriodSelector?.addEventListener('change', async () => {
         const period = elements.chartPeriodSelector.value;
+        if (period === 'custom') {
+            // For chart, use the same custom date range as the balance card
+            if (customDateRange.startDate && customDateRange.endDate) {
+                try {
+                    const summary = await api(`api.php?resource=summary&period=custom&start_date=${customDateRange.startDate}&end_date=${customDateRange.endDate}`);
+                    state.chartSummary = summary;
+                    if (state.chartSummary?.categories && CryptoModule?.isReady()) {
+                        state.chartSummary.categories = await decryptCategories(state.chartSummary.categories);
+                    }
+                    renderChart();
+                } catch (error) {
+                    showToast('Failed to load chart data');
+                }
+            } else {
+                showToast('Please set a custom date range first');
+                elements.chartPeriodSelector.value = 'this-month';
+            }
+        } else {
+            try {
+                const summary = await api(`api.php?resource=summary&period=${period}`);
+                state.chartSummary = summary;
+                if (state.chartSummary?.categories && CryptoModule?.isReady()) {
+                    state.chartSummary.categories = await decryptCategories(state.chartSummary.categories);
+                }
+                renderChart();
+            } catch (error) {
+                showToast('Failed to load chart data');
+            }
+        }
+    });
+
+    // Trends range selector
+    document.getElementById('trends-range-selector')?.addEventListener('change', (e) => {
+        const months = parseInt(e.target.value) || 12;
+        loadTrends(months);
+    });
+
+
+    // Spending modal view toggle
+    document.querySelectorAll('.view-toggle .toggle-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+            const view = btn.dataset.view;
+
+            // Update toggle buttons
+            document.querySelectorAll('.view-toggle .toggle-btn').forEach(b => b.classList.remove('active'));
+            btn.classList.add('active');
+
+            // Show/hide views
+            const tableView = document.getElementById('spending-table-view');
+            const comparisonView = document.getElementById('budget-comparison-view');
+
+            if (view === 'table') {
+                if (tableView) tableView.style.display = 'block';
+                if (comparisonView) comparisonView.style.display = 'none';
+            } else {
+                if (tableView) tableView.style.display = 'none';
+                if (comparisonView) comparisonView.style.display = 'block';
+                // Load comparison data
+                const period = elements.spendingPeriodSelector?.value || 'this-month';
+                loadBudgetComparison(period);
+            }
+        });
+    });
+
+    // Spending period selector with custom range support
+    elements.spendingPeriodSelector?.addEventListener('change', async () => {
+        const period = elements.spendingPeriodSelector.value;
+        const customRangeEl = document.getElementById('spending-custom-range');
+
+        if (period === 'custom') {
+            if (customRangeEl) customRangeEl.style.display = 'flex';
+        } else {
+            if (customRangeEl) customRangeEl.style.display = 'none';
+            try {
+                const summary = await api(`api.php?resource=summary&period=${period}`);
+                state.spendingSummary = summary;
+                if (state.spendingSummary?.categories && CryptoModule?.isReady()) {
+                    state.spendingSummary.categories = await decryptCategories(state.spendingSummary.categories);
+                }
+                renderSpendingTable();
+
+                // Also update comparison if that view is active
+                const comparisonView = document.getElementById('budget-comparison-view');
+                if (comparisonView && comparisonView.style.display !== 'none') {
+                    loadBudgetComparison(period);
+                }
+            } catch (error) {
+                showToast('Failed to load data');
+            }
+        }
+    });
+
+    // Apply spending custom range
+    document.getElementById('apply-spending-custom')?.addEventListener('click', async () => {
+        const startDate = document.getElementById('spending-custom-start').value;
+        const endDate = document.getElementById('spending-custom-end').value;
+
+        if (!startDate || !endDate) {
+            showToast('Please select both dates');
+            return;
+        }
+
+        customDateRange = { startDate, endDate };
+
         try {
-            const summary = await api(`api.php?resource=summary&period=${period}`);
-            state.chartSummary = summary;
-            renderChart();
+            const summary = await api(`api.php?resource=summary&period=custom&start_date=${startDate}&end_date=${endDate}`);
+            state.spendingSummary = summary;
+            if (state.spendingSummary?.categories && CryptoModule?.isReady()) {
+                state.spendingSummary.categories = await decryptCategories(state.spendingSummary.categories);
+            }
+            renderSpendingTable();
+
+            // Also update comparison if that view is active
+            const comparisonView = document.getElementById('budget-comparison-view');
+            if (comparisonView && comparisonView.style.display !== 'none') {
+                loadBudgetComparison('custom');
+            }
         } catch (error) {
-            showToast('Failed to load chart data');
+            showToast('Failed to load data');
         }
     });
 
@@ -3397,3 +3915,4 @@ window.openEditTransactionModal = openEditTransactionModal;
 window.deleteRecurringTransaction = deleteRecurringTransaction;
 window.openEditRecurringModal = openEditRecurringModal;
 window.toggleRecurringTransaction = toggleRecurringTransaction;
+window.openCategoryDrilldown = openCategoryDrilldown;

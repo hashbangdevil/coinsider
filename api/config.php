@@ -23,6 +23,11 @@ set_error_handler(function($severity, $message, $file, $line) {
 // Session configuration
 ini_set('session.cookie_httponly', 1);
 ini_set('session.cookie_samesite', 'Lax');
+ini_set('session.gc_maxlifetime', 60 * 60 * 24 * 30); // 30 days
+// Set secure cookie if on HTTPS
+if (isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] === 'on') {
+    ini_set('session.cookie_secure', 1);
+}
 
 // Start session
 if (session_status() === PHP_SESSION_NONE) {

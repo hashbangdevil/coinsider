@@ -2,7 +2,7 @@
 // Budget Manager - Service Worker
 // ========================================
 
-const CACHE_NAME = 'budget-manager-v14';
+const CACHE_NAME = 'budget-manager-v20';
 
 // Use relative paths for subdirectory support
 const STATIC_ASSETS = [
@@ -10,6 +10,7 @@ const STATIC_ASSETS = [
     './index.html',
     './styles.css',
     './app.js',
+    './crypto.js',
     './manifest.json'
 ];
 
@@ -18,7 +19,6 @@ self.addEventListener('install', (event) => {
     event.waitUntil(
         caches.open(CACHE_NAME)
             .then((cache) => {
-                console.log('Caching static assets');
                 return cache.addAll(STATIC_ASSETS);
             })
             .then(() => self.skipWaiting())
@@ -71,7 +71,23 @@ self.addEventListener('fetch', (event) => {
         return;
     }
 
-    // Static assets - cache first, then network
+    // JS files - network first (ensure fresh code)
+    if (url.pathname.endsWith('.js')) {
+        event.respondWith(
+            fetch(event.request)
+                .then((response) => {
+                    if (response.ok) {
+                        const clone = response.clone();
+                        caches.open(CACHE_NAME).then((cache) => cache.put(event.request, clone));
+                    }
+                    return response;
+                })
+                .catch(() => caches.match(event.request))
+        );
+        return;
+    }
+
+    // Other static assets - cache first, then network
     event.respondWith(
         caches.match(event.request)
             .then((cachedResponse) => {

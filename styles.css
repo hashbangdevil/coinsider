@@ -2703,3 +2703,319 @@ select:focus,
     padding: var(--space-xs) var(--space-sm);
     font-size: 0.9rem;
 }
+
+/* ========================================
+   Custom Date Range
+   ======================================== */
+
+.custom-date-range {
+    display: flex;
+    align-items: center;
+    gap: var(--space-sm);
+    padding: var(--space-md);
+    background: var(--bg-tertiary);
+    border-radius: var(--radius-md);
+    margin-top: var(--space-md);
+    flex-wrap: wrap;
+}
+
+.custom-date-range input[type="date"] {
+    flex: 1;
+    min-width: 130px;
+    padding: var(--space-sm) var(--space-md);
+}
+
+.custom-date-range span {
+    color: var(--text-tertiary);
+    font-size: 0.875rem;
+}
+
+.spending-custom-range {
+    margin-top: 0;
+    margin-bottom: var(--space-md);
+}
+
+/* Spending Controls */
+.spending-controls {
+    display: flex;
+    align-items: center;
+    gap: var(--space-md);
+    flex-wrap: wrap;
+    margin-bottom: var(--space-md);
+}
+
+/* View Toggle */
+.view-toggle {
+    display: flex;
+    background: var(--bg-tertiary);
+    border-radius: var(--radius-md);
+    padding: 3px;
+}
+
+.toggle-btn {
+    padding: var(--space-xs) var(--space-md);
+    border: none;
+    border-radius: var(--radius-sm);
+    background: transparent;
+    color: var(--text-secondary);
+    font-family: inherit;
+    font-size: 0.875rem;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all var(--transition-fast);
+}
+
+.toggle-btn.active {
+    background: var(--color-primary);
+    color: white;
+}
+
+.toggle-btn:hover:not(.active) {
+    color: var(--text-primary);
+}
+
+/* ========================================
+   Budget vs Actual Comparison
+   ======================================== */
+
+.comparison-list {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-md);
+}
+
+.comparison-row {
+    display: flex;
+    align-items: center;
+    gap: var(--space-md);
+    cursor: pointer;
+    padding: var(--space-sm);
+    border-radius: var(--radius-md);
+    transition: background var(--transition-fast);
+}
+
+.comparison-row:hover {
+    background: var(--bg-tertiary);
+}
+
+.comparison-category {
+    display: flex;
+    align-items: center;
+    gap: var(--space-sm);
+    min-width: 140px;
+    flex-shrink: 0;
+}
+
+.comparison-icon {
+    width: 32px;
+    height: 32px;
+    border-radius: var(--radius-sm);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1rem;
+}
+
+.comparison-name {
+    font-weight: 500;
+    font-size: 0.875rem;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.comparison-bar-container {
+    flex: 1;
+    height: 24px;
+    background: var(--bg-tertiary);
+    border-radius: var(--radius-sm);
+    position: relative;
+    overflow: hidden;
+}
+
+.comparison-budget-bar {
+    position: absolute;
+    top: 0;
+    left: 0;
+    height: 100%;
+    background: var(--bg-elevated);
+    border-radius: var(--radius-sm);
+}
+
+.comparison-actual-bar {
+    position: absolute;
+    top: 0;
+    left: 0;
+    height: 100%;
+    border-radius: var(--radius-sm);
+    transition: width var(--transition-normal);
+}
+
+.comparison-actual-bar.under {
+    background: var(--color-success);
+}
+
+.comparison-actual-bar.near {
+    background: var(--color-warning);
+}
+
+.comparison-actual-bar.over {
+    background: var(--color-danger);
+}
+
+.comparison-values {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    min-width: 80px;
+}
+
+.comparison-spent {
+    font-weight: 600;
+    font-size: 0.875rem;
+}
+
+.comparison-budget {
+    font-size: 0.75rem;
+    color: var(--text-tertiary);
+}
+
+.comparison-percent {
+    font-weight: 600;
+    font-size: 0.875rem;
+    min-width: 50px;
+    text-align: right;
+}
+
+.comparison-percent.under {
+    color: var(--color-success);
+}
+
+.comparison-percent.near {
+    color: var(--color-warning);
+}
+
+.comparison-percent.over {
+    color: var(--color-danger);
+}
+
+/* ========================================
+   Category Summary Header
+   ======================================== */
+
+.category-summary {
+    display: flex;
+    align-items: center;
+    gap: var(--space-md);
+    padding: var(--space-md);
+    background: var(--bg-tertiary);
+    border-radius: var(--radius-md);
+    margin-bottom: var(--space-md);
+}
+
+.category-summary-icon {
+    width: 48px;
+    height: 48px;
+    border-radius: var(--radius-md);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.5rem;
+}
+
+.category-summary-info {
+    flex: 1;
+}
+
+.category-summary-name {
+    font-weight: 600;
+    font-size: 1.125rem;
+    margin-bottom: var(--space-xs);
+}
+
+.category-summary-period {
+    font-size: 0.875rem;
+    color: var(--text-tertiary);
+}
+
+.category-summary-amount {
+    text-align: right;
+}
+
+.category-summary-spent {
+    font-weight: 600;
+    font-size: 1.25rem;
+    color: var(--color-danger);
+}
+
+.category-summary-budget {
+    font-size: 0.875rem;
+    color: var(--text-tertiary);
+}
+
+/* ========================================
+   Trends Chart
+   ======================================== */
+
+.trends-chart-container {
+    background: var(--bg-card);
+    border-radius: var(--radius-lg);
+    padding: var(--space-lg);
+    border: 1px solid var(--border-color);
+    min-height: 250px;
+    position: relative;
+}
+
+#trends-chart {
+    width: 100% !important;
+    height: 220px !important;
+}
+
+/* Clickable spending table rows */
+.spending-table tbody tr {
+    cursor: pointer;
+    transition: background var(--transition-fast);
+}
+
+.spending-table tbody tr:hover {
+    background: var(--bg-card);
+}
+
+/* Mobile responsiveness for comparison */
+@media (max-width: 640px) {
+    .comparison-row {
+        flex-wrap: wrap;
+    }
+
+    .comparison-category {
+        min-width: 100%;
+        margin-bottom: var(--space-xs);
+    }
+
+    .comparison-bar-container {
+        flex: 1;
+        min-width: 100px;
+    }
+
+    .custom-date-range {
+        flex-direction: column;
+        align-items: stretch;
+    }
+
+    .custom-date-range input[type="date"] {
+        width: 100%;
+    }
+
+    .spending-controls {
+        flex-direction: column;
+        align-items: stretch;
+    }
+
+    .view-toggle {
+        width: 100%;
+    }
+
+    .toggle-btn {
+        flex: 1;
+    }
+}
