@@ -3106,6 +3106,156 @@ function setupTransactionBucketToggle() {
 }
 
 // ========================================
+// PWA Install Prompt
+// ========================================
+
+let deferredInstallPrompt = null;
+
+function setupInstallPrompt() {
+    const installBanner = document.getElementById('install-banner');
+    const iosInstallBanner = document.getElementById('ios-install-banner');
+    const installAccept = document.getElementById('install-accept');
+    const installDismiss = document.getElementById('install-dismiss');
+    const iosInstallClose = document.getElementById('ios-install-close');
+    const appVersion = document.getElementById('app-version');
+
+    // Check if already installed as PWA
+    const isStandalone = window.matchMedia('(display-mode: standalone)').matches
+        || window.navigator.standalone === true
+        || document.referrer.includes('android-app://');
+
+    // Helper to check if we should auto-show the banner
+    function shouldAutoShow() {
+        if (isStandalone) return false;
+        const dismissedTime = localStorage.getItem('pwa-install-dismissed');
+        if (dismissedTime) {
+            const daysSinceDismissed = (Date.now() - parseInt(dismissedTime)) / (1000 * 60 * 60 * 24);
+            if (daysSinceDismissed < 7) return false;
+        }
+        return true;
+    }
+
+    // Debug: tap version 3 times to show install debug info
+    let versionTaps = 0;
+    let versionTapTimer = null;
+    appVersion?.addEventListener('click', () => {
+        versionTaps++;
+        clearTimeout(versionTapTimer);
+        versionTapTimer = setTimeout(() => { versionTaps = 0; }, 1000);
+
+        if (versionTaps >= 3) {
+            versionTaps = 0;
+            const dismissed = localStorage.getItem('pwa-install-dismissed');
+            const hasPrompt = !!deferredInstallPrompt;
+
+            const info = `Install Debug:
+• Standalone: ${isStandalone}
+• Dismissed: ${dismissed ? new Date(parseInt(dismissed)).toLocaleDateString() : 'never'}
+• Has prompt event: ${hasPrompt}
+• User agent: ${navigator.userAgent.substring(0, 50)}...`;
+
+            if (confirm(info + '\n\nClear dismissed & reload?')) {
+                localStorage.removeItem('pwa-install-dismissed');
+                location.reload();
+            }
+        }
+    });
+
+    // If already installed, no need for any install prompts
+    if (isStandalone) {
+        return;
+    }
+
+    // Detect iOS Safari
+    const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
+    const isSafari = /^((?!chrome|android).)*safari/i.test(navigator.userAgent);
+
+    if (isIOS && isSafari) {
+        // iOS: show instructions if not dismissed
+        if (shouldAutoShow() && iosInstallBanner) {
+            setTimeout(() => {
+                iosInstallBanner.classList.add('visible');
+            }, 3000);
+        }
+
+        iosInstallClose?.addEventListener('click', () => {
+            iosInstallBanner.classList.remove('visible');
+            localStorage.setItem('pwa-install-dismissed', Date.now().toString());
+        });
+        return;
+    }
+
+    // Standard beforeinstallprompt for Chrome/Edge/etc
+    // ALWAYS set up the listener to capture the event
+    let promptReceived = false;
+
+    window.addEventListener('beforeinstallprompt', (e) => {
+        e.preventDefault();
+        deferredInstallPrompt = e;
+        promptReceived = true;
+
+        // Only auto-show if not dismissed
+        if (shouldAutoShow()) {
+            setTimeout(() => {
+                if (installBanner) {
+                    installBanner.classList.add('visible');
+                }
+            }, 2000);
+        }
+    });
+
+    // Fallback: if no prompt event after 5 seconds, show banner anyway with manual instructions
+    if (shouldAutoShow()) {
+        setTimeout(() => {
+            if (!promptReceived && installBanner && !installBanner.classList.contains('visible')) {
+                // Update banner text for manual install
+                const bannerText = installBanner.querySelector('.install-banner-text span');
+                if (bannerText) {
+                    bannerText.textContent = 'Use menu ⋮ → "Add to Home screen"';
+                }
+                if (installAccept) {
+                    installAccept.textContent = 'Got it';
+                }
+                installBanner.classList.add('visible');
+            }
+        }, 5000);
+    }
+
+    // ALWAYS set up button handlers
+    installAccept?.addEventListener('click', async () => {
+        if (!deferredInstallPrompt) {
+            // No prompt event - just close the banner (instructions already shown)
+            installBanner?.classList.remove('visible');
+            localStorage.setItem('pwa-install-dismissed', Date.now().toString());
+            return;
+        }
+
+        deferredInstallPrompt.prompt();
+        const { outcome } = await deferredInstallPrompt.userChoice;
+
+        if (outcome === 'accepted') {
+            showToast('App installed successfully!');
+        }
+
+        deferredInstallPrompt = null;
+        installBanner?.classList.remove('visible');
+    });
+
+    installDismiss?.addEventListener('click', () => {
+        installBanner?.classList.remove('visible');
+        localStorage.setItem('pwa-install-dismissed', Date.now().toString());
+    });
+
+    // Listen for successful installation
+    window.addEventListener('appinstalled', () => {
+        installBanner?.classList.remove('visible');
+        iosInstallBanner?.classList.remove('visible');
+        deferredInstallPrompt = null;
+        showToast('App installed successfully!');
+    });
+}
+
+// ========================================
 // All Transactions Modal
 // ========================================
 
@@ -4824,6 +4974,7 @@ async function init() {
     setupPasswordStrength();
     setupEncryptionHandlers();
     setupBucketModals();
+    setupInstallPrompt();
 
     // Period selector change handler (balance card)
     elements.periodSelector?.addEventListener('change', () => {

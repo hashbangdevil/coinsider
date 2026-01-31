@@ -771,6 +771,24 @@ body {
     flex-shrink: 0;
 }
 
+.app-version {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: var(--space-md);
+    margin-top: var(--space-lg);
+    border-top: 1px solid var(--border-color);
+    font-size: 0.85rem;
+    color: var(--text-tertiary);
+}
+
+.app-version span:last-child {
+    font-family: monospace;
+    background: var(--bg-tertiary);
+    padding: var(--space-xs) var(--space-sm);
+    border-radius: var(--radius-sm);
+}
+
 .settings-select {
     width: 100%;
     margin-top: var(--space-md);
@@ -3954,5 +3972,218 @@ select:focus,
     .report-card-header {
         flex-wrap: wrap;
         gap: var(--space-sm);
+    }
+}
+
+/* ========================================
+   PWA Install Banners
+   ======================================== */
+
+.install-banner {
+    position: fixed;
+    bottom: -200px;
+    left: var(--space-md);
+    right: var(--space-md);
+    max-width: 420px;
+    margin: 0 auto;
+    background: linear-gradient(135deg, var(--bg-card) 0%, var(--bg-elevated) 100%);
+    border: 1px solid var(--border-color-light);
+    border-radius: var(--radius-lg);
+    padding: var(--space-lg);
+    z-index: var(--z-toast);
+    box-shadow: var(--shadow-lg), 0 0 40px rgba(139, 154, 255, 0.15);
+    transition: bottom var(--transition-slow), opacity var(--transition-normal);
+    opacity: 0;
+}
+
+.install-banner.visible {
+    bottom: var(--space-lg);
+    opacity: 1;
+}
+
+.install-banner-content {
+    display: flex;
+    align-items: center;
+    gap: var(--space-md);
+    margin-bottom: var(--space-md);
+}
+
+.install-banner-icon {
+    width: 48px;
+    height: 48px;
+    border-radius: var(--radius-md);
+    background: var(--color-primary-ghost);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+}
+
+.install-banner-icon svg {
+    width: 28px;
+    height: 28px;
+    stroke: var(--color-primary);
+}
+
+.install-banner-text {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.install-banner-text strong {
+    font-size: 1rem;
+    font-weight: 600;
+    color: var(--text-primary);
+}
+
+.install-banner-text span {
+    font-size: 0.85rem;
+    color: var(--text-secondary);
+}
+
+.install-banner-actions {
+    display: flex;
+    gap: var(--space-sm);
+    justify-content: flex-end;
+}
+
+/* iOS-specific Install Banner */
+.ios-install-banner {
+    padding-bottom: calc(var(--space-lg) + 40px);
+    position: relative;
+}
+
+.ios-install-close {
+    position: absolute;
+    top: var(--space-sm);
+    right: var(--space-sm);
+    width: 32px;
+    height: 32px;
+    border-radius: var(--radius-full);
+    background: var(--bg-tertiary);
+    border: 1px solid var(--border-color);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: all var(--transition-fast);
+}
+
+.ios-install-close svg {
+    width: 16px;
+    height: 16px;
+    stroke: var(--text-secondary);
+}
+
+.ios-install-close:hover {
+    background: var(--bg-card-hover);
+}
+
+.ios-install-close:hover svg {
+    stroke: var(--text-primary);
+}
+
+.ios-install-steps {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-md);
+    margin-top: var(--space-md);
+    padding-top: var(--space-md);
+    border-top: 1px solid var(--border-color);
+}
+
+.ios-install-step {
+    display: flex;
+    align-items: center;
+    gap: var(--space-md);
+}
+
+.ios-step-number {
+    width: 28px;
+    height: 28px;
+    border-radius: var(--radius-full);
+    background: var(--color-primary);
+    color: var(--text-inverse);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 600;
+    font-size: 0.85rem;
+    flex-shrink: 0;
+}
+
+.ios-step-text {
+    flex: 1;
+    font-size: 0.9rem;
+    color: var(--text-secondary);
+}
+
+.ios-step-text strong {
+    color: var(--text-primary);
+}
+
+.ios-share-icon,
+.ios-add-icon {
+    width: 28px;
+    height: 28px;
+    stroke: var(--color-primary);
+    flex-shrink: 0;
+}
+
+.ios-install-arrow {
+    position: absolute;
+    bottom: var(--space-md);
+    left: 50%;
+    transform: translateX(-50%);
+    animation: bounce 1.5s infinite;
+}
+
+.ios-install-arrow svg {
+    width: 24px;
+    height: 24px;
+    stroke: var(--color-primary);
+}
+
+@keyframes bounce {
+    0%, 20%, 50%, 80%, 100% {
+        transform: translateX(-50%) translateY(0);
+    }
+    40% {
+        transform: translateX(-50%) translateY(6px);
+    }
+    60% {
+        transform: translateX(-50%) translateY(3px);
+    }
+}
+
+/* Mobile adjustments for install banners */
+@media (max-width: 480px) {
+    .install-banner {
+        left: var(--space-sm);
+        right: var(--space-sm);
+        padding: var(--space-md);
+    }
+
+    .install-banner.visible {
+        bottom: var(--space-sm);
+    }
+
+    .install-banner-icon {
+        width: 42px;
+        height: 42px;
+    }
+
+    .install-banner-icon svg {
+        width: 24px;
+        height: 24px;
+    }
+
+    .install-banner-actions {
+        flex-direction: column;
+    }
+
+    .install-banner-actions .btn {
+        width: 100%;
     }
 }
