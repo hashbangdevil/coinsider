@@ -3208,8 +3208,9 @@ function setupInstallPrompt() {
         }
     });
 
-    // Fallback: if no prompt event after 5 seconds, show banner anyway with manual instructions
-    if (shouldAutoShow()) {
+    // Fallback: if no prompt event after 5 seconds, show banner with manual instructions (mobile only)
+    const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+    if (shouldAutoShow() && isMobile) {
         setTimeout(() => {
             if (!promptReceived && installBanner && !installBanner.classList.contains('visible')) {
                 // Update banner text for manual install
