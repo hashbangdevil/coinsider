@@ -2704,6 +2704,10 @@ function showMenuSection(sectionName) {
     switch (sectionName) {
         case 'reports':
             elements.reportsSection.style.display = 'block';
+            // Render charts now that the section is visible
+            renderChart();
+            const months = parseInt(document.getElementById('trends-range-selector')?.value) || 12;
+            loadTrends(months);
             break;
         case 'categories':
             elements.categoriesMenuSection.style.display = 'block';
@@ -3603,11 +3607,6 @@ function showAppScreen() {
     updateEncryptionButton();
     showScreen('app');
 
-    // Load trends chart
-    if (document.getElementById('trends-chart')) {
-        const months = parseInt(document.getElementById('trends-range-selector')?.value) || 12;
-        loadTrends(months);
-    }
 }
 
 function renderAll() {
