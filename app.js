@@ -144,7 +144,13 @@ const elements = {
     totalBalance: document.getElementById('total-balance'),
     totalIncome: document.getElementById('total-income'),
     totalExpenses: document.getElementById('total-expenses'),
-    periodSelector: document.getElementById('period-selector'),
+    balanceLabel: document.getElementById('balance-label'),
+    balanceToggle: document.getElementById('balance-toggle'),
+    toggleLabel: document.getElementById('toggle-label'),
+    totalSaved: document.getElementById('total-saved'),
+    savingsDetail: document.getElementById('savings-detail'),
+    balanceInfoBtn: document.getElementById('balance-info-btn'),
+    balanceInfoModal: document.getElementById('balance-info-modal'),
     
     // Categories (formerly Budgets)
     categoriesList: document.getElementById('budgets-list'),
@@ -233,9 +239,6 @@ const elements = {
     recoveryPhraseDisplay: document.getElementById('recovery-phrase-display'),
 
     // Savings Buckets
-    savingsBar: document.getElementById('savings-bar'),
-    totalSaved: document.getElementById('total-saved'),
-    availableToSpend: document.getElementById('available-to-spend'),
     bucketsList: document.getElementById('buckets-list'),
     noBuckets: document.getElementById('no-buckets'),
     addBucketBtn: document.getElementById('add-bucket-btn'),
@@ -1355,15 +1358,14 @@ async function loadAppData() {
 
 async function loadSummary() {
     try {
-        const period = elements.periodSelector?.value || 'this-month';
-        const summary = await api(`api.php?resource=summary&period=${period}`);
+        // Always load all-time summary for balance card
+        const summary = await api('api.php?resource=summary&period=all-time');
         state.summary = summary && typeof summary === 'object' ? summary : null;
         // Decrypt category data in summary
         if (state.summary?.categories) {
             state.summary.categories = await decryptCategories(state.summary.categories);
         }
         updateBalances();
-        renderChart();
     } catch (error) {
         console.error('Failed to load summary:', error);
         showToast('Failed to load summary');
@@ -2477,32 +2479,8 @@ async function loadBucketDetails(bucketId) {
 }
 
 function updateSavingsSummary() {
-    if (!elements.totalSaved || !elements.availableToSpend) return;
-
-    const summary = state.savingsSummary;
-    const hasBuckets = state.savingsBuckets && state.savingsBuckets.length > 0;
-
-    // Hide savings bar if user has no buckets
-    if (elements.savingsBar) {
-        elements.savingsBar.style.display = hasBuckets ? 'flex' : 'none';
-    }
-
-    if (summary && hasBuckets) {
-        elements.totalSaved.textContent = formatCurrency(summary.total_saved || 0);
-        elements.availableToSpend.textContent = formatCurrency(summary.available_to_spend || 0);
-
-        // Color code available to spend
-        if (summary.available_to_spend < 0) {
-            elements.availableToSpend.classList.add('negative');
-            elements.availableToSpend.classList.remove('available');
-        } else {
-            elements.availableToSpend.classList.remove('negative');
-            elements.availableToSpend.classList.add('available');
-        }
-    } else {
-        elements.totalSaved.textContent = formatCurrency(0);
-        elements.availableToSpend.textContent = formatCurrency(0);
-    }
+    // Update balance card with savings info
+    updateBalances();
 }
 
 function renderSavingsBuckets() {
@@ -3041,6 +3019,23 @@ async function renderUpcomingInSection() {
     }
 }
 
+function setupBalanceCard() {
+    // Balance toggle handler
+    elements.balanceToggle?.addEventListener('change', () => {
+        updateBalances();
+    });
+
+    // Balance info button
+    elements.balanceInfoBtn?.addEventListener('click', () => {
+        openModal(elements.balanceInfoModal);
+    });
+
+    // Balance info modal close
+    document.getElementById('balance-info-close')?.addEventListener('click', () => {
+        closeModal(elements.balanceInfoModal);
+    });
+}
+
 function setupBucketModals() {
     // Add bucket button
     elements.addBucketBtn?.addEventListener('click', () => openBucketModal());
@@ -3451,11 +3446,38 @@ function updateBalances() {
     if (!state.summary) return;
 
     const { income, expense, balance } = state.summary;
+    const totalSaved = state.savingsSummary?.total_saved || 0;
+    const availableToSpend = balance - totalSaved;
+    const showSavingsApplied = elements.balanceToggle?.checked ?? true;
+    const hasBuckets = state.savingsBuckets && state.savingsBuckets.length > 0;
+
+    // Determine which value to show
+    const displayValue = showSavingsApplied ? availableToSpend : balance;
 
     if (elements.totalBalance) {
-        elements.totalBalance.textContent = formatCurrency(balance);
-        elements.totalBalance.style.color = balance >= 0 ? 'var(--color-success)' : 'var(--color-danger)';
+        elements.totalBalance.textContent = formatCurrency(displayValue);
+        elements.totalBalance.style.color = displayValue >= 0 ? 'var(--color-success)' : 'var(--color-danger)';
     }
+
+    // Update label based on toggle
+    if (elements.balanceLabel) {
+        elements.balanceLabel.textContent = 'Net Balance';
+    }
+    if (elements.toggleLabel) {
+        elements.toggleLabel.textContent = showSavingsApplied ? 'Savings applied' : 'Savings ignored';
+    }
+
+    // Update savings breakdown
+    if (elements.totalSaved) {
+        elements.totalSaved.textContent = formatCurrency(totalSaved);
+    }
+
+    // Show/hide savings detail based on whether user has buckets
+    if (elements.savingsDetail) {
+        elements.savingsDetail.style.display = hasBuckets ? 'flex' : 'none';
+    }
+
+    // Update income/expenses
     if (elements.totalIncome) elements.totalIncome.textContent = formatCurrency(income);
     if (elements.totalExpenses) elements.totalExpenses.textContent = formatCurrency(expense);
 }
@@ -5018,25 +5040,8 @@ async function init() {
     setupPasswordStrength();
     setupEncryptionHandlers();
     setupBucketModals();
+    setupBalanceCard();
     setupInstallPrompt();
-
-    // Period selector change handler (balance card)
-    elements.periodSelector?.addEventListener('change', () => {
-        const period = elements.periodSelector.value;
-        if (period === 'custom') {
-            showCustomDateRange('custom-date-range');
-        } else {
-            hideCustomDateRange('custom-date-range');
-            loadSummary();
-        }
-    });
-
-    // Apply custom range button (balance card)
-    document.getElementById('apply-custom-range')?.addEventListener('click', () => {
-        const startDate = document.getElementById('custom-start-date').value;
-        const endDate = document.getElementById('custom-end-date').value;
-        applyCustomRange(startDate, endDate);
-    });
 
     // Chart period selector change handler
     elements.chartPeriodSelector?.addEventListener('change', async () => {

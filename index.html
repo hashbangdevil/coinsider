@@ -24,7 +24,7 @@
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
 
     <!-- Centralized CSS -->
-    <link rel="stylesheet" href="styles.css?v=67">
+    <link rel="stylesheet" href="styles.css?v=69">
 </head>
 <body>
     <!-- Auth Screen (Login/Signup/Forgot Password) -->
@@ -351,23 +351,29 @@
         <!-- Balance Overview -->
         <section class="balance-card">
             <div class="balance-header">
-                <span class="balance-label">Net Balance</span>
-                <select class="period-selector" id="period-selector">
-                    <option value="this-month">This Month</option>
-                    <option value="last-month">Last Month</option>
-                    <option value="this-year">This Year</option>
-                    <option value="last-year">Last Year</option>
-                    <option value="all-time">All Time</option>
-                    <option value="custom">Custom Range...</option>
-                </select>
-            </div>
-            <div class="custom-date-range" id="custom-date-range" style="display: none;">
-                <input type="date" id="custom-start-date">
-                <span>to</span>
-                <input type="date" id="custom-end-date">
-                <button class="btn btn-small" id="apply-custom-range">Apply</button>
+                <div class="balance-label-row">
+                    <span class="balance-label" id="balance-label">Net Balance</span>
+                    <button class="btn-info" id="balance-info-btn" title="What's this?">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <circle cx="12" cy="12" r="10"/>
+                            <path d="M12 16v-4"/>
+                            <path d="M12 8h.01"/>
+                        </svg>
+                    </button>
+                </div>
+                <label class="balance-toggle">
+                    <input type="checkbox" id="balance-toggle" checked>
+                    <span class="toggle-slider"></span>
+                    <span class="toggle-label" id="toggle-label">Savings applied</span>
+                </label>
             </div>
             <div class="balance-amount" id="total-balance">$0.00</div>
+            <div class="balance-details" id="balance-details">
+                <div class="balance-detail" id="savings-detail">
+                    <span class="balance-detail-label">In Savings Buckets</span>
+                    <span class="balance-detail-value savings" id="total-saved">$0.00</span>
+                </div>
+            </div>
             <div class="balance-stats">
                 <div class="stat stat-income">
                     <div class="stat-icon">
@@ -392,17 +398,6 @@
                         <span class="stat-label">Expenses</span>
                         <span class="stat-value" id="total-expenses">$0.00</span>
                     </div>
-                </div>
-            </div>
-            <div class="savings-bar" id="savings-bar">
-                <div class="savings-bar-item">
-                    <span class="savings-bar-label">In Savings Buckets</span>
-                    <span class="savings-bar-value" id="total-saved">R0.00</span>
-                </div>
-                <div class="savings-bar-divider"></div>
-                <div class="savings-bar-item">
-                    <span class="savings-bar-label">Available to Spend</span>
-                    <span class="savings-bar-value available" id="available-to-spend">R0.00</span>
                 </div>
             </div>
         </section>
@@ -641,7 +636,7 @@
                 <!-- App Version -->
                 <div class="app-version">
                     <span>Budget Manager</span>
-                    <span id="app-version">v1.0.32</span>
+                    <span id="app-version">v1.0.38</span>
                 </div>
             </div>
         </section>
@@ -1723,6 +1718,40 @@
     </div>
 
     <!-- Confirmation Modal -->
+    <!-- Balance Info Modal -->
+    <div class="modal" id="balance-info-modal">
+        <div class="modal-backdrop"></div>
+        <div class="modal-content info-modal-content">
+            <div class="info-icon">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <circle cx="12" cy="12" r="10"/>
+                    <line x1="12" y1="16" x2="12" y2="12"/>
+                    <line x1="12" y1="8" x2="12.01" y2="8"/>
+                </svg>
+            </div>
+            <h3 class="info-title">Understanding Your Balance</h3>
+            <div class="info-content">
+                <div class="info-item">
+                    <strong>Savings Applied</strong>
+                    <p>Net Balance minus money set aside in savings buckets. Shows what remains after accounting for your savings goals.</p>
+                </div>
+                <div class="info-item">
+                    <strong>Savings Ignored</strong>
+                    <p>Your total income minus total expenses, all time. This is your complete financial position.</p>
+                </div>
+                <div class="info-tip">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M12 2L2 7l10 5 10-5-10-5z"/>
+                        <path d="M2 17l10 5 10-5"/>
+                        <path d="M2 12l10 5 10-5"/>
+                    </svg>
+                    <span>Use savings buckets to earmark money for specific goals. Toggle to see your balance with or without savings deducted.</span>
+                </div>
+            </div>
+            <button type="button" class="btn btn-primary" id="balance-info-close">Got it</button>
+        </div>
+    </div>
+
     <div class="modal" id="confirm-modal">
         <div class="modal-backdrop"></div>
         <div class="modal-content confirm-modal-content">
@@ -1754,6 +1783,6 @@
     <script src="crypto.js?v=2"></script>
 
     <!-- App JavaScript -->
-    <script src="app.js?v=48"></script>
+    <script src="app.js?v=50"></script>
 </body>
 </html>
