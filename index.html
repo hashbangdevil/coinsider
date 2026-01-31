@@ -24,7 +24,7 @@
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
 
     <!-- Centralized CSS -->
-    <link rel="stylesheet" href="styles.css?v=63">
+    <link rel="stylesheet" href="styles.css?v=67">
 </head>
 <body>
     <!-- Auth Screen (Login/Signup/Forgot Password) -->
@@ -641,7 +641,7 @@
                 <!-- App Version -->
                 <div class="app-version">
                     <span>Budget Manager</span>
-                    <span id="app-version">v1.0.28</span>
+                    <span id="app-version">v1.0.32</span>
                 </div>
             </div>
         </section>
@@ -1722,6 +1722,26 @@
         </div>
     </div>
 
+    <!-- Confirmation Modal -->
+    <div class="modal" id="confirm-modal">
+        <div class="modal-backdrop"></div>
+        <div class="modal-content confirm-modal-content">
+            <div class="confirm-icon" id="confirm-icon">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <circle cx="12" cy="12" r="10"/>
+                    <line x1="12" y1="8" x2="12" y2="12"/>
+                    <line x1="12" y1="16" x2="12.01" y2="16"/>
+                </svg>
+            </div>
+            <h3 class="confirm-title" id="confirm-title">Confirm</h3>
+            <p class="confirm-message" id="confirm-message">Are you sure?</p>
+            <div class="confirm-actions">
+                <button type="button" class="btn btn-secondary" id="confirm-cancel">Cancel</button>
+                <button type="button" class="btn btn-danger" id="confirm-accept">Delete</button>
+            </div>
+        </div>
+    </div>
+
     <!-- Toast Notification -->
     <div class="toast" id="toast">
         <span class="toast-message"></span>
@@ -1734,6 +1754,6 @@
     <script src="crypto.js?v=2"></script>
 
     <!-- App JavaScript -->
-    <script src="app.js?v=46"></script>
+    <script src="app.js?v=48"></script>
 </body>
 </html>

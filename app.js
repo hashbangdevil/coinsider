@@ -344,10 +344,48 @@ function showToast(message, duration = 3000) {
     const toast = elements.toast;
     toast.querySelector('.toast-message').textContent = message;
     toast.classList.add('show');
-    
+
     setTimeout(() => {
         toast.classList.remove('show');
     }, duration);
+}
+
+function showConfirm(message, title = 'Confirm', acceptText = 'Delete') {
+    return new Promise((resolve) => {
+        const modal = document.getElementById('confirm-modal');
+        const titleEl = document.getElementById('confirm-title');
+        const messageEl = document.getElementById('confirm-message');
+        const acceptBtn = document.getElementById('confirm-accept');
+        const cancelBtn = document.getElementById('confirm-cancel');
+        const backdrop = modal.querySelector('.modal-backdrop');
+
+        titleEl.textContent = title;
+        messageEl.textContent = message;
+        acceptBtn.textContent = acceptText;
+
+        const cleanup = () => {
+            modal.classList.remove('active');
+            acceptBtn.removeEventListener('click', onAccept);
+            cancelBtn.removeEventListener('click', onCancel);
+            backdrop.removeEventListener('click', onCancel);
+        };
+
+        const onAccept = () => {
+            cleanup();
+            resolve(true);
+        };
+
+        const onCancel = () => {
+            cleanup();
+            resolve(false);
+        };
+
+        acceptBtn.addEventListener('click', onAccept);
+        cancelBtn.addEventListener('click', onCancel);
+        backdrop.addEventListener('click', onCancel);
+
+        modal.classList.add('active');
+    });
 }
 
 function showScreen(screenName) {
@@ -1387,6 +1425,8 @@ async function updateCategory(id, name, icon, monthlyBudget, type = null) {
 }
 
 async function deleteCategory(id) {
+    if (!await showConfirm('This category will be permanently deleted.', 'Delete Category')) return;
+
     try {
         await api(`api.php?resource=categories&id=${id}`, { method: 'DELETE' });
         state.categories = state.categories.filter(c => c.id !== id);
@@ -1656,6 +1696,8 @@ async function createTransaction(description, amount, categoryId, type, date, sa
 }
 
 async function deleteTransaction(id) {
+    if (!await showConfirm('This transaction will be permanently deleted.', 'Delete Transaction')) return;
+
     try {
         await api(`api.php?resource=transactions&id=${id}`, { method: 'DELETE' });
         state.transactions = state.transactions.filter(t => t.id !== id);
@@ -1938,6 +1980,8 @@ async function updateRecurringTransaction(id, description, amount, categoryId, t
 }
 
 async function deleteRecurringTransaction(id) {
+    if (!await showConfirm('This recurring transaction will be permanently deleted.', 'Delete Recurring')) return;
+
     try {
         await api(`api.php?resource=recurring&id=${id}`, { method: 'DELETE' });
         state.recurringTransactions = state.recurringTransactions.filter(r => r.id !== id);

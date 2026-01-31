@@ -4187,3 +4187,78 @@ select:focus,
         width: 100%;
     }
 }
+
+/* ========================================
+   Confirmation Modal
+   ======================================== */
+
+.confirm-modal-content {
+    max-width: 320px;
+    text-align: center;
+    padding: var(--space-xl);
+}
+
+.confirm-icon {
+    width: 56px;
+    height: 56px;
+    margin: 0 auto var(--space-lg);
+    border-radius: var(--radius-full);
+    background: var(--color-danger-light);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.confirm-icon svg {
+    width: 28px;
+    height: 28px;
+    stroke: var(--color-danger);
+}
+
+.confirm-title {
+    font-size: 1.125rem;
+    font-weight: 600;
+    margin-bottom: var(--space-sm);
+    color: var(--text-primary);
+}
+
+.confirm-message {
+    font-size: 0.95rem;
+    color: var(--text-secondary);
+    margin-bottom: var(--space-xl);
+    line-height: 1.5;
+}
+
+.confirm-actions {
+    display: flex;
+    gap: var(--space-sm);
+}
+
+.confirm-actions .btn {
+    flex: 1;
+}
+
+/* ========================================
+   Touch Device Overrides
+   Must be at end to override earlier opacity: 0 rules
+   ======================================== */
+
+/* Target touch devices via multiple methods for browser compatibility */
+@media (hover: none), (pointer: coarse) {
+    .transaction-actions,
+    .category-list-actions,
+    .recurring-actions,
+    .bucket-actions {
+        opacity: 1 !important;
+    }
+}
+
+/* Fallback for mobile screen sizes */
+@media (max-width: 768px) {
+    .transaction-actions,
+    .category-list-actions,
+    .recurring-actions,
+    .bucket-actions {
+        opacity: 1 !important;
+    }
+}
