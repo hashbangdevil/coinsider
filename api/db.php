@@ -1,6 +1,6 @@
 <?php
 // ========================================
-// Budget Manager - Database Module
+// Coinsider - Database Module
 // ========================================
 
 require_once __DIR__ . '/config.php';

@@ -1,5 +1,6 @@
 /* ========================================
-   Budget Manager - Centralized Stylesheet
+   Coinsider - Centralized Stylesheet
+   Think. Track. Thrive.
    "Midnight Luxe" - Refined & Luxurious Theme
    ======================================== */
 
@@ -2280,11 +2281,104 @@ select option {
 }
 
 .categories-list-container {
-    max-height: 400px;
+    max-height: calc(100vh - 200px);
     overflow-y: auto;
     display: flex;
     flex-direction: column;
+    gap: var(--space-md);
+    position: relative;
+    padding-bottom: var(--space-md);
+}
+
+/* Scroll indicator wrapper */
+.categories-menu-section-wrapper {
+    position: relative;
+}
+
+.categories-list-container::after {
+    content: '';
+    position: sticky;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    height: 40px;
+    background: linear-gradient(to top, var(--bg-primary) 0%, transparent 100%);
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity var(--transition-fast);
+}
+
+.categories-list-container.can-scroll::after {
+    opacity: 1;
+}
+
+/* Category Accordion */
+.category-accordion {
+    display: flex;
+    flex-direction: column;
+}
+
+.category-accordion-header {
+    display: flex;
+    align-items: center;
     gap: var(--space-sm);
+    padding: var(--space-md);
+    background: var(--bg-tertiary);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-md);
+    cursor: pointer;
+    transition: all var(--transition-fast);
+    width: 100%;
+    text-align: left;
+}
+
+.category-accordion-header:hover {
+    background: var(--bg-card-hover);
+    border-color: var(--color-primary);
+}
+
+.category-accordion-title {
+    flex: 1;
+    font-size: 0.9rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--text-primary);
+}
+
+.category-accordion-count {
+    font-size: 0.8rem;
+    font-weight: 500;
+    color: var(--text-secondary);
+    background: var(--bg-primary);
+    padding: 2px 8px;
+    border-radius: var(--radius-full);
+}
+
+.category-accordion-chevron {
+    width: 20px;
+    height: 20px;
+    color: var(--text-secondary);
+    transition: transform var(--transition-fast);
+}
+
+.category-accordion-header.expanded .category-accordion-chevron {
+    transform: rotate(180deg);
+}
+
+.category-accordion-content {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-sm);
+    max-height: 0;
+    overflow: hidden;
+    transition: max-height 0.3s ease, padding 0.3s ease;
+    padding: 0;
+}
+
+.category-accordion-content.expanded {
+    max-height: 1000px;
+    padding: var(--space-sm) 0 0 0;
 }
 
 .category-list-item {

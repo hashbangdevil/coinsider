@@ -1,5 +1,5 @@
 // ========================================
-// Budget Manager - Client-Side Encryption Module
+// Coinsider - Client-Side Encryption Module
 // ========================================
 // Uses Web Crypto API for AES-256-GCM encryption
 // ========================================

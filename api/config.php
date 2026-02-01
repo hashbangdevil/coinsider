@@ -1,6 +1,6 @@
 <?php
 // ========================================
-// Budget Manager - Configuration
+// Coinsider - Configuration
 // ========================================
 
 // Error reporting (set to 0 in production)
@@ -46,7 +46,7 @@ define('DB_PATH', __DIR__ . '/../data/budget.db');
 // ========================================
 
 // App name
-define('APP_NAME', 'Budget Manager');
+define('APP_NAME', 'Coinsider');
 
 // Base URL of your app (no trailing slash)
 define('APP_URL', 'http://localhost:8888');

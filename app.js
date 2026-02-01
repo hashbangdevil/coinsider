@@ -1,5 +1,6 @@
 // ========================================
-// Budget Manager - Application Logic
+// Coinsider - Application Logic
+// Think. Track. Thrive.
 // ========================================
 
 // API Base URL
@@ -2800,27 +2801,76 @@ function renderCategoriesInSection() {
     const expenses = state.categories.filter(c => c.type === 'expense');
     const incomes = state.categories.filter(c => c.type === 'income');
 
-    if (expenses.length > 0) {
-        const expenseHeader = document.createElement('h4');
-        expenseHeader.className = 'category-group-header';
-        expenseHeader.textContent = 'Expense Categories';
-        container.appendChild(expenseHeader);
+    // Get saved accordion state from localStorage
+    const accordionState = JSON.parse(localStorage.getItem('categoryAccordionState') || '{"expense": true, "income": true}');
 
-        expenses.forEach(cat => {
-            container.appendChild(createCategoryListItem(cat));
-        });
+    if (expenses.length > 0) {
+        const expenseGroup = createCategoryAccordion('expense', 'Expense Categories', expenses, accordionState.expense);
+        container.appendChild(expenseGroup);
     }
 
     if (incomes.length > 0) {
-        const incomeHeader = document.createElement('h4');
-        incomeHeader.className = 'category-group-header';
-        incomeHeader.textContent = 'Income Categories';
-        container.appendChild(incomeHeader);
-
-        incomes.forEach(cat => {
-            container.appendChild(createCategoryListItem(cat));
-        });
+        const incomeGroup = createCategoryAccordion('income', 'Income Categories', incomes, accordionState.income);
+        container.appendChild(incomeGroup);
     }
+
+    // Check if container can scroll and update class for scroll indicator
+    requestAnimationFrame(() => {
+        updateCategoryScrollIndicator();
+    });
+}
+
+function updateCategoryScrollIndicator() {
+    const container = elements.categoriesListContainer;
+    if (!container) return;
+
+    const canScroll = container.scrollHeight > container.clientHeight;
+    const isAtBottom = container.scrollTop + container.clientHeight >= container.scrollHeight - 10;
+
+    if (canScroll && !isAtBottom) {
+        container.classList.add('can-scroll');
+    } else {
+        container.classList.remove('can-scroll');
+    }
+}
+
+function createCategoryAccordion(type, title, categories, isExpanded = true) {
+    const group = document.createElement('div');
+    group.className = 'category-accordion';
+    group.dataset.type = type;
+
+    const header = document.createElement('button');
+    header.className = `category-accordion-header ${isExpanded ? 'expanded' : ''}`;
+    header.innerHTML = `
+        <span class="category-accordion-title">${title}</span>
+        <span class="category-accordion-count">${categories.length}</span>
+        <svg class="category-accordion-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <polyline points="6 9 12 15 18 9"/>
+        </svg>
+    `;
+
+    const content = document.createElement('div');
+    content.className = `category-accordion-content ${isExpanded ? 'expanded' : ''}`;
+
+    categories.forEach(cat => {
+        content.appendChild(createCategoryListItem(cat));
+    });
+
+    header.addEventListener('click', () => {
+        const willExpand = !header.classList.contains('expanded');
+        header.classList.toggle('expanded');
+        content.classList.toggle('expanded');
+
+        // Save state to localStorage
+        const accordionState = JSON.parse(localStorage.getItem('categoryAccordionState') || '{"expense": true, "income": true}');
+        accordionState[type] = willExpand;
+        localStorage.setItem('categoryAccordionState', JSON.stringify(accordionState));
+    });
+
+    group.appendChild(header);
+    group.appendChild(content);
+
+    return group;
 }
 
 function createCategoryListItem(category) {
@@ -2857,7 +2907,11 @@ function createCategoryListItem(category) {
     // Delete button
     item.querySelector('[data-delete]').addEventListener('click', async (e) => {
         e.stopPropagation();
-        if (confirm(`Delete "${category.name}"? Transactions will keep their data but won't have a category.`)) {
+        const confirmed = await showConfirm(
+            `Transactions will keep their data but won't have a category.`,
+            `Delete "${category.name}"?`
+        );
+        if (confirmed) {
             await deleteCategory(category.id);
             renderCategoriesInSection();
         }
@@ -2939,6 +2993,9 @@ function setupNavigationDrawer() {
 
     // Add category button in categories section
     elements.addCategoryBtn?.addEventListener('click', () => openNewCategoryModal());
+
+    // Scroll indicator for categories list
+    elements.categoriesListContainer?.addEventListener('scroll', updateCategoryScrollIndicator);
 
     // Add recurring button in recurring section
     elements.addRecurringMenuBtn?.addEventListener('click', () => openRecurringFormModal());
@@ -3120,7 +3177,12 @@ function setupBucketModals() {
     });
 
     elements.bucketDeleteBtn?.addEventListener('click', async () => {
-        if (currentViewingBucket && confirm('Delete this savings bucket? This will also delete all associated transactions.')) {
+        if (!currentViewingBucket) return;
+        const confirmed = await showConfirm(
+            'This will also delete all associated transactions.',
+            `Delete "${currentViewingBucket.name}"?`
+        );
+        if (confirmed) {
             closeModal(elements.bucketDetailsModal);
             await deleteSavingsBucket(currentViewingBucket.id);
         }
@@ -4289,9 +4351,12 @@ function setupEncryptionHandlers() {
 
     // Disable encryption button
     elements.disableEncryptionBtn?.addEventListener('click', async () => {
-        if (!confirm('Are you sure you want to disable encryption? Your data will remain encrypted until you manually update each item.')) {
-            return;
-        }
+        const confirmed = await showConfirm(
+            'Your data will remain encrypted until you manually update each item.',
+            'Disable encryption?',
+            'Disable'
+        );
+        if (!confirmed) return;
         closeModal(elements.encryptionSettingsModal);
         await disableEncryption();
     });
@@ -4397,9 +4462,12 @@ function setupEncryptionHandlers() {
             return;
         }
 
-        if (!confirm('This will generate a new recovery phrase. Your old recovery phrase will no longer work. Continue?')) {
-            return;
-        }
+        const confirmed = await showConfirm(
+            'Your old recovery phrase will no longer work.',
+            'Generate new recovery phrase?',
+            'Generate'
+        );
+        if (!confirmed) return;
 
         closeModal(elements.encryptionSettingsModal);
 

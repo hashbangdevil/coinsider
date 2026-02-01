@@ -1,6 +1,6 @@
 <?php
 // ========================================
-// Budget Manager - REST API
+// Coinsider - REST API
 // ========================================
 
 require_once __DIR__ . '/config.php';
@@ -40,7 +40,7 @@ switch ($resource) {
         handleSavingsTransactions($method, $id);
         break;
     case '':
-        jsonResponse(['message' => 'Budget Manager API', 'version' => '1.0']);
+        jsonResponse(['message' => 'Coinsider API', 'version' => '1.0']);
         break;
     default:
         errorResponse('Not found', 404);

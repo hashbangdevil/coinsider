@@ -1,6 +1,6 @@
 <?php
 // ========================================
-// Budget Manager - Authentication Handler
+// Coinsider - Authentication Handler
 // ========================================
 
 require_once __DIR__ . '/config.php';

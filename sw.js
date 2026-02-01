@@ -1,8 +1,8 @@
 // ========================================
-// Budget Manager - Service Worker
+// Coinsider - Service Worker
 // ========================================
 
-const CACHE_NAME = 'budget-manager-v38';
+const CACHE_NAME = 'coinsider-v41';
 
 // Use relative paths for subdirectory support
 const STATIC_ASSETS = [

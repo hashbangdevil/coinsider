@@ -1,7 +1,7 @@
 {
-    "name": "Budget Manager",
-    "short_name": "Budget",
-    "description": "A simple, elegant budget manager to track your finances",
+    "name": "Coinsider",
+    "short_name": "Coinsider",
+    "description": "Think. Track. Thrive. — Smart personal finance tracking",
     "start_url": "./index.html",
     "display": "standalone",
     "background_color": "#0f0f1a",
