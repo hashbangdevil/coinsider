@@ -89,6 +89,20 @@ class Database {
             }
         }
 
+        // Add email verification columns (migration for existing DBs)
+        $verificationColumns = [
+            "ALTER TABLE users ADD COLUMN email_verification_token TEXT",
+            "ALTER TABLE users ADD COLUMN email_verification_expires DATETIME",
+            "ALTER TABLE users ADD COLUMN email_verified_at DATETIME"
+        ];
+        foreach ($verificationColumns as $sql) {
+            try {
+                $this->pdo->exec($sql);
+            } catch (PDOException $e) {
+                // Column already exists, ignore
+            }
+        }
+
         // Transactions table
         $this->pdo->exec("
             CREATE TABLE IF NOT EXISTS transactions (
@@ -310,6 +324,74 @@ function updateUserCurrency($userId, $currency) {
     ");
     $stmt->execute([$currency, $userId]);
     return findUserById($userId);
+}
+
+// ========================================
+// Email Verification Functions
+// ========================================
+
+function setEmailVerificationToken($userId, $token, $expires) {
+    $pdo = Database::getInstance()->getPdo();
+    $stmt = $pdo->prepare("
+        UPDATE users
+        SET email_verification_token = ?, email_verification_expires = ?, updated_at = CURRENT_TIMESTAMP
+        WHERE id = ?
+    ");
+    $stmt->execute([$token, $expires, $userId]);
+}
+
+function findUserByVerificationToken($token) {
+    $pdo = Database::getInstance()->getPdo();
+    $stmt = $pdo->prepare("
+        SELECT * FROM users
+        WHERE email_verification_token = ? AND email_verification_expires > datetime('now')
+    ");
+    $stmt->execute([$token]);
+    return $stmt->fetch();
+}
+
+function markEmailVerified($userId) {
+    $pdo = Database::getInstance()->getPdo();
+    $stmt = $pdo->prepare("
+        UPDATE users
+        SET email_verified_at = CURRENT_TIMESTAMP,
+            email_verification_token = NULL,
+            email_verification_expires = NULL,
+            updated_at = CURRENT_TIMESTAMP
+        WHERE id = ?
+    ");
+    $stmt->execute([$userId]);
+    return findUserById($userId);
+}
+
+function isEmailVerified($userId) {
+    $user = findUserById($userId);
+    return $user && $user['email_verified_at'] !== null;
+}
+
+function getEmailVerificationStatus($userId) {
+    $pdo = Database::getInstance()->getPdo();
+    $stmt = $pdo->prepare("
+        SELECT email_verified_at, email_verification_expires, created_at FROM users WHERE id = ?
+    ");
+    $stmt->execute([$userId]);
+    $result = $stmt->fetch();
+
+    if (!$result) {
+        return null;
+    }
+
+    // Calculate days since signup
+    $createdAt = new DateTime($result['created_at']);
+    $now = new DateTime();
+    $daysSinceSignup = $createdAt->diff($now)->days;
+
+    return [
+        'verified' => $result['email_verified_at'] !== null,
+        'verified_at' => $result['email_verified_at'],
+        'days_since_signup' => $daysSinceSignup,
+        'grace_period_remaining' => max(0, 7 - $daysSinceSignup)
+    ];
 }
 
 // ========================================

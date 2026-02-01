@@ -25,7 +25,7 @@
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
 
     <!-- Centralized CSS -->
-    <link rel="stylesheet" href="styles.css?v=75">
+    <link rel="stylesheet" href="styles.css?v=78">
 </head>
 <body>
     <!-- Auth Screen (Login/Signup/Forgot Password) -->
@@ -338,6 +338,19 @@
             </div>
         </nav>
 
+        <!-- Email Verification Banner -->
+        <div class="verification-banner" id="verification-banner" style="display: none;">
+            <div class="verification-banner-content">
+                <svg class="verification-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <circle cx="12" cy="12" r="10"/>
+                    <path d="M12 8v4"/>
+                    <path d="M12 16h.01"/>
+                </svg>
+                <span class="verification-message">Please verify your email address.</span>
+                <button class="btn btn-small btn-verification" id="resend-verification-btn" onclick="resendVerificationEmail()">Resend</button>
+            </div>
+        </div>
+
         <!-- Dashboard Content (Balance + Transactions) -->
         <div class="dashboard-content" id="dashboard-content">
 
@@ -629,7 +642,7 @@
                 <!-- App Version -->
                 <div class="app-version">
                     <span>Coinsider</span>
-                    <span id="app-version">v1.0.54</span>
+                    <span id="app-version">v1.0.57</span>
                 </div>
             </div>
         </section>
@@ -1769,6 +1782,22 @@
         </div>
     </div>
 
+    <!-- Email Verification Success Modal -->
+    <div class="modal" id="verification-success-modal">
+        <div class="modal-backdrop"></div>
+        <div class="modal-content verification-success-content">
+            <div class="verification-success-icon">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/>
+                    <polyline points="22 4 12 14.01 9 11.01"/>
+                </svg>
+            </div>
+            <h3 class="verification-success-title">Email Verified!</h3>
+            <p class="verification-success-message">Your email address has been successfully verified. You now have full access to all features.</p>
+            <button type="button" class="btn btn-primary" id="verification-success-close">Continue</button>
+        </div>
+    </div>
+
     <!-- Toast Notification -->
     <div class="toast" id="toast">
         <span class="toast-message"></span>
@@ -1781,6 +1810,6 @@
     <script src="crypto.js?v=2"></script>
 
     <!-- App JavaScript -->
-    <script src="app.js?v=52"></script>
+    <script src="app.js?v=55"></script>
 </body>
 </html>

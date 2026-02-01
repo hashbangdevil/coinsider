@@ -3765,6 +3765,73 @@ function renderAll() {
     renderSavingsBuckets();
     updateSavingsSummary();
     updateCurrencyPrefixes();
+    updateVerificationBanner();
+}
+
+// ========================================
+// Email Verification Banner
+// ========================================
+
+function updateVerificationBanner() {
+    const banner = document.getElementById('verification-banner');
+    if (!banner) return;
+
+    if (!state.user) {
+        banner.style.display = 'none';
+        return;
+    }
+
+    // Show banner if email not verified and still in grace period
+    if (!state.user.email_verified && state.user.verification_grace_days >= 0) {
+        banner.style.display = 'flex';
+        const daysLeft = state.user.verification_grace_days;
+        const message = banner.querySelector('.verification-message');
+        if (message) {
+            if (daysLeft === 7) {
+                // Just signed up
+                message.textContent = "We've sent you a verification email. Please check your inbox.";
+            } else if (daysLeft > 0) {
+                message.textContent = `Please verify your email address. ${daysLeft} day${daysLeft === 1 ? '' : 's'} remaining.`;
+            } else {
+                message.textContent = 'Please verify your email address to continue using the app.';
+            }
+        }
+    } else {
+        banner.style.display = 'none';
+    }
+}
+
+async function resendVerificationEmail() {
+    try {
+        const btn = document.getElementById('resend-verification-btn');
+        if (btn) {
+            btn.disabled = true;
+            btn.textContent = 'Sending...';
+        }
+
+        const data = await api('auth.php?action=resend-verification', {
+            method: 'POST'
+        });
+
+        if (data.success) {
+            showToast('Verification email sent! Check your inbox.', 'success');
+        }
+
+        if (btn) {
+            btn.textContent = 'Email Sent';
+            setTimeout(() => {
+                btn.disabled = false;
+                btn.textContent = 'Resend';
+            }, 30000); // Allow resend after 30 seconds
+        }
+    } catch (error) {
+        showToast(error.message || 'Failed to send verification email', 'error');
+        const btn = document.getElementById('resend-verification-btn');
+        if (btn) {
+            btn.disabled = false;
+            btn.textContent = 'Resend';
+        }
+    }
 }
 
 // ========================================
@@ -4283,6 +4350,7 @@ function setupAuthForms() {
     // Check for reset token in URL
     const urlParams = new URLSearchParams(window.location.search);
     const resetToken = urlParams.get('reset');
+    const verifyToken = urlParams.get('verify');
 
     if (resetToken) {
         document.getElementById('reset-token').value = resetToken;
@@ -4291,6 +4359,60 @@ function setupAuthForms() {
         // Check if user has encryption enabled
         checkResetTokenEncryption(resetToken);
     }
+
+    // Handle email verification token
+    if (verifyToken) {
+        handleEmailVerification(verifyToken);
+    }
+}
+
+// Handle email verification from URL
+async function handleEmailVerification(token) {
+    try {
+        showToast('Verifying your email...', 'info');
+        const data = await api(`auth.php?action=verify-email&token=${encodeURIComponent(token)}`);
+
+        if (data.success) {
+            // Update user state if logged in
+            if (state.user) {
+                state.user.email_verified = true;
+                state.user.verification_grace_days = 0;
+                updateVerificationBanner();
+            }
+
+            // Show success modal
+            showVerificationSuccessModal();
+        }
+
+        // Clear the verify token from URL
+        const url = new URL(window.location);
+        url.searchParams.delete('verify');
+        window.history.replaceState({}, document.title, url.pathname);
+
+    } catch (error) {
+        showToast(error.message || 'Failed to verify email', 'error');
+    }
+}
+
+// Show email verification success modal
+function showVerificationSuccessModal() {
+    const modal = document.getElementById('verification-success-modal');
+    if (!modal) return;
+
+    modal.classList.add('active');
+    document.body.style.overflow = 'hidden';
+
+    // Close button handler
+    const closeBtn = document.getElementById('verification-success-close');
+    const backdrop = modal.querySelector('.modal-backdrop');
+
+    const closeModal = () => {
+        modal.classList.remove('active');
+        document.body.style.overflow = '';
+    };
+
+    closeBtn?.addEventListener('click', closeModal, { once: true });
+    backdrop?.addEventListener('click', closeModal, { once: true });
 }
 
 // Check if user associated with reset token has encryption enabled

@@ -5,6 +5,7 @@
 
 require_once __DIR__ . '/config.php';
 require_once __DIR__ . '/db.php';
+require_once __DIR__ . '/email.php';
 
 // Get action from request
 $action = $_GET['action'] ?? $_POST['action'] ?? 'status';
@@ -51,6 +52,15 @@ switch ($action) {
         break;
     case 'get-encryption-by-token':
         handleGetEncryptionByToken();
+        break;
+    case 'verify-email':
+        handleVerifyEmail();
+        break;
+    case 'resend-verification':
+        handleResendVerification();
+        break;
+    case 'verification-status':
+        handleVerificationStatus();
         break;
     case 'status':
     default:
@@ -104,13 +114,25 @@ function handleSignup() {
     // Seed default categories for new user
     seedDefaultCategories($user['id']);
 
+    // Send verification email
+    $verificationSent = false;
+    if (class_exists('Email') && class_exists('SMTPConfig') && SMTPConfig::isConfigured()) {
+        $token = generateToken();
+        $expires = date('Y-m-d H:i:s', time() + (7 * 24 * 60 * 60)); // 7 days
+        setEmailVerificationToken($user['id'], $token, $expires);
+
+        $result = Email::sendVerificationEmail($email, $name, $token);
+        $verificationSent = $result['success'] ?? false;
+    }
+
     // Log them in
     setUserSession($user);
-    
+
     jsonResponse([
         'success' => true,
         'message' => 'Account created successfully',
-        'user' => sanitizeUser($user)
+        'user' => sanitizeUser($user),
+        'verification_email_sent' => $verificationSent
     ], 201);
 }
 
@@ -209,21 +231,28 @@ function handleForgotPassword() {
         // Generate reset token
         $token = generateToken();
         $expires = date('Y-m-d H:i:s', time() + RESET_TOKEN_EXPIRY);
-        
+
         setResetToken($user['id'], $token, $expires);
-        
+
         $resetLink = APP_URL . '/index.html?reset=' . $token;
-        
-        if (EMAIL_ENABLED) {
-            // Send email (implement your email sending here)
-            sendResetEmail($user['email'], $user['name'], $resetLink);
-        } else {
+
+        // Try to send via Email class (PHPMailer), fall back to basic mail
+        $emailSent = false;
+        if (class_exists('Email') && class_exists('SMTPConfig') && SMTPConfig::isConfigured()) {
+            $result = Email::sendPasswordReset($user['email'], $user['name'], $token);
+            $emailSent = $result['success'] ?? false;
+        } elseif (EMAIL_ENABLED) {
+            // Fallback to basic PHP mail
+            $emailSent = sendResetEmail($user['email'], $user['name'], $resetLink);
+        }
+
+        if (!$emailSent && !EMAIL_ENABLED) {
             // For development: include the link in response
             $response['reset_link'] = $resetLink;
             $response['dev_note'] = 'Email is disabled. Use this link to reset password.';
         }
     }
-    
+
     jsonResponse($response);
 }
 
@@ -542,6 +571,92 @@ function handleGetEncryptionByToken() {
 }
 
 // ========================================
+// Verify Email
+// ========================================
+
+function handleVerifyEmail() {
+    $token = $_GET['token'] ?? '';
+
+    if (empty($token)) {
+        errorResponse('Verification token is required');
+    }
+
+    $user = findUserByVerificationToken($token);
+    if (!$user) {
+        errorResponse('Invalid or expired verification link', 400);
+    }
+
+    // Mark email as verified
+    $updatedUser = markEmailVerified($user['id']);
+
+    // Update session if logged in
+    if (isset($_SESSION['user']) && $_SESSION['user']['id'] == $user['id']) {
+        setUserSession($updatedUser);
+    }
+
+    jsonResponse([
+        'success' => true,
+        'message' => 'Email verified successfully!'
+    ]);
+}
+
+// ========================================
+// Resend Verification Email
+// ========================================
+
+function handleResendVerification() {
+    if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+        errorResponse('Method not allowed', 405);
+    }
+
+    $user = requireAuth();
+
+    // Check if already verified
+    $fullUser = findUserById($user['id']);
+    if ($fullUser['email_verified_at']) {
+        errorResponse('Email is already verified');
+    }
+
+    // Check if SMTP is configured
+    if (!class_exists('Email') || !class_exists('SMTPConfig') || !SMTPConfig::isConfigured()) {
+        errorResponse('Email sending is not configured', 500);
+    }
+
+    // Generate new token
+    $token = generateToken();
+    $expires = date('Y-m-d H:i:s', time() + (7 * 24 * 60 * 60)); // 7 days
+    setEmailVerificationToken($user['id'], $token, $expires);
+
+    // Send verification email
+    $result = Email::sendVerificationEmail($fullUser['email'], $fullUser['name'], $token);
+
+    if (!$result['success']) {
+        errorResponse('Failed to send verification email', 500);
+    }
+
+    jsonResponse([
+        'success' => true,
+        'message' => 'Verification email sent'
+    ]);
+}
+
+// ========================================
+// Get Verification Status
+// ========================================
+
+function handleVerificationStatus() {
+    $user = requireAuth();
+    $status = getEmailVerificationStatus($user['id']);
+
+    jsonResponse([
+        'verified' => $status['verified'],
+        'verified_at' => $status['verified_at'],
+        'days_since_signup' => $status['days_since_signup'],
+        'grace_period_remaining' => $status['grace_period_remaining']
+    ]);
+}
+
+// ========================================
 // Check Status
 // ========================================
 
@@ -579,12 +694,17 @@ function setUserSession($user) {
 }
 
 function sanitizeUser($user) {
+    // Get verification status
+    $verificationStatus = getEmailVerificationStatus($user['id']);
+
     return [
         'id' => $user['id'],
         'email' => $user['email'],
         'name' => $user['name'],
         'currency' => $user['currency'] ?? 'ZAR',
-        'encryption_enabled' => (bool) ($user['encryption_enabled'] ?? false)
+        'encryption_enabled' => (bool) ($user['encryption_enabled'] ?? false),
+        'email_verified' => $verificationStatus['verified'] ?? false,
+        'verification_grace_days' => $verificationStatus['grace_period_remaining'] ?? 0
     ];
 }
 

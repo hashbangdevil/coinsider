@@ -22,6 +22,18 @@ RUN docker-php-ext-configure gd \
 RUN pecl install imagick \
     && docker-php-ext-enable imagick
 
+# Install Composer
+COPY --from=composer:latest /usr/bin/composer /usr/bin/composer
+
 WORKDIR /var/www/html
 
 COPY ./ /var/www/html/
+
+# Install PHP dependencies
+RUN composer install --no-dev --optimize-autoloader || true
+
+# Note: smtpcreds.env can be placed in:
+#   - One level above project (most secure)
+#   - Project root (/var/www/html/smtpcreds.env)
+#   - API folder (/var/www/html/api/smtpcreds.env)
+# For Docker, you can mount it: -v /path/to/smtpcreds.env:/var/www/html/smtpcreds.env

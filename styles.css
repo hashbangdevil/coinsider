@@ -523,6 +523,88 @@ body {
 }
 
 /* ========================================
+   Email Verification Banner
+   ======================================== */
+
+.verification-banner {
+    display: none;
+    position: sticky;
+    top: 0;
+    z-index: calc(var(--z-header) + 1);
+    background: linear-gradient(135deg, #fef3c7 0%, #fde68a 100%);
+    border-bottom: 1px solid #f59e0b;
+    padding: var(--space-sm) var(--space-lg);
+    align-items: center;
+    justify-content: center;
+}
+
+.verification-banner-content {
+    display: flex;
+    align-items: center;
+    gap: var(--space-sm);
+    max-width: 600px;
+    width: 100%;
+    font-size: 0.875rem;
+    color: #92400e;
+}
+
+.verification-icon {
+    width: 18px;
+    height: 18px;
+    flex-shrink: 0;
+    stroke: #d97706;
+}
+
+.verification-message {
+    flex: 1;
+    font-weight: 500;
+}
+
+.btn-verification {
+    background: #f59e0b;
+    color: white;
+    border: none;
+    padding: var(--space-xs) var(--space-sm);
+    font-size: 0.75rem;
+    font-weight: 600;
+    border-radius: var(--radius-sm);
+    cursor: pointer;
+    transition: background var(--transition-fast);
+    white-space: nowrap;
+}
+
+.btn-verification:hover {
+    background: #d97706;
+}
+
+.btn-verification:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+}
+
+/* Dark mode adjustments */
+[data-theme="dark"] .verification-banner {
+    background: linear-gradient(135deg, #451a03 0%, #78350f 100%);
+    border-bottom-color: #92400e;
+}
+
+[data-theme="dark"] .verification-banner-content {
+    color: #fde68a;
+}
+
+[data-theme="dark"] .verification-icon {
+    stroke: #fbbf24;
+}
+
+[data-theme="dark"] .btn-verification {
+    background: #b45309;
+}
+
+[data-theme="dark"] .btn-verification:hover {
+    background: #d97706;
+}
+
+/* ========================================
    Navigation Drawer
    ======================================== */
 
@@ -4510,6 +4592,66 @@ select:focus,
 
 .confirm-actions .btn {
     flex: 1;
+}
+
+/* ========================================
+   Verification Success Modal
+   ======================================== */
+
+.verification-success-content {
+    max-width: 340px;
+    text-align: center;
+    padding: var(--space-xl);
+}
+
+.verification-success-icon {
+    width: 72px;
+    height: 72px;
+    margin: 0 auto var(--space-lg);
+    border-radius: var(--radius-full);
+    background: linear-gradient(135deg, #d1fae5 0%, #a7f3d0 100%);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    animation: successPop 0.4s ease-out;
+}
+
+@keyframes successPop {
+    0% { transform: scale(0); opacity: 0; }
+    50% { transform: scale(1.1); }
+    100% { transform: scale(1); opacity: 1; }
+}
+
+.verification-success-icon svg {
+    width: 36px;
+    height: 36px;
+    stroke: #059669;
+    stroke-width: 2.5;
+}
+
+.verification-success-title {
+    font-size: 1.375rem;
+    font-weight: 700;
+    margin-bottom: var(--space-sm);
+    color: #059669;
+}
+
+.verification-success-message {
+    font-size: 0.95rem;
+    color: var(--text-secondary);
+    margin-bottom: var(--space-xl);
+    line-height: 1.6;
+}
+
+.verification-success-content .btn-primary {
+    width: 100%;
+    background: #10b981;
+    border-color: #10b981;
+}
+
+.verification-success-content .btn-primary:hover {
+    background: #059669;
+    border-color: #059669;
 }
 
 /* ========================================
