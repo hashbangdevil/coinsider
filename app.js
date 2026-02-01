@@ -1307,7 +1307,7 @@ async function updateUserCurrency(currency) {
 
 async function loadAppData() {
     try {
-        const period = elements.periodSelector?.value || 'this-month';
+        const period = 'all-time';
         const [categories, transactions, summary, recurring, savingsBucketsData] = await Promise.all([
             api('api.php?resource=categories'),
             api('api.php?resource=transactions&limit=50'),
@@ -1672,7 +1672,7 @@ async function createTransaction(description, amount, categoryId, type, date, sa
         state.transactions.unshift(transaction);
 
         // Refresh summary, categories, and savings buckets (with decryption)
-        const period = elements.periodSelector?.value || 'this-month';
+        const period = 'all-time';
         const [summary, categories, savingsBucketsData] = await Promise.all([
             api(`api.php?resource=summary&period=${period}`),
             api('api.php?resource=categories'),
@@ -1706,7 +1706,7 @@ async function deleteTransaction(id) {
         state.transactions = state.transactions.filter(t => t.id !== id);
 
         // Refresh summary and categories (with decryption)
-        const period = elements.periodSelector?.value || 'this-month';
+        const period = 'all-time';
         const [summary, categories] = await Promise.all([
             api(`api.php?resource=summary&period=${period}`),
             api('api.php?resource=categories')
@@ -1749,7 +1749,7 @@ async function updateTransaction(id, description, amount, categoryId, type, date
         }
 
         // Refresh summary, categories, and savings buckets (with decryption)
-        const period = elements.periodSelector?.value || 'this-month';
+        const period = 'all-time';
         const [summary, categories, savingsBucketsData] = await Promise.all([
             api(`api.php?resource=summary&period=${period}`),
             api('api.php?resource=categories'),
@@ -1918,7 +1918,7 @@ async function createRecurringTransaction(description, amount, categoryId, type,
         });
 
         // Refresh all data including the new recurring transaction
-        const period = elements.periodSelector?.value || 'this-month';
+        const period = 'all-time';
         const [transactions, summary, categories, recurringList] = await Promise.all([
             api('api.php?resource=transactions&limit=50'),
             api(`api.php?resource=summary&period=${period}`),
@@ -2414,7 +2414,7 @@ async function addToBucket(bucketId, amount, type, description) {
         await loadSavingsBuckets();
 
         // Also reload summary to update available to spend
-        const period = elements.periodSelector?.value || 'this-month';
+        const period = 'all-time';
         const summary = await api(`api.php?resource=summary&period=${period}`);
         state.summary = summary;
         if (state.summary?.categories) {
@@ -2449,7 +2449,7 @@ async function addToBucketSilent(bucketId, amount, type, description) {
         await loadSavingsBuckets();
 
         // Also reload summary to update available to spend
-        const period = elements.periodSelector?.value || 'this-month';
+        const period = 'all-time';
         const summary = await api(`api.php?resource=summary&period=${period}`);
         state.summary = summary;
         if (state.summary?.categories) {
