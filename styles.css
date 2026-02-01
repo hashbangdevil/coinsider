@@ -221,22 +221,18 @@ body {
 }
 
 .logo-icon {
-    width: 72px;
-    height: 72px;
-    margin: 0 auto var(--space-lg);
-    background: var(--bg-card);
-    border-radius: var(--radius-xl);
+    width: 280px;
+    max-width: 85%;
+    margin: 0 auto var(--space-xl);
     display: flex;
     align-items: center;
     justify-content: center;
-    box-shadow: var(--shadow-md), var(--shadow-inner);
-    border: 1px solid var(--border-color-light);
 }
 
-.logo-icon svg {
-    width: 36px;
-    height: 36px;
-    color: var(--color-primary);
+.logo-icon img {
+    width: 100%;
+    height: auto;
+    object-fit: contain;
 }
 
 .login-title {
@@ -335,22 +331,21 @@ body {
     margin-bottom: var(--space-xl);
 }
 
-/* User Avatar Placeholder */
-.user-avatar-placeholder {
+/* App Logo Small (header) */
+.app-logo-small {
     width: 44px;
     height: 44px;
-    border-radius: var(--radius-full);
-    background: var(--bg-tertiary);
+    border-radius: var(--radius-md);
+    overflow: hidden;
     display: flex;
     align-items: center;
     justify-content: center;
-    border: 2px solid var(--border-color-light);
 }
 
-.user-avatar-placeholder svg {
-    width: 24px;
-    height: 24px;
-    color: var(--text-secondary);
+.app-logo-small img {
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
 }
 
 /* Decoration Elements */

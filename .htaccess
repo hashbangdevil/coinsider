@@ -1,7 +1,8 @@
-# Budget Manager - Apache Configuration
+# Coinsider - Apache Configuration
 
 # Enable rewrite engine
 RewriteEngine On
+
 
 # Redirect to HTTPS in production (uncomment when ready)
 # RewriteCond %{HTTPS} off

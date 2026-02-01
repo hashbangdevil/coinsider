@@ -3299,8 +3299,9 @@ function setupInstallPrompt() {
         deferredInstallPrompt = e;
         promptReceived = true;
 
-        // Only auto-show if not dismissed
-        if (shouldAutoShow()) {
+        // Only auto-show on mobile, not desktop
+        const isMobileDevice = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+        if (shouldAutoShow() && isMobileDevice) {
             setTimeout(() => {
                 if (installBanner) {
                     installBanner.classList.add('visible');

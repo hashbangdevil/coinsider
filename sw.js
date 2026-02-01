@@ -2,7 +2,7 @@
 // Coinsider - Service Worker
 // ========================================
 
-const CACHE_NAME = 'coinsider-v41';
+const CACHE_NAME = 'coinsider-v47';
 
 // Use relative paths for subdirectory support
 const STATIC_ASSETS = [
