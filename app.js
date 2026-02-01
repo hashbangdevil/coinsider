@@ -2972,6 +2972,24 @@ function setupNavigationDrawer() {
     // Menu button opens drawer
     elements.menuBtn?.addEventListener('click', openNavDrawer);
 
+    // Logo preview (mobile: tap to show enlarged)
+    const logoSmall = document.querySelector('.app-logo-small');
+    const logoPreviewOverlay = document.getElementById('logo-preview-overlay');
+
+    if (logoSmall && logoPreviewOverlay) {
+        // Only handle click on touch devices (desktop uses CSS hover)
+        logoSmall.addEventListener('click', () => {
+            const isTouchDevice = window.matchMedia('(hover: none)').matches;
+            if (isTouchDevice) {
+                logoPreviewOverlay.classList.add('visible');
+            }
+        });
+
+        logoPreviewOverlay.addEventListener('click', () => {
+            logoPreviewOverlay.classList.remove('visible');
+        });
+    }
+
     // Close button and backdrop close drawer
     elements.navDrawerClose?.addEventListener('click', closeNavDrawer);
     elements.navDrawerBackdrop?.addEventListener('click', closeNavDrawer);
