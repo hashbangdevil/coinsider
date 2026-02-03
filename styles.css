@@ -4239,6 +4239,12 @@ select:focus,
     min-width: 120px;
 }
 
+.bucket-details-actions .btn svg {
+    width: 20px;
+    height: 20px;
+    flex-shrink: 0;
+}
+
 .bucket-history-title {
     font-size: 1rem;
     font-weight: 600;

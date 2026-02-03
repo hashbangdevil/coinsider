@@ -1734,11 +1734,13 @@ function generateMonthlyAllocations($userId) {
     }
 
     // Get all active buckets with monthly_target > 0
+    // Skip buckets created in the current month (they'll get first allocation next month)
     $stmt = $pdo->prepare("
         SELECT * FROM savings_buckets
         WHERE user_id = ? AND is_active = 1 AND monthly_target > 0
+        AND strftime('%Y-%m', created_at) < ?
     ");
-    $stmt->execute([$userId]);
+    $stmt->execute([$userId, $currentMonth]);
     $buckets = $stmt->fetchAll();
 
     $generated = [];

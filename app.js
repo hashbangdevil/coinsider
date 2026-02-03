@@ -2436,6 +2436,16 @@ async function createSavingsBucket(name, icon, monthlyTarget, initialDeposit = 0
             showToast('Savings bucket created');
         }
 
+        // Scroll to the new bucket after render completes
+        requestAnimationFrame(() => {
+            setTimeout(() => {
+                const newBucketCard = document.querySelector(`.bucket-card[data-bucket-id="${bucket.id}"]`);
+                if (newBucketCard) {
+                    newBucketCard.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                }
+            }, 50);
+        });
+
         return bucket;
     } catch (error) {
         console.error('Failed to create bucket:', error);
@@ -2683,7 +2693,7 @@ function openBucketModal(bucketId = null) {
         elements.bucketName.value = currentEditingBucket.name;
         elements.bucketIcon.value = currentEditingBucket.icon;
         elements.bucketEmojiPreview.textContent = currentEditingBucket.icon;
-        elements.bucketTarget.value = currentEditingBucket.monthly_target || 0;
+        elements.bucketTarget.value = currentEditingBucket.monthly_target || '';
         // Hide initial deposit field when editing
         if (elements.bucketInitialDepositGroup) {
             elements.bucketInitialDepositGroup.style.display = 'none';
@@ -2692,7 +2702,7 @@ function openBucketModal(bucketId = null) {
         elements.bucketName.value = '';
         elements.bucketIcon.value = '💰';
         elements.bucketEmojiPreview.textContent = '💰';
-        elements.bucketTarget.value = 0;
+        elements.bucketTarget.value = '';
         // Show initial deposit field when creating and reset value
         if (elements.bucketInitialDepositGroup) {
             elements.bucketInitialDepositGroup.style.display = '';
