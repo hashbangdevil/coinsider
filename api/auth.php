@@ -703,6 +703,7 @@ function sanitizeUser($user) {
         'name' => $user['name'],
         'currency' => $user['currency'] ?? 'ZAR',
         'encryption_enabled' => (bool) ($user['encryption_enabled'] ?? false),
+        'accounts_enabled' => (bool) ($user['accounts_enabled'] ?? false),
         'email_verified' => $verificationStatus['verified'] ?? false,
         'verification_grace_days' => $verificationStatus['grace_period_remaining'] ?? 0
     ];

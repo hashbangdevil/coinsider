@@ -39,6 +39,12 @@ switch ($resource) {
     case 'savings-transactions':
         handleSavingsTransactions($method, $id);
         break;
+    case 'accounts':
+        handleAccounts($method, $id);
+        break;
+    case 'account-transfers':
+        handleAccountTransfers($method, $id);
+        break;
     case '':
         jsonResponse(['message' => 'Coinsider API', 'version' => '1.0']);
         break;
@@ -236,16 +242,21 @@ function handleTransactions($method, $id) {
             $savingsBucketId = isset($data['savings_bucket_id']) ? intval($data['savings_bucket_id']) : null;
             if ($savingsBucketId === 0) $savingsBucketId = null;
 
+            // Check for optional account
+            $accountId = isset($data['account_id']) ? intval($data['account_id']) : null;
+            if ($accountId === 0) $accountId = null;
+
             if ($hasCategoryId) {
-                // New flow with category_id (and optional savings bucket)
-                $transaction = createTransactionWithSavings(
+                // New flow with category_id (and optional savings bucket and account)
+                $transaction = createTransactionWithAccount(
                     $userId,
                     trim($data['description']),
                     floatval($data['amount']),
                     intval($data['category_id']),
                     $data['type'],
                     $data['date'],
-                    $savingsBucketId
+                    $savingsBucketId,
+                    $accountId
                 );
 
                 if (!$transaction) {
@@ -290,9 +301,13 @@ function handleTransactions($method, $id) {
             $savingsBucketId = isset($data['savings_bucket_id']) ? intval($data['savings_bucket_id']) : null;
             if ($savingsBucketId === 0) $savingsBucketId = null;
 
+            // Check for optional account
+            $accountId = isset($data['account_id']) ? intval($data['account_id']) : null;
+            if ($accountId === 0) $accountId = null;
+
             if ($hasCategoryId) {
-                // New flow with category_id (and optional savings bucket)
-                $transaction = updateTransactionWithSavings(
+                // New flow with category_id (and optional savings bucket and account)
+                $transaction = updateTransactionWithAccount(
                     $userId,
                     $id,
                     trim($data['description']),
@@ -300,7 +315,8 @@ function handleTransactions($method, $id) {
                     intval($data['category_id']),
                     $data['type'],
                     $data['date'],
-                    $savingsBucketId
+                    $savingsBucketId,
+                    $accountId
                 );
 
                 if (!$transaction) {
@@ -331,7 +347,7 @@ function handleTransactions($method, $id) {
                 errorResponse('Transaction ID is required');
             }
 
-            $deleted = deleteTransactionWithSavings($userId, $id);
+            $deleted = deleteTransactionWithAccount($userId, $id);
             if (!$deleted) {
                 errorResponse('Transaction not found', 404);
             }
@@ -979,6 +995,233 @@ function handleSavingsTransactions($method, $id) {
             $deleted = deleteSavingsTransaction($userId, $id);
             if (!$deleted) {
                 errorResponse('Savings transaction not found', 404);
+            }
+
+            jsonResponse(['success' => true]);
+            break;
+
+        default:
+            errorResponse('Method not allowed', 405);
+    }
+}
+
+// ========================================
+// Accounts Handler
+// ========================================
+
+function handleAccounts($method, $id) {
+    $user = requireAuth();
+    $userId = $user['id'];
+
+    switch ($method) {
+        case 'GET':
+            if ($id) {
+                $account = getAccount($userId, $id);
+                if (!$account) {
+                    errorResponse('Account not found', 404);
+                }
+                jsonResponse($account);
+            } else {
+                $accounts = getAccounts($userId);
+                $totalBalance = getTotalAccountsBalance($userId);
+                $moduleEnabled = isAccountsModuleEnabled($userId);
+                jsonResponse([
+                    'accounts' => $accounts,
+                    'total_balance' => $totalBalance,
+                    'module_enabled' => $moduleEnabled
+                ]);
+            }
+            break;
+
+        case 'POST':
+            $data = json_decode(file_get_contents('php://input'), true);
+
+            if (empty($data['name']) || empty($data['type'])) {
+                errorResponse('Name and type are required');
+            }
+
+            $validTypes = ['bank', 'credit_card', 'cash', 'savings', 'ewallet', 'investment', 'other'];
+            if (!in_array($data['type'], $validTypes)) {
+                errorResponse('Invalid account type');
+            }
+
+            $icon = isset($data['icon']) ? trim($data['icon']) : '🏦';
+            $color = isset($data['color']) ? $data['color'] : null;
+            $startingBalance = isset($data['starting_balance']) ? floatval($data['starting_balance']) : 0;
+
+            try {
+                $account = createAccount($userId, $data['name'], $data['type'], $icon, $color, $startingBalance);
+                jsonResponse($account, 201);
+            } catch (PDOException $e) {
+                if (strpos($e->getMessage(), 'UNIQUE constraint') !== false) {
+                    errorResponse('An account with this name already exists');
+                }
+                throw $e;
+            }
+            break;
+
+        case 'PUT':
+            $data = json_decode(file_get_contents('php://input'), true);
+
+            // Check for module toggle action (no ID required)
+            if (isset($data['action'])) {
+                switch ($data['action']) {
+                    case 'enable':
+                        enableAccountsModule($userId);
+                        jsonResponse(['success' => true, 'module_enabled' => true]);
+                        break;
+                    case 'disable':
+                        disableAccountsModule($userId);
+                        jsonResponse(['success' => true, 'module_enabled' => false]);
+                        break;
+                    case 'activate':
+                        if (!$id) {
+                            errorResponse('Account ID is required');
+                        }
+                        $account = updateAccount($userId, $id, ['is_active' => true]);
+                        if (!$account) {
+                            errorResponse('Account not found', 404);
+                        }
+                        jsonResponse($account);
+                        break;
+                    case 'deactivate':
+                        if (!$id) {
+                            errorResponse('Account ID is required');
+                        }
+                        $account = updateAccount($userId, $id, ['is_active' => false]);
+                        if (!$account) {
+                            errorResponse('Account not found', 404);
+                        }
+                        jsonResponse($account);
+                        break;
+                    default:
+                        errorResponse('Invalid action');
+                }
+                break;
+            }
+
+            if (!$id) {
+                errorResponse('Account ID is required');
+            }
+
+            if (empty($data['name'])) {
+                errorResponse('Name is required');
+            }
+
+            if (isset($data['type'])) {
+                $validTypes = ['bank', 'credit_card', 'cash', 'savings', 'ewallet', 'investment', 'other'];
+                if (!in_array($data['type'], $validTypes)) {
+                    errorResponse('Invalid account type');
+                }
+            }
+
+            try {
+                $account = updateAccount($userId, $id, $data);
+                if (!$account) {
+                    errorResponse('Account not found', 404);
+                }
+                jsonResponse($account);
+            } catch (PDOException $e) {
+                if (strpos($e->getMessage(), 'UNIQUE constraint') !== false) {
+                    errorResponse('An account with this name already exists');
+                }
+                throw $e;
+            }
+            break;
+
+        case 'DELETE':
+            if (!$id) {
+                errorResponse('Account ID is required');
+            }
+
+            $account = getAccount($userId, $id);
+            if (!$account) {
+                errorResponse('Account not found', 404);
+            }
+
+            if (accountHasTransactions($userId, $id)) {
+                errorResponse('Cannot delete account with linked transactions. Remove or reassign transactions first.', 409);
+            }
+
+            $deleted = deleteAccount($userId, $id);
+            if (!$deleted) {
+                errorResponse('Failed to delete account', 500);
+            }
+
+            jsonResponse(['success' => true]);
+            break;
+
+        default:
+            errorResponse('Method not allowed', 405);
+    }
+}
+
+// ========================================
+// Account Transfers Handler
+// ========================================
+
+function handleAccountTransfers($method, $id) {
+    $user = requireAuth();
+    $userId = $user['id'];
+
+    switch ($method) {
+        case 'GET':
+            if ($id) {
+                $transfer = getAccountTransfer($userId, $id);
+                if (!$transfer) {
+                    errorResponse('Transfer not found', 404);
+                }
+                jsonResponse($transfer);
+            } else {
+                $accountId = isset($_GET['account_id']) ? intval($_GET['account_id']) : null;
+                $limit = isset($_GET['limit']) ? intval($_GET['limit']) : 100;
+                $transfers = getAccountTransfers($userId, $accountId, $limit);
+                jsonResponse($transfers);
+            }
+            break;
+
+        case 'POST':
+            $data = json_decode(file_get_contents('php://input'), true);
+
+            if (empty($data['from_account_id']) || empty($data['to_account_id']) || !isset($data['amount']) || empty($data['date'])) {
+                errorResponse('from_account_id, to_account_id, amount, and date are required');
+            }
+
+            $amount = floatval($data['amount']);
+            if ($amount <= 0) {
+                errorResponse('Amount must be greater than 0');
+            }
+
+            if ($data['from_account_id'] == $data['to_account_id']) {
+                errorResponse('Cannot transfer to the same account');
+            }
+
+            $description = isset($data['description']) ? trim($data['description']) : null;
+
+            $transfer = createAccountTransfer(
+                $userId,
+                intval($data['from_account_id']),
+                intval($data['to_account_id']),
+                $amount,
+                $description,
+                $data['date']
+            );
+
+            if (!$transfer) {
+                errorResponse('Invalid account(s) or failed to create transfer');
+            }
+
+            jsonResponse($transfer, 201);
+            break;
+
+        case 'DELETE':
+            if (!$id) {
+                errorResponse('Transfer ID is required');
+            }
+
+            $deleted = deleteAccountTransfer($userId, $id);
+            if (!$deleted) {
+                errorResponse('Transfer not found', 404);
             }
 
             jsonResponse(['success' => true]);

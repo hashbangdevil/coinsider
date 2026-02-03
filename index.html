@@ -25,7 +25,7 @@
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
 
     <!-- Centralized CSS -->
-    <link rel="stylesheet" href="styles.css?v=78">
+    <link rel="stylesheet" href="styles.css?v=79">
 </head>
 <body>
     <!-- Auth Screen (Login/Signup/Forgot Password) -->
@@ -324,6 +324,16 @@
                     <span class="nav-item-label">Savings Buckets</span>
                     <span class="nav-item-desc">Goals & envelope budgeting</span>
                 </button>
+                <button class="nav-item" data-section="accounts">
+                    <div class="nav-item-icon">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <rect x="1" y="4" width="22" height="16" rx="2" ry="2"/>
+                            <line x1="1" y1="10" x2="23" y2="10"/>
+                        </svg>
+                    </div>
+                    <span class="nav-item-label">Accounts</span>
+                    <span class="nav-item-desc">Bank, cards & cash</span>
+                </button>
                 <div class="nav-divider"></div>
                 <button class="nav-item" data-section="settings">
                     <div class="nav-item-icon">
@@ -554,6 +564,65 @@
                     </svg>
                     <p>No savings buckets yet</p>
                     <span>Create a bucket to start saving for goals</span>
+                </div>
+            </div>
+        </section>
+
+        <!-- Accounts Section (accessed via menu) -->
+        <section class="section menu-section" id="accounts-section" style="display: none;">
+            <div class="section-header">
+                <button class="btn-back" id="accounts-back-btn">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <polyline points="15 18 9 12 15 6"/>
+                    </svg>
+                </button>
+                <h3 class="section-title">Accounts</h3>
+                <button class="btn btn-small" id="add-account-btn" style="display: none;">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <line x1="12" y1="5" x2="12" y2="19"/>
+                        <line x1="5" y1="12" x2="19" y2="12"/>
+                    </svg>
+                    <span>Add</span>
+                </button>
+            </div>
+
+            <!-- Module not enabled state -->
+            <div class="accounts-disabled-state" id="accounts-disabled">
+                <div class="feature-promo">
+                    <div class="feature-icon">🏦</div>
+                    <h4>Track Multiple Accounts</h4>
+                    <p>Manage bank accounts, credit cards, cash, and more. See where your money really is.</p>
+                    <button class="btn btn-primary" id="enable-accounts-btn">Enable Accounts</button>
+                </div>
+            </div>
+
+            <!-- Module enabled state -->
+            <div class="accounts-content" id="accounts-content" style="display: none;">
+                <div class="accounts-summary">
+                    <div class="summary-stat">
+                        <span class="summary-label">Total Balance</span>
+                        <span class="summary-value" id="accounts-total-balance">R0.00</span>
+                    </div>
+                </div>
+                <div class="accounts-actions">
+                    <button class="btn btn-small btn-secondary" id="transfer-btn">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width: 16px; height: 16px;">
+                            <polyline points="17 1 21 5 17 9"/>
+                            <path d="M3 11V9a4 4 0 0 1 4-4h14"/>
+                            <polyline points="7 23 3 19 7 15"/>
+                            <path d="M21 13v2a4 4 0 0 1-4 4H3"/>
+                        </svg>
+                        <span>Transfer</span>
+                    </button>
+                </div>
+                <div class="accounts-list" id="accounts-list"></div>
+                <div class="empty-state" id="no-accounts" style="display: none;">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                        <rect x="1" y="4" width="22" height="16" rx="2" ry="2"/>
+                        <line x1="1" y1="10" x2="23" y2="10"/>
+                    </svg>
+                    <p>No accounts yet</p>
+                    <span>Add your first account to get started</span>
                 </div>
             </div>
         </section>
@@ -852,6 +921,13 @@
                 <div class="input-group">
                     <label for="transaction-date">Date</label>
                     <input type="date" id="transaction-date" required>
+                </div>
+                <div class="input-group" id="transaction-account-group" style="display: none;">
+                    <label for="transaction-account">Account (optional)</label>
+                    <select id="transaction-account">
+                        <option value="">No account</option>
+                        <!-- Accounts populated dynamically by JavaScript -->
+                    </select>
                 </div>
                 <div class="input-group" id="savings-bucket-group" style="display: none;">
                     <label for="transaction-bucket">Fund from Savings (optional)</label>
@@ -1798,6 +1874,121 @@
         </div>
     </div>
 
+    <!-- Add/Edit Account Modal -->
+    <div class="modal" id="account-modal">
+        <div class="modal-backdrop"></div>
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3 id="account-modal-title">Add Account</h3>
+                <button class="btn-icon modal-close">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <line x1="18" y1="6" x2="6" y2="18"/>
+                        <line x1="6" y1="6" x2="18" y2="18"/>
+                    </svg>
+                </button>
+            </div>
+            <form id="account-form" class="modal-form">
+                <input type="hidden" id="account-edit-id">
+                <div class="input-group">
+                    <label>Icon</label>
+                    <input type="hidden" id="account-icon" value="🏦">
+                    <div class="emoji-preview" id="account-emoji-preview">🏦</div>
+                </div>
+                <div class="emoji-picker" id="account-emoji-picker">
+                    <button type="button" class="emoji-option" data-emoji="🏦">🏦</button>
+                    <button type="button" class="emoji-option" data-emoji="💳">💳</button>
+                    <button type="button" class="emoji-option" data-emoji="💵">💵</button>
+                    <button type="button" class="emoji-option" data-emoji="💰">💰</button>
+                    <button type="button" class="emoji-option" data-emoji="🏧">🏧</button>
+                    <button type="button" class="emoji-option" data-emoji="📱">📱</button>
+                    <button type="button" class="emoji-option" data-emoji="💎">💎</button>
+                    <button type="button" class="emoji-option" data-emoji="🪙">🪙</button>
+                    <button type="button" class="emoji-option" data-emoji="📈">📈</button>
+                    <button type="button" class="emoji-option" data-emoji="🏠">🏠</button>
+                    <button type="button" class="emoji-option" data-emoji="🚗">🚗</button>
+                    <button type="button" class="emoji-option" data-emoji="✈️">✈️</button>
+                    <button type="button" class="emoji-option" data-emoji="🛒">🛒</button>
+                    <button type="button" class="emoji-option" data-emoji="💼">💼</button>
+                    <button type="button" class="emoji-option" data-emoji="🎯">🎯</button>
+                    <button type="button" class="emoji-option" data-emoji="⭐">⭐</button>
+                </div>
+                <div class="input-group">
+                    <label for="account-name">Account Name</label>
+                    <input type="text" id="account-name" placeholder="e.g., FNB Cheque" required>
+                </div>
+                <div class="input-group">
+                    <label for="account-type">Account Type</label>
+                    <select id="account-type" required>
+                        <option value="bank">Bank Account</option>
+                        <option value="credit_card">Credit Card</option>
+                        <option value="cash">Cash</option>
+                        <option value="savings">Savings Account</option>
+                        <option value="ewallet">E-Wallet</option>
+                        <option value="investment">Investment</option>
+                        <option value="other">Other</option>
+                    </select>
+                </div>
+                <div class="input-group" id="account-balance-group">
+                    <label for="account-starting-balance">Current Balance</label>
+                    <div class="input-with-prefix">
+                        <span class="input-prefix currency-prefix">R</span>
+                        <input type="number" id="account-starting-balance" step="0.01" placeholder="0.00">
+                    </div>
+                    <span class="input-hint">Balance right now (only when adding new account)</span>
+                </div>
+                <div class="modal-actions">
+                    <button type="button" class="btn btn-secondary modal-cancel">Cancel</button>
+                    <button type="submit" class="btn btn-primary" id="account-submit-btn">Add Account</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Transfer Between Accounts Modal -->
+    <div class="modal" id="transfer-modal">
+        <div class="modal-backdrop"></div>
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>Transfer Between Accounts</h3>
+                <button class="btn-icon modal-close">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <line x1="18" y1="6" x2="6" y2="18"/>
+                        <line x1="6" y1="6" x2="18" y2="18"/>
+                    </svg>
+                </button>
+            </div>
+            <form id="transfer-form" class="modal-form">
+                <div class="input-group">
+                    <label for="transfer-from">From Account</label>
+                    <select id="transfer-from" required></select>
+                </div>
+                <div class="input-group">
+                    <label for="transfer-to">To Account</label>
+                    <select id="transfer-to" required></select>
+                </div>
+                <div class="input-group">
+                    <label for="transfer-amount">Amount</label>
+                    <div class="input-with-prefix">
+                        <span class="input-prefix currency-prefix">R</span>
+                        <input type="number" id="transfer-amount" min="0.01" step="0.01" required>
+                    </div>
+                </div>
+                <div class="input-group">
+                    <label for="transfer-date">Date</label>
+                    <input type="date" id="transfer-date" required>
+                </div>
+                <div class="input-group">
+                    <label for="transfer-description">Note (optional)</label>
+                    <input type="text" id="transfer-description" placeholder="e.g., Move to savings">
+                </div>
+                <div class="modal-actions">
+                    <button type="button" class="btn btn-secondary modal-cancel">Cancel</button>
+                    <button type="submit" class="btn btn-primary">Transfer</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
     <!-- Toast Notification -->
     <div class="toast" id="toast">
         <span class="toast-message"></span>
@@ -1810,6 +2001,6 @@
     <script src="crypto.js?v=2"></script>
 
     <!-- App JavaScript -->
-    <script src="app.js?v=55"></script>
+    <script src="app.js?v=56"></script>
 </body>
 </html>

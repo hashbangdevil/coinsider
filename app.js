@@ -18,6 +18,10 @@ const state = {
     recurringTransactions: [],
     savingsBuckets: [],
     savingsSummary: null,
+    accounts: [],
+    accountsModuleEnabled: false,
+    accountsTotalBalance: 0,
+    accountTransfers: [],
     summary: null,
     chartSummary: null,
     spendingSummary: null,
@@ -30,11 +34,13 @@ const state = {
 // Note: amounts are not encrypted to preserve database numeric operations
 // Note: category_name is included for decryption since API returns it via joins
 const ENCRYPTED_FIELDS = {
-    transaction: ['description', 'category_name', 'savings_bucket_name'],
+    transaction: ['description', 'category_name', 'savings_bucket_name', 'account_name'],
     category: ['name'],
     recurring: ['description', 'category_name'],
     bucket: ['name'],
-    savingsTransaction: ['description', 'bucket_name']
+    savingsTransaction: ['description', 'bucket_name'],
+    account: ['name'],
+    accountTransfer: ['description', 'from_account_name', 'to_account_name']
 };
 
 // Reset state to defaults
@@ -46,6 +52,10 @@ function resetState() {
     state.recurringTransactions = [];
     state.savingsBuckets = [];
     state.savingsSummary = null;
+    state.accounts = [];
+    state.accountsModuleEnabled = false;
+    state.accountsTotalBalance = 0;
+    state.accountTransfers = [];
     state.summary = null;
     state.chartSummary = null;
     state.spendingSummary = null;
@@ -276,6 +286,39 @@ const elements = {
     bucketDeleteBtn: document.getElementById('bucket-delete-btn'),
     transactionBucket: document.getElementById('transaction-bucket'),
     savingsBucketGroup: document.getElementById('savings-bucket-group'),
+
+    // Accounts
+    accountsSection: document.getElementById('accounts-section'),
+    accountsBackBtn: document.getElementById('accounts-back-btn'),
+    accountsDisabled: document.getElementById('accounts-disabled'),
+    accountsContent: document.getElementById('accounts-content'),
+    accountsList: document.getElementById('accounts-list'),
+    noAccounts: document.getElementById('no-accounts'),
+    accountsTotalBalance: document.getElementById('accounts-total-balance'),
+    addAccountBtn: document.getElementById('add-account-btn'),
+    enableAccountsBtn: document.getElementById('enable-accounts-btn'),
+    transferBtn: document.getElementById('transfer-btn'),
+    accountModal: document.getElementById('account-modal'),
+    accountForm: document.getElementById('account-form'),
+    accountModalTitle: document.getElementById('account-modal-title'),
+    accountEditId: document.getElementById('account-edit-id'),
+    accountIcon: document.getElementById('account-icon'),
+    accountEmojiPreview: document.getElementById('account-emoji-preview'),
+    accountEmojiPicker: document.getElementById('account-emoji-picker'),
+    accountName: document.getElementById('account-name'),
+    accountType: document.getElementById('account-type'),
+    accountStartingBalance: document.getElementById('account-starting-balance'),
+    accountBalanceGroup: document.getElementById('account-balance-group'),
+    accountSubmitBtn: document.getElementById('account-submit-btn'),
+    transferModal: document.getElementById('transfer-modal'),
+    transferForm: document.getElementById('transfer-form'),
+    transferFrom: document.getElementById('transfer-from'),
+    transferTo: document.getElementById('transfer-to'),
+    transferAmount: document.getElementById('transfer-amount'),
+    transferDate: document.getElementById('transfer-date'),
+    transferDescription: document.getElementById('transfer-description'),
+    transactionAccount: document.getElementById('transaction-account'),
+    transactionAccountGroup: document.getElementById('transaction-account-group'),
 
     // Toast
     toast: document.getElementById('toast')
@@ -1308,12 +1351,13 @@ async function updateUserCurrency(currency) {
 async function loadAppData() {
     try {
         const period = 'all-time';
-        const [categories, transactions, summary, recurring, savingsBucketsData] = await Promise.all([
+        const [categories, transactions, summary, recurring, savingsBucketsData, accountsData] = await Promise.all([
             api('api.php?resource=categories'),
             api('api.php?resource=transactions&limit=50'),
             api(`api.php?resource=summary&period=${period}`),
             api('api.php?resource=recurring'),
-            api('api.php?resource=savings-buckets')
+            api('api.php?resource=savings-buckets'),
+            api('api.php?resource=accounts')
         ]);
 
 
@@ -1326,12 +1370,17 @@ async function loadAppData() {
         let buckets = savingsBucketsData?.buckets || [];
         let savingsSummary = savingsBucketsData?.summary || null;
 
+        // Handle accounts response (API returns { accounts, total_balance })
+        let accounts = accountsData?.accounts || [];
+        let accountsTotalBalance = accountsData?.total_balance || 0;
+
         // Decrypt data if encryption is enabled
         if (CryptoModule?.isReady()) {
             cats = await decryptCategories(cats);
             txns = await decryptTransactions(txns);
             recur = await decryptRecurringTransactions(recur);
             buckets = await decryptBuckets(buckets);
+            accounts = await decryptAccounts(accounts);
 
             // Also decrypt category data in summary
             if (summary?.categories) {
@@ -1344,6 +1393,9 @@ async function loadAppData() {
         state.recurringTransactions = recur;
         state.savingsBuckets = buckets;
         state.savingsSummary = savingsSummary;
+        state.accounts = accounts;
+        state.accountsTotalBalance = accountsTotalBalance;
+        state.accountsModuleEnabled = state.user?.accounts_enabled || false;
         state.summary = summary && typeof summary === 'object' ? summary : null;
     } catch (error) {
         console.error('Failed to load data:', error);
@@ -1352,6 +1404,9 @@ async function loadAppData() {
         state.recurringTransactions = [];
         state.savingsBuckets = [];
         state.savingsSummary = null;
+        state.accounts = [];
+        state.accountsTotalBalance = 0;
+        state.accountsModuleEnabled = false;
         state.summary = null;
         showToast('Failed to load data');
     }
@@ -1653,12 +1708,15 @@ function openEditCategoryModal(categoryId) {
 // Transaction Functions
 // ========================================
 
-async function createTransaction(description, amount, categoryId, type, date, savingsBucketId = null) {
+async function createTransaction(description, amount, categoryId, type, date, savingsBucketId = null, accountId = null) {
     try {
         // Encrypt data before sending
         let body = { description, amount, category_id: categoryId, type, date };
         if (savingsBucketId) {
             body.savings_bucket_id = savingsBucketId;
+        }
+        if (accountId) {
+            body.account_id = accountId;
         }
         body = await encryptTransaction(body);
 
@@ -1691,6 +1749,11 @@ async function createTransaction(description, amount, categoryId, type, date, sa
             state.savingsSummary = savingsBucketsData?.summary || null;
         }
 
+        // Update accounts if an account was used
+        if (accountId && state.accountsModuleEnabled) {
+            await loadAccounts();
+        }
+
         renderAll();
         showToast('Transaction added');
     } catch (error) {
@@ -1700,6 +1763,10 @@ async function createTransaction(description, amount, categoryId, type, date, sa
 
 async function deleteTransaction(id) {
     if (!await showConfirm('This transaction will be permanently deleted.', 'Delete Transaction')) return;
+
+    // Check if transaction has an account (for balance update)
+    const transaction = state.transactions.find(t => t.id === id);
+    const hadAccount = transaction?.account_id;
 
     try {
         await api(`api.php?resource=transactions&id=${id}`, { method: 'DELETE' });
@@ -1718,6 +1785,11 @@ async function deleteTransaction(id) {
             state.summary.categories = await decryptCategories(state.summary.categories);
         }
 
+        // Update accounts if the transaction had an account
+        if (hadAccount && state.accountsModuleEnabled) {
+            await loadAccounts();
+        }
+
         renderAll();
         showToast('Transaction deleted');
     } catch (error) {
@@ -1725,12 +1797,15 @@ async function deleteTransaction(id) {
     }
 }
 
-async function updateTransaction(id, description, amount, categoryId, type, date, savingsBucketId = null) {
+async function updateTransaction(id, description, amount, categoryId, type, date, savingsBucketId = null, accountId = null) {
     try {
         // Encrypt data before sending
         let body = { description, amount, category_id: categoryId, type, date };
         if (savingsBucketId) {
             body.savings_bucket_id = savingsBucketId;
+        }
+        if (accountId !== undefined) {
+            body.account_id = accountId;
         }
         body = await encryptTransaction(body);
 
@@ -1765,6 +1840,11 @@ async function updateTransaction(id, description, amount, categoryId, type, date
         // Update savings buckets
         state.savingsBuckets = await decryptBuckets(savingsBucketsData?.buckets || []);
         state.savingsSummary = savingsBucketsData?.summary || null;
+
+        // Update accounts if module is enabled
+        if (state.accountsModuleEnabled) {
+            await loadAccounts();
+        }
 
         renderAll();
         showToast('Transaction updated');
@@ -1809,6 +1889,12 @@ function openEditTransactionModal(transactionId) {
         elements.transactionBucket.value = transaction.savings_bucket_id || '';
     }
 
+    // Populate account dropdown and set current value
+    populateAccountDropdowns();
+    if (elements.transactionAccount) {
+        elements.transactionAccount.value = transaction.account_id || '';
+    }
+
     // Hide recurring options when editing (not applicable for existing transactions)
     const recurringToggle = document.getElementById('recurring-toggle');
     if (recurringToggle) recurringToggle.style.display = 'none';
@@ -1848,6 +1934,11 @@ function renderTransactions() {
         const catColor = transaction.category_color || '#64748b';
         const isIncome = transaction.type === 'income';
 
+        // Account badge (only show if accounts enabled and transaction has account)
+        const accountBadge = state.accountsModuleEnabled && transaction.account_id && transaction.account_name
+            ? `<span class="transaction-account-badge">${escapeHtml(transaction.account_icon || '💰')} ${escapeHtml(transaction.account_name)}</span>`
+            : '';
+
         const html = `
             <div class="transaction-item" data-id="${transaction.id}">
                 <div class="transaction-content" onclick="openEditTransactionModal(${transaction.id})">
@@ -1856,7 +1947,7 @@ function renderTransactions() {
                     </div>
                     <div class="transaction-info">
                         <div class="transaction-description">${escapeHtml(transaction.description)}</div>
-                        <div class="transaction-meta">${escapeHtml(catName)} • ${formatDate(transaction.date)}</div>
+                        <div class="transaction-meta">${escapeHtml(catName)} • ${formatDate(transaction.date)}${accountBadge ? ' ' + accountBadge : ''}</div>
                     </div>
                     <div class="transaction-amount ${transaction.type}">
                         ${isIncome ? '+' : '-'}${formatCurrency(transaction.amount)}
@@ -2744,6 +2835,10 @@ function showMenuSection(sectionName) {
             elements.savingsSection.style.display = 'block';
             renderSavingsBuckets();
             break;
+        case 'accounts':
+            elements.accountsSection.style.display = 'block';
+            renderAccounts();
+            break;
         case 'settings':
             elements.settingsSection.style.display = 'block';
             elements.settingsCurrency.value = state.user?.currency || 'ZAR';
@@ -3008,6 +3103,7 @@ function setupNavigationDrawer() {
     elements.settingsBackBtn?.addEventListener('click', showDashboard);
     elements.categoriesBackBtn?.addEventListener('click', showDashboard);
     elements.recurringBackBtn?.addEventListener('click', showDashboard);
+    elements.accountsBackBtn?.addEventListener('click', showDashboard);
 
     // Add category button in categories section
     elements.addCategoryBtn?.addEventListener('click', () => openNewCategoryModal());
@@ -3226,6 +3322,548 @@ function setupTransactionBucketToggle() {
             });
         });
     }
+}
+
+// ========================================
+// Accounts Module
+// ========================================
+
+// Account helper functions
+function getAccountById(accountId) {
+    return state.accounts.find(a => a.id === accountId);
+}
+
+function getAccountTypeLabel(type) {
+    const labels = {
+        'bank': 'Bank Account',
+        'credit_card': 'Credit Card',
+        'cash': 'Cash',
+        'savings': 'Savings Account',
+        'ewallet': 'E-Wallet',
+        'investment': 'Investment',
+        'other': 'Other'
+    };
+    return labels[type] || 'Account';
+}
+
+function getAccountTypeDefaultIcon(type) {
+    const icons = {
+        'bank': '🏦',
+        'credit_card': '💳',
+        'cash': '💵',
+        'savings': '🐷',
+        'ewallet': '📱',
+        'investment': '📈',
+        'other': '💰'
+    };
+    return icons[type] || '💰';
+}
+
+// Encryption helpers for accounts
+async function encryptAccount(account) {
+    if (!CryptoModule?.isReady()) return account;
+    const encrypted = { ...account };
+    for (const field of ENCRYPTED_FIELDS.account) {
+        if (encrypted[field]) {
+            encrypted[field] = await CryptoModule.encrypt(encrypted[field]);
+        }
+    }
+    return encrypted;
+}
+
+async function decryptAccount(account) {
+    if (!account || !CryptoModule?.isReady()) return account;
+    const decrypted = { ...account };
+    for (const field of ENCRYPTED_FIELDS.account) {
+        if (decrypted[field] && typeof decrypted[field] === 'string') {
+            try {
+                decrypted[field] = await CryptoModule.decrypt(decrypted[field]);
+            } catch (e) {
+                // Field might not be encrypted
+            }
+        }
+    }
+    return decrypted;
+}
+
+async function decryptAccounts(accounts) {
+    if (!accounts || !CryptoModule?.isReady()) return accounts;
+    return Promise.all(accounts.map(decryptAccount));
+}
+
+async function encryptAccountTransfer(transfer) {
+    if (!CryptoModule?.isReady()) return transfer;
+    const encrypted = { ...transfer };
+    // Only encrypt description field for transfers
+    if (encrypted.description) {
+        encrypted.description = await CryptoModule.encrypt(encrypted.description);
+    }
+    return encrypted;
+}
+
+async function decryptAccountTransfer(transfer) {
+    if (!transfer || !CryptoModule?.isReady()) return transfer;
+    const decrypted = { ...transfer };
+    for (const field of ENCRYPTED_FIELDS.accountTransfer) {
+        if (decrypted[field] && typeof decrypted[field] === 'string') {
+            try {
+                decrypted[field] = await CryptoModule.decrypt(decrypted[field]);
+            } catch (e) {
+                // Field might not be encrypted
+            }
+        }
+    }
+    return decrypted;
+}
+
+async function decryptAccountTransfers(transfers) {
+    if (!transfers || !CryptoModule?.isReady()) return transfers;
+    return Promise.all(transfers.map(decryptAccountTransfer));
+}
+
+// Accounts CRUD functions
+async function loadAccounts() {
+    try {
+        const data = await api('api.php?resource=accounts');
+        let accounts = data?.accounts || [];
+        accounts = await decryptAccounts(accounts);
+        state.accounts = accounts;
+        state.accountsTotalBalance = data?.total_balance || 0;
+        state.accountsModuleEnabled = state.user?.accounts_enabled || false;
+        renderAccounts();
+        populateAccountDropdowns();
+    } catch (error) {
+        console.error('Failed to load accounts:', error);
+    }
+}
+
+async function createAccount(name, type, icon, startingBalance) {
+    try {
+        let body = { name, type, icon, starting_balance: startingBalance };
+        body = await encryptAccount(body);
+
+        let account = await api('api.php?resource=accounts', {
+            method: 'POST',
+            body
+        });
+
+        account = await decryptAccount(account);
+        state.accounts.push(account);
+        state.accountsTotalBalance += startingBalance || 0;
+        renderAccounts();
+        populateAccountDropdowns();
+        showToast('Account created');
+        return account;
+    } catch (error) {
+        console.error('Failed to create account:', error);
+        showToast(error.message || 'Failed to create account');
+        return null;
+    }
+}
+
+async function updateAccount(id, data) {
+    try {
+        let body = { ...data };
+        body = await encryptAccount(body);
+
+        let account = await api(`api.php?resource=accounts&id=${id}`, {
+            method: 'PUT',
+            body
+        });
+
+        account = await decryptAccount(account);
+        const index = state.accounts.findIndex(a => a.id === id);
+        if (index !== -1) {
+            state.accounts[index] = account;
+        }
+        renderAccounts();
+        populateAccountDropdowns();
+        showToast('Account updated');
+        return account;
+    } catch (error) {
+        console.error('Failed to update account:', error);
+        showToast('Failed to update account');
+        return null;
+    }
+}
+
+async function deleteAccount(id) {
+    try {
+        await api(`api.php?resource=accounts&id=${id}`, { method: 'DELETE' });
+        const account = state.accounts.find(a => a.id === id);
+        if (account) {
+            state.accountsTotalBalance -= account.current_balance || 0;
+        }
+        state.accounts = state.accounts.filter(a => a.id !== id);
+        renderAccounts();
+        populateAccountDropdowns();
+        showToast('Account deleted');
+    } catch (error) {
+        console.error('Failed to delete account:', error);
+        const errorMsg = error.message || 'Failed to delete account';
+        if (errorMsg.includes('linked transactions')) {
+            showToast('Cannot delete: account has linked transactions');
+        } else {
+            showToast(errorMsg);
+        }
+    }
+}
+
+// Account transfers
+async function createAccountTransfer(fromAccountId, toAccountId, amount, description, date) {
+    try {
+        let body = {
+            from_account_id: fromAccountId,
+            to_account_id: toAccountId,
+            amount,
+            description,
+            date
+        };
+        body = await encryptAccountTransfer(body);
+
+        const transfer = await api('api.php?resource=account-transfers', {
+            method: 'POST',
+            body
+        });
+
+        // Update local account balances
+        const fromAccount = state.accounts.find(a => a.id === fromAccountId);
+        const toAccount = state.accounts.find(a => a.id === toAccountId);
+        if (fromAccount) fromAccount.current_balance -= amount;
+        if (toAccount) toAccount.current_balance += amount;
+
+        renderAccounts();
+        showToast('Transfer completed');
+        return transfer;
+    } catch (error) {
+        console.error('Failed to create transfer:', error);
+        showToast('Failed to create transfer');
+        return null;
+    }
+}
+
+async function deleteAccountTransfer(id) {
+    try {
+        await api(`api.php?resource=account-transfers&id=${id}`, { method: 'DELETE' });
+        // Reload accounts to get updated balances
+        await loadAccounts();
+        showToast('Transfer deleted');
+    } catch (error) {
+        console.error('Failed to delete transfer:', error);
+        showToast('Failed to delete transfer');
+    }
+}
+
+// Module toggle functions
+async function enableAccountsModule() {
+    try {
+        await api('api.php?resource=accounts', {
+            method: 'PUT',
+            body: { action: 'enable' }
+        });
+        state.accountsModuleEnabled = true;
+        if (state.user) state.user.accounts_enabled = true;
+        renderAccounts();
+        showToast('Accounts module enabled');
+    } catch (error) {
+        console.error('Failed to enable accounts module:', error);
+        showToast('Failed to enable accounts module');
+    }
+}
+
+async function disableAccountsModule() {
+    try {
+        await api('api.php?resource=accounts', {
+            method: 'PUT',
+            body: { action: 'disable' }
+        });
+        state.accountsModuleEnabled = false;
+        if (state.user) state.user.accounts_enabled = false;
+        renderAccounts();
+        showToast('Accounts module disabled');
+    } catch (error) {
+        console.error('Failed to disable accounts module:', error);
+        showToast('Failed to disable accounts module');
+    }
+}
+
+// Render functions
+function renderAccounts() {
+    const container = elements.accountsList;
+    const emptyState = elements.noAccounts;
+    const disabledState = elements.accountsDisabled;
+    const contentState = elements.accountsContent;
+
+    if (!container) return;
+
+    // Check if module is enabled
+    if (!state.accountsModuleEnabled) {
+        if (disabledState) disabledState.style.display = 'block';
+        if (contentState) contentState.style.display = 'none';
+        if (elements.addAccountBtn) elements.addAccountBtn.style.display = 'none';
+        if (elements.transferBtn) elements.transferBtn.style.display = 'none';
+        return;
+    }
+
+    // Module is enabled - show buttons
+    if (disabledState) disabledState.style.display = 'none';
+    if (contentState) contentState.style.display = 'block';
+    if (elements.addAccountBtn) elements.addAccountBtn.style.display = 'inline-flex';
+    if (elements.transferBtn) elements.transferBtn.style.display = state.accounts.length >= 2 ? 'inline-flex' : 'none';
+
+    const accounts = state.accounts || [];
+
+    // Update total balance
+    if (elements.accountsTotalBalance) {
+        elements.accountsTotalBalance.textContent = formatCurrency(state.accountsTotalBalance);
+    }
+
+    if (accounts.length === 0) {
+        container.innerHTML = '';
+        if (emptyState) {
+            container.appendChild(emptyState);
+            emptyState.style.display = 'flex';
+        }
+        return;
+    }
+
+    if (emptyState) emptyState.style.display = 'none';
+    container.innerHTML = '';
+
+    accounts.forEach(account => {
+        const card = renderAccountCard(account);
+        container.appendChild(card);
+    });
+}
+
+function renderAccountCard(account) {
+    const card = document.createElement('div');
+    card.className = 'account-card';
+    card.dataset.accountId = account.id;
+
+    const balance = account.current_balance || 0;
+    const isNegative = balance < 0;
+    const balanceClass = isNegative ? 'negative' : (balance > 0 ? 'positive' : '');
+
+    card.innerHTML = `
+        <div class="account-icon">${escapeHtml(account.icon || getAccountTypeDefaultIcon(account.type))}</div>
+        <div class="account-info">
+            <div class="account-name">${escapeHtml(account.name)}</div>
+            <div class="account-type">${getAccountTypeLabel(account.type)}</div>
+        </div>
+        <div class="account-balance">
+            <div class="account-balance-amount ${balanceClass}">${formatCurrency(balance)}</div>
+        </div>
+    `;
+
+    // Click to edit
+    card.addEventListener('click', () => openAccountModal(account.id));
+
+    return card;
+}
+
+function populateAccountDropdowns() {
+    // Populate transaction account dropdown
+    if (elements.transactionAccount) {
+        const currentValue = elements.transactionAccount.value;
+        elements.transactionAccount.innerHTML = '<option value="">No account</option>';
+
+        state.accounts.forEach(account => {
+            const option = document.createElement('option');
+            option.value = account.id;
+            option.textContent = `${account.icon} ${account.name}`;
+            elements.transactionAccount.appendChild(option);
+        });
+
+        // Restore selection if valid
+        if (currentValue && state.accounts.some(a => a.id == currentValue)) {
+            elements.transactionAccount.value = currentValue;
+        }
+    }
+
+    // Populate transfer dropdowns
+    if (elements.transferFrom) {
+        const currentValue = elements.transferFrom.value;
+        elements.transferFrom.innerHTML = '<option value="">Select account</option>';
+        state.accounts.forEach(account => {
+            const option = document.createElement('option');
+            option.value = account.id;
+            option.textContent = `${account.icon} ${account.name} (${formatCurrency(account.current_balance || 0)})`;
+            elements.transferFrom.appendChild(option);
+        });
+        if (currentValue) elements.transferFrom.value = currentValue;
+    }
+
+    if (elements.transferTo) {
+        const currentValue = elements.transferTo.value;
+        elements.transferTo.innerHTML = '<option value="">Select account</option>';
+        state.accounts.forEach(account => {
+            const option = document.createElement('option');
+            option.value = account.id;
+            option.textContent = `${account.icon} ${account.name}`;
+            elements.transferTo.appendChild(option);
+        });
+        if (currentValue) elements.transferTo.value = currentValue;
+    }
+
+    // Show/hide account dropdown in transaction modal based on module status
+    if (elements.transactionAccountGroup) {
+        elements.transactionAccountGroup.style.display = state.accountsModuleEnabled ? 'block' : 'none';
+    }
+}
+
+// ========================================
+// Accounts Modals
+// ========================================
+
+let currentEditingAccount = null;
+
+function openAccountModal(accountId = null) {
+    currentEditingAccount = accountId ? getAccountById(accountId) : null;
+
+    elements.accountModalTitle.textContent = currentEditingAccount ? 'Edit Account' : 'Add Account';
+    elements.accountSubmitBtn.textContent = currentEditingAccount ? 'Save Changes' : 'Add Account';
+
+    if (currentEditingAccount) {
+        elements.accountEditId.value = currentEditingAccount.id;
+        elements.accountName.value = currentEditingAccount.name;
+        elements.accountType.value = currentEditingAccount.type;
+        elements.accountIcon.value = currentEditingAccount.icon || getAccountTypeDefaultIcon(currentEditingAccount.type);
+        elements.accountEmojiPreview.textContent = currentEditingAccount.icon || getAccountTypeDefaultIcon(currentEditingAccount.type);
+        // Hide starting balance when editing
+        if (elements.accountBalanceGroup) {
+            elements.accountBalanceGroup.style.display = 'none';
+        }
+    } else {
+        elements.accountEditId.value = '';
+        elements.accountName.value = '';
+        elements.accountType.value = 'bank';
+        elements.accountIcon.value = '🏦';
+        elements.accountEmojiPreview.textContent = '🏦';
+        elements.accountStartingBalance.value = '';
+        // Show starting balance when creating
+        if (elements.accountBalanceGroup) {
+            elements.accountBalanceGroup.style.display = 'block';
+        }
+    }
+
+    openModal(elements.accountModal);
+}
+
+function openTransferModal() {
+    if (state.accounts.length < 2) {
+        showToast('You need at least 2 accounts to transfer');
+        return;
+    }
+
+    elements.transferForm.reset();
+    elements.transferDate.value = new Date().toISOString().split('T')[0];
+    populateAccountDropdowns();
+    openModal(elements.transferModal);
+}
+
+function setupAccountModals() {
+    // Add account button
+    elements.addAccountBtn?.addEventListener('click', () => openAccountModal());
+
+    // Enable accounts button
+    elements.enableAccountsBtn?.addEventListener('click', async () => {
+        await enableAccountsModule();
+    });
+
+    // Transfer button
+    elements.transferBtn?.addEventListener('click', () => openTransferModal());
+
+    // Account form submit
+    elements.accountForm?.addEventListener('submit', async (e) => {
+        e.preventDefault();
+
+        const name = elements.accountName.value.trim();
+        const type = elements.accountType.value;
+        const icon = elements.accountIcon.value;
+
+        if (!name) {
+            showToast('Please enter an account name');
+            return;
+        }
+
+        if (currentEditingAccount) {
+            await updateAccount(currentEditingAccount.id, { name, type, icon });
+        } else {
+            const startingBalance = parseFloat(elements.accountStartingBalance.value) || 0;
+            await createAccount(name, type, icon, startingBalance);
+        }
+
+        closeModal(elements.accountModal);
+    });
+
+    // Account emoji picker
+    elements.accountEmojiPicker?.querySelectorAll('.emoji-option').forEach(btn => {
+        btn.addEventListener('click', () => {
+            const emoji = btn.dataset.emoji;
+            elements.accountIcon.value = emoji;
+            elements.accountEmojiPreview.textContent = emoji;
+        });
+    });
+
+    // Account type change updates default icon
+    elements.accountType?.addEventListener('change', () => {
+        if (!currentEditingAccount) {
+            const defaultIcon = getAccountTypeDefaultIcon(elements.accountType.value);
+            elements.accountIcon.value = defaultIcon;
+            elements.accountEmojiPreview.textContent = defaultIcon;
+        }
+    });
+
+    // Transfer form submit
+    elements.transferForm?.addEventListener('submit', async (e) => {
+        e.preventDefault();
+
+        const fromId = parseInt(elements.transferFrom.value);
+        const toId = parseInt(elements.transferTo.value);
+        const amount = parseFloat(elements.transferAmount.value);
+        const date = elements.transferDate.value;
+        const description = elements.transferDescription.value.trim();
+
+        if (!fromId || !toId) {
+            showToast('Please select both accounts');
+            return;
+        }
+
+        if (fromId === toId) {
+            showToast('Cannot transfer to the same account');
+            return;
+        }
+
+        if (!amount || amount <= 0) {
+            showToast('Please enter a valid amount');
+            return;
+        }
+
+        await createAccountTransfer(fromId, toId, amount, description, date);
+        closeModal(elements.transferModal);
+    });
+
+    // Account card delete via long press or context menu (future enhancement)
+    // For now, add a delete button in the modal
+    const deleteBtn = elements.accountModal?.querySelector('.btn-danger');
+    deleteBtn?.addEventListener('click', async () => {
+        if (!currentEditingAccount) return;
+        const confirmed = await showConfirm(
+            'This cannot be undone. You can only delete accounts with no linked transactions.',
+            `Delete "${currentEditingAccount.name}"?`
+        );
+        if (confirmed) {
+            closeModal(elements.accountModal);
+            await deleteAccount(currentEditingAccount.id);
+        }
+    });
+
+    // Back button for accounts section
+    elements.accountsBackBtn?.addEventListener('click', () => {
+        hideAllMenuSections();
+        elements.dashboardContent.style.display = 'block';
+    });
 }
 
 // ========================================
@@ -3479,6 +4117,11 @@ function renderTransactionsModal() {
         const catColor = transaction.category_color || '#64748b';
         const isIncome = transaction.type === 'income';
 
+        // Account badge (only show if accounts enabled and transaction has account)
+        const accountBadge = state.accountsModuleEnabled && transaction.account_id && transaction.account_name
+            ? `<span class="transaction-account-badge">${escapeHtml(transaction.account_icon || '💰')} ${escapeHtml(transaction.account_name)}</span>`
+            : '';
+
         const html = `
             <div class="transaction-item" data-id="${transaction.id}" onclick="openEditTransactionModal(${transaction.id})">
                 <div class="transaction-content">
@@ -3487,7 +4130,7 @@ function renderTransactionsModal() {
                     </div>
                     <div class="transaction-info">
                         <div class="transaction-description">${escapeHtml(transaction.description)}</div>
-                        <div class="transaction-meta">${escapeHtml(catName)} • ${formatDate(transaction.date)}</div>
+                        <div class="transaction-meta">${escapeHtml(catName)} • ${formatDate(transaction.date)}${accountBadge ? ' ' + accountBadge : ''}</div>
                     </div>
                     <div class="transaction-amount ${transaction.type}">
                         ${isIncome ? '+' : '-'}${formatCurrency(transaction.amount)}
@@ -3764,6 +4407,8 @@ function renderAll() {
     renderChart();
     renderSavingsBuckets();
     updateSavingsSummary();
+    renderAccounts();
+    populateAccountDropdowns();
     updateCurrencyPrefixes();
     updateVerificationBanner();
 }
@@ -3927,6 +4572,12 @@ function setupModals() {
             elements.transactionBucket.value = '';
         }
 
+        // Populate account dropdown and reset value
+        populateAccountDropdowns();
+        if (elements.transactionAccount) {
+            elements.transactionAccount.value = '';
+        }
+
         // Show recurring toggle and reset options
         const recurringToggle = document.getElementById('recurring-toggle');
         if (recurringToggle) recurringToggle.style.display = 'block';
@@ -3970,6 +4621,7 @@ function setupModals() {
         const type = document.querySelector('.transaction-type-toggle .type-btn.active').dataset.type;
         const isRecurring = elements.transactionRecurring?.checked || false;
         const savingsBucketId = elements.transactionBucket?.value ? parseInt(elements.transactionBucket.value) : null;
+        const accountId = elements.transactionAccount?.value ? parseInt(elements.transactionAccount.value) : null;
 
         if (!categoryId) {
             showToast('Please select a category');
@@ -3977,14 +4629,14 @@ function setupModals() {
         }
 
         if (editingTransactionId) {
-            await updateTransaction(editingTransactionId, description, parseFloat(amount), parseInt(categoryId), type, date, savingsBucketId);
+            await updateTransaction(editingTransactionId, description, parseFloat(amount), parseInt(categoryId), type, date, savingsBucketId, accountId);
         } else if (isRecurring) {
             // Create recurring transaction instead
             const frequency = document.getElementById('transaction-frequency').value;
             const endDate = document.getElementById('transaction-end-date').value || null;
             await createRecurringTransaction(description, parseFloat(amount), parseInt(categoryId), type, frequency, date, endDate);
         } else {
-            await createTransaction(description, parseFloat(amount), parseInt(categoryId), type, date, savingsBucketId);
+            await createTransaction(description, parseFloat(amount), parseInt(categoryId), type, date, savingsBucketId, accountId);
         }
 
         editingTransactionId = null;
@@ -5249,6 +5901,7 @@ async function init() {
     setupPasswordStrength();
     setupEncryptionHandlers();
     setupBucketModals();
+    setupAccountModals();
     setupBalanceCard();
     setupInstallPrompt();
 

@@ -103,6 +103,13 @@ class Database {
             }
         }
 
+        // Add accounts_enabled column (migration for existing DBs)
+        try {
+            $this->pdo->exec("ALTER TABLE users ADD COLUMN accounts_enabled INTEGER DEFAULT 0");
+        } catch (PDOException $e) {
+            // Column already exists, ignore
+        }
+
         // Transactions table
         $this->pdo->exec("
             CREATE TABLE IF NOT EXISTS transactions (
@@ -213,6 +220,49 @@ class Database {
             // Column already exists, ignore
         }
 
+        // Accounts table
+        $this->pdo->exec("
+            CREATE TABLE IF NOT EXISTS accounts (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                user_id INTEGER NOT NULL,
+                name TEXT NOT NULL,
+                type TEXT NOT NULL CHECK (type IN ('bank', 'credit_card', 'cash', 'savings', 'ewallet', 'investment', 'other')),
+                icon TEXT DEFAULT '🏦',
+                color TEXT,
+                current_balance REAL DEFAULT 0,
+                is_active INTEGER DEFAULT 1,
+                sort_order INTEGER DEFAULT 0,
+                created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+                UNIQUE(user_id, name)
+            )
+        ");
+
+        // Account transfers table
+        $this->pdo->exec("
+            CREATE TABLE IF NOT EXISTS account_transfers (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                user_id INTEGER NOT NULL,
+                from_account_id INTEGER NOT NULL,
+                to_account_id INTEGER NOT NULL,
+                amount REAL NOT NULL,
+                description TEXT,
+                date DATE NOT NULL,
+                created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+                FOREIGN KEY (from_account_id) REFERENCES accounts(id) ON DELETE CASCADE,
+                FOREIGN KEY (to_account_id) REFERENCES accounts(id) ON DELETE CASCADE
+            )
+        ");
+
+        // Add account_id column to transactions (migration for existing DBs)
+        try {
+            $this->pdo->exec("ALTER TABLE transactions ADD COLUMN account_id INTEGER REFERENCES accounts(id) ON DELETE SET NULL");
+        } catch (PDOException $e) {
+            // Column already exists, ignore
+        }
+
         // Indexes
         $this->pdo->exec("CREATE INDEX IF NOT EXISTS idx_users_email ON users(email)");
         $this->pdo->exec("CREATE INDEX IF NOT EXISTS idx_users_reset_token ON users(reset_token)");
@@ -227,6 +277,9 @@ class Database {
         $this->pdo->exec("CREATE INDEX IF NOT EXISTS idx_savings_transactions_user ON savings_transactions(user_id)");
         $this->pdo->exec("CREATE INDEX IF NOT EXISTS idx_savings_transactions_bucket ON savings_transactions(bucket_id)");
         $this->pdo->exec("CREATE INDEX IF NOT EXISTS idx_transactions_savings_bucket ON transactions(savings_bucket_id)");
+        $this->pdo->exec("CREATE INDEX IF NOT EXISTS idx_accounts_user ON accounts(user_id)");
+        $this->pdo->exec("CREATE INDEX IF NOT EXISTS idx_account_transfers_user ON account_transfers(user_id)");
+        $this->pdo->exec("CREATE INDEX IF NOT EXISTS idx_transactions_account ON transactions(account_id)");
     }
 }
 
@@ -711,10 +764,12 @@ function getTransactions($userId, $limit = 100) {
     $pdo = Database::getInstance()->getPdo();
     $stmt = $pdo->prepare("
         SELECT t.*, c.name as category_name, c.icon as category_icon, c.color as category_color,
-               sb.name as savings_bucket_name, sb.icon as savings_bucket_icon
+               sb.name as savings_bucket_name, sb.icon as savings_bucket_icon,
+               a.name as account_name, a.icon as account_icon
         FROM transactions t
         LEFT JOIN categories c ON t.category_id = c.id
         LEFT JOIN savings_buckets sb ON t.savings_bucket_id = sb.id
+        LEFT JOIN accounts a ON t.account_id = a.id
         WHERE t.user_id = ?
         ORDER BY t.date DESC, t.created_at DESC
         LIMIT ?
@@ -727,10 +782,12 @@ function getTransaction($userId, $transactionId) {
     $pdo = Database::getInstance()->getPdo();
     $stmt = $pdo->prepare("
         SELECT t.*, c.name as category_name, c.icon as category_icon, c.color as category_color,
-               sb.name as savings_bucket_name, sb.icon as savings_bucket_icon
+               sb.name as savings_bucket_name, sb.icon as savings_bucket_icon,
+               a.name as account_name, a.icon as account_icon
         FROM transactions t
         LEFT JOIN categories c ON t.category_id = c.id
         LEFT JOIN savings_buckets sb ON t.savings_bucket_id = sb.id
+        LEFT JOIN accounts a ON t.account_id = a.id
         WHERE t.id = ? AND t.user_id = ?
     ");
     $stmt->execute([$transactionId, $userId]);
@@ -1353,10 +1410,12 @@ function getTransactionsFiltered($userId, $limit = 100, $categoryId = null, $sta
 
     $sql = "
         SELECT t.*, c.name as category_name, c.icon as category_icon, c.color as category_color,
-               sb.name as savings_bucket_name, sb.icon as savings_bucket_icon
+               sb.name as savings_bucket_name, sb.icon as savings_bucket_icon,
+               a.name as account_name, a.icon as account_icon
         FROM transactions t
         LEFT JOIN categories c ON t.category_id = c.id
         LEFT JOIN savings_buckets sb ON t.savings_bucket_id = sb.id
+        LEFT JOIN accounts a ON t.account_id = a.id
         WHERE t.user_id = ?
     ";
     $params = [$userId];
@@ -1896,6 +1955,534 @@ function deleteTransactionWithSavings($userId, $transactionId) {
             if ($linkedSavings) {
                 _deleteSavingsTransactionInternal($pdo, $userId, $linkedSavings['id'], $linkedSavings);
             }
+        }
+
+        // Delete the transaction
+        $stmt = $pdo->prepare("DELETE FROM transactions WHERE id = ? AND user_id = ?");
+        $stmt->execute([$transactionId, $userId]);
+        $result = $stmt->rowCount() > 0;
+
+        $pdo->commit();
+        return $result;
+    } catch (Exception $e) {
+        $pdo->rollBack();
+        throw $e;
+    }
+}
+
+// ========================================
+// Accounts Module Functions
+// ========================================
+
+function isAccountsModuleEnabled($userId) {
+    $pdo = Database::getInstance()->getPdo();
+    $stmt = $pdo->prepare("SELECT accounts_enabled FROM users WHERE id = ?");
+    $stmt->execute([$userId]);
+    $result = $stmt->fetch();
+    return $result && (bool) $result['accounts_enabled'];
+}
+
+function enableAccountsModule($userId) {
+    $pdo = Database::getInstance()->getPdo();
+    $stmt = $pdo->prepare("UPDATE users SET accounts_enabled = 1, updated_at = CURRENT_TIMESTAMP WHERE id = ?");
+    $stmt->execute([$userId]);
+    return true;
+}
+
+function disableAccountsModule($userId) {
+    $pdo = Database::getInstance()->getPdo();
+    $stmt = $pdo->prepare("UPDATE users SET accounts_enabled = 0, updated_at = CURRENT_TIMESTAMP WHERE id = ?");
+    $stmt->execute([$userId]);
+    return true;
+}
+
+// ========================================
+// Account CRUD Functions
+// ========================================
+
+function getAccounts($userId) {
+    $pdo = Database::getInstance()->getPdo();
+    $stmt = $pdo->prepare("
+        SELECT * FROM accounts
+        WHERE user_id = ?
+        ORDER BY sort_order ASC, name ASC
+    ");
+    $stmt->execute([$userId]);
+    return $stmt->fetchAll();
+}
+
+function getAccount($userId, $accountId) {
+    $pdo = Database::getInstance()->getPdo();
+    $stmt = $pdo->prepare("SELECT * FROM accounts WHERE id = ? AND user_id = ?");
+    $stmt->execute([$accountId, $userId]);
+    return $stmt->fetch();
+}
+
+function createAccount($userId, $name, $type, $icon, $color, $startingBalance = 0) {
+    $pdo = Database::getInstance()->getPdo();
+
+    // Get next sort order
+    $stmt = $pdo->prepare("SELECT COALESCE(MAX(sort_order), 0) + 1 as next_order FROM accounts WHERE user_id = ?");
+    $stmt->execute([$userId]);
+    $result = $stmt->fetch();
+    $sortOrder = $result['next_order'];
+
+    // Auto-assign color if not provided
+    if (!$color) {
+        $stmt = $pdo->prepare("SELECT COUNT(*) as count FROM accounts WHERE user_id = ?");
+        $stmt->execute([$userId]);
+        $count = $stmt->fetch()['count'];
+        $color = CATEGORY_COLORS[$count % count(CATEGORY_COLORS)];
+    }
+
+    $stmt = $pdo->prepare("
+        INSERT INTO accounts (user_id, name, type, icon, color, current_balance, sort_order)
+        VALUES (?, ?, ?, ?, ?, ?, ?)
+    ");
+    $stmt->execute([$userId, trim($name), $type, $icon, $color, $startingBalance, $sortOrder]);
+    return getAccount($userId, $pdo->lastInsertId());
+}
+
+function updateAccount($userId, $accountId, $data) {
+    $pdo = Database::getInstance()->getPdo();
+
+    $fields = [];
+    $params = [];
+
+    if (isset($data['name'])) {
+        $fields[] = "name = ?";
+        $params[] = trim($data['name']);
+    }
+    if (isset($data['type'])) {
+        $fields[] = "type = ?";
+        $params[] = $data['type'];
+    }
+    if (isset($data['icon'])) {
+        $fields[] = "icon = ?";
+        $params[] = $data['icon'];
+    }
+    if (isset($data['color'])) {
+        $fields[] = "color = ?";
+        $params[] = $data['color'];
+    }
+    if (isset($data['is_active'])) {
+        $fields[] = "is_active = ?";
+        $params[] = $data['is_active'] ? 1 : 0;
+    }
+    if (isset($data['sort_order'])) {
+        $fields[] = "sort_order = ?";
+        $params[] = $data['sort_order'];
+    }
+
+    if (empty($fields)) {
+        return getAccount($userId, $accountId);
+    }
+
+    $fields[] = "updated_at = CURRENT_TIMESTAMP";
+    $params[] = $accountId;
+    $params[] = $userId;
+
+    $sql = "UPDATE accounts SET " . implode(", ", $fields) . " WHERE id = ? AND user_id = ?";
+    $stmt = $pdo->prepare($sql);
+    $stmt->execute($params);
+
+    return getAccount($userId, $accountId);
+}
+
+function deleteAccount($userId, $accountId) {
+    $pdo = Database::getInstance()->getPdo();
+
+    // Check if account has linked transactions
+    if (accountHasTransactions($userId, $accountId)) {
+        return false; // Cannot delete, has transactions
+    }
+
+    // Delete any transfers involving this account
+    $stmt = $pdo->prepare("DELETE FROM account_transfers WHERE user_id = ? AND (from_account_id = ? OR to_account_id = ?)");
+    $stmt->execute([$userId, $accountId, $accountId]);
+
+    // Delete the account
+    $stmt = $pdo->prepare("DELETE FROM accounts WHERE id = ? AND user_id = ?");
+    $stmt->execute([$accountId, $userId]);
+    return $stmt->rowCount() > 0;
+}
+
+function accountHasTransactions($userId, $accountId) {
+    $pdo = Database::getInstance()->getPdo();
+    $stmt = $pdo->prepare("SELECT COUNT(*) as count FROM transactions WHERE user_id = ? AND account_id = ?");
+    $stmt->execute([$userId, $accountId]);
+    $result = $stmt->fetch();
+    return $result['count'] > 0;
+}
+
+function getTotalAccountsBalance($userId) {
+    $pdo = Database::getInstance()->getPdo();
+    $stmt = $pdo->prepare("SELECT COALESCE(SUM(current_balance), 0) as total FROM accounts WHERE user_id = ? AND is_active = 1");
+    $stmt->execute([$userId]);
+    $result = $stmt->fetch();
+    return (float) $result['total'];
+}
+
+function recalculateAccountBalance($userId, $accountId) {
+    $pdo = Database::getInstance()->getPdo();
+
+    // Get starting balance (we don't store it separately, so we need to work backwards)
+    // For simplicity, recalculate from all transactions and transfers
+
+    // Sum of income transactions linked to this account
+    $stmt = $pdo->prepare("SELECT COALESCE(SUM(amount), 0) as total FROM transactions WHERE user_id = ? AND account_id = ? AND type = 'income'");
+    $stmt->execute([$userId, $accountId]);
+    $income = (float) $stmt->fetch()['total'];
+
+    // Sum of expense transactions linked to this account
+    $stmt = $pdo->prepare("SELECT COALESCE(SUM(amount), 0) as total FROM transactions WHERE user_id = ? AND account_id = ? AND type = 'expense'");
+    $stmt->execute([$userId, $accountId]);
+    $expense = (float) $stmt->fetch()['total'];
+
+    // Sum of transfers into this account
+    $stmt = $pdo->prepare("SELECT COALESCE(SUM(amount), 0) as total FROM account_transfers WHERE user_id = ? AND to_account_id = ?");
+    $stmt->execute([$userId, $accountId]);
+    $transfersIn = (float) $stmt->fetch()['total'];
+
+    // Sum of transfers out of this account
+    $stmt = $pdo->prepare("SELECT COALESCE(SUM(amount), 0) as total FROM account_transfers WHERE user_id = ? AND from_account_id = ?");
+    $stmt->execute([$userId, $accountId]);
+    $transfersOut = (float) $stmt->fetch()['total'];
+
+    // Note: This doesn't include the initial balance when the account was created
+    // The initial balance would need to be stored or this function would need additional context
+    // For now, just return the calculated balance without updating (for verification purposes)
+    return $income - $expense + $transfersIn - $transfersOut;
+}
+
+// Internal helper for atomic balance updates
+function _updateAccountBalance($pdo, $accountId, $delta) {
+    $stmt = $pdo->prepare("UPDATE accounts SET current_balance = current_balance + ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?");
+    $stmt->execute([$delta, $accountId]);
+}
+
+// ========================================
+// Account Transfer Functions
+// ========================================
+
+function getAccountTransfers($userId, $accountId = null, $limit = 100) {
+    $pdo = Database::getInstance()->getPdo();
+
+    if ($accountId !== null) {
+        $stmt = $pdo->prepare("
+            SELECT at.*,
+                   fa.name as from_account_name, fa.icon as from_account_icon,
+                   ta.name as to_account_name, ta.icon as to_account_icon
+            FROM account_transfers at
+            LEFT JOIN accounts fa ON at.from_account_id = fa.id
+            LEFT JOIN accounts ta ON at.to_account_id = ta.id
+            WHERE at.user_id = ? AND (at.from_account_id = ? OR at.to_account_id = ?)
+            ORDER BY at.date DESC, at.created_at DESC
+            LIMIT ?
+        ");
+        $stmt->execute([$userId, $accountId, $accountId, $limit]);
+    } else {
+        $stmt = $pdo->prepare("
+            SELECT at.*,
+                   fa.name as from_account_name, fa.icon as from_account_icon,
+                   ta.name as to_account_name, ta.icon as to_account_icon
+            FROM account_transfers at
+            LEFT JOIN accounts fa ON at.from_account_id = fa.id
+            LEFT JOIN accounts ta ON at.to_account_id = ta.id
+            WHERE at.user_id = ?
+            ORDER BY at.date DESC, at.created_at DESC
+            LIMIT ?
+        ");
+        $stmt->execute([$userId, $limit]);
+    }
+
+    return $stmt->fetchAll();
+}
+
+function getAccountTransfer($userId, $transferId) {
+    $pdo = Database::getInstance()->getPdo();
+    $stmt = $pdo->prepare("
+        SELECT at.*,
+               fa.name as from_account_name, fa.icon as from_account_icon,
+               ta.name as to_account_name, ta.icon as to_account_icon
+        FROM account_transfers at
+        LEFT JOIN accounts fa ON at.from_account_id = fa.id
+        LEFT JOIN accounts ta ON at.to_account_id = ta.id
+        WHERE at.id = ? AND at.user_id = ?
+    ");
+    $stmt->execute([$transferId, $userId]);
+    return $stmt->fetch();
+}
+
+function createAccountTransfer($userId, $fromAccountId, $toAccountId, $amount, $description, $date) {
+    $pdo = Database::getInstance()->getPdo();
+
+    // Validate both accounts belong to user
+    $fromAccount = getAccount($userId, $fromAccountId);
+    $toAccount = getAccount($userId, $toAccountId);
+
+    if (!$fromAccount || !$toAccount) {
+        return null;
+    }
+
+    if ($fromAccountId === $toAccountId) {
+        return null; // Cannot transfer to same account
+    }
+
+    $pdo->beginTransaction();
+    try {
+        // Insert the transfer record
+        $stmt = $pdo->prepare("
+            INSERT INTO account_transfers (user_id, from_account_id, to_account_id, amount, description, date)
+            VALUES (?, ?, ?, ?, ?, ?)
+        ");
+        $stmt->execute([$userId, $fromAccountId, $toAccountId, $amount, $description, $date]);
+        $transferId = $pdo->lastInsertId();
+
+        // Update account balances atomically
+        _updateAccountBalance($pdo, $fromAccountId, -$amount);
+        _updateAccountBalance($pdo, $toAccountId, $amount);
+
+        $pdo->commit();
+        return getAccountTransfer($userId, $transferId);
+    } catch (Exception $e) {
+        $pdo->rollBack();
+        throw $e;
+    }
+}
+
+function deleteAccountTransfer($userId, $transferId) {
+    $pdo = Database::getInstance()->getPdo();
+
+    // Get the transfer first
+    $transfer = getAccountTransfer($userId, $transferId);
+    if (!$transfer) {
+        return false;
+    }
+
+    $pdo->beginTransaction();
+    try {
+        // Reverse the balance changes
+        _updateAccountBalance($pdo, $transfer['from_account_id'], $transfer['amount']);
+        _updateAccountBalance($pdo, $transfer['to_account_id'], -$transfer['amount']);
+
+        // Delete the transfer
+        $stmt = $pdo->prepare("DELETE FROM account_transfers WHERE id = ? AND user_id = ?");
+        $stmt->execute([$transferId, $userId]);
+
+        $pdo->commit();
+        return $stmt->rowCount() > 0;
+    } catch (Exception $e) {
+        $pdo->rollBack();
+        throw $e;
+    }
+}
+
+// ========================================
+// Modified Transaction Functions for Accounts
+// ========================================
+
+function createTransactionWithAccount($userId, $description, $amount, $categoryId, $type, $date, $savingsBucketId = null, $accountId = null) {
+    $pdo = Database::getInstance()->getPdo();
+
+    // Get the category to validate and get a name for the legacy column
+    $category = getCategory($userId, $categoryId);
+    if (!$category) {
+        return null;
+    }
+
+    // Validate category type matches transaction type
+    if ($category['type'] !== $type) {
+        return null;
+    }
+
+    // If savings bucket specified, validate it
+    if ($savingsBucketId !== null) {
+        $bucket = getSavingsBucket($userId, $savingsBucketId);
+        if (!$bucket) {
+            return null;
+        }
+        // Only expenses can be funded from savings
+        if ($type !== 'expense') {
+            $savingsBucketId = null;
+        }
+    }
+
+    // If account specified, validate it
+    if ($accountId !== null) {
+        $account = getAccount($userId, $accountId);
+        if (!$account) {
+            return null;
+        }
+    }
+
+    $pdo->beginTransaction();
+    try {
+        $stmt = $pdo->prepare("
+            INSERT INTO transactions (user_id, description, amount, category, category_id, type, date, savings_bucket_id, account_id)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ");
+        $stmt->execute([$userId, $description, $amount, $category['name'], $categoryId, $type, $date, $savingsBucketId, $accountId]);
+        $transactionId = $pdo->lastInsertId();
+
+        // If expense is funded from savings bucket, create a withdrawal
+        if ($savingsBucketId !== null && $type === 'expense') {
+            _addSavingsTransactionInternal(
+                $pdo,
+                $userId,
+                $savingsBucketId,
+                $amount,
+                'withdrawal',
+                "Expense: $description",
+                $date,
+                $transactionId
+            );
+        }
+
+        // Update account balance if linked
+        if ($accountId !== null) {
+            $delta = ($type === 'income') ? $amount : -$amount;
+            _updateAccountBalance($pdo, $accountId, $delta);
+        }
+
+        $pdo->commit();
+        return getTransaction($userId, $transactionId);
+    } catch (Exception $e) {
+        $pdo->rollBack();
+        throw $e;
+    }
+}
+
+function updateTransactionWithAccount($userId, $transactionId, $description, $amount, $categoryId, $type, $date, $savingsBucketId = null, $accountId = null) {
+    $pdo = Database::getInstance()->getPdo();
+
+    // Get the existing transaction
+    $existingTransaction = getTransaction($userId, $transactionId);
+    if (!$existingTransaction) {
+        return null;
+    }
+
+    // Get the category to validate
+    $category = getCategory($userId, $categoryId);
+    if (!$category) {
+        return null;
+    }
+
+    // Validate category type matches transaction type
+    if ($category['type'] !== $type) {
+        return null;
+    }
+
+    // If savings bucket specified, validate it
+    if ($savingsBucketId !== null) {
+        $bucket = getSavingsBucket($userId, $savingsBucketId);
+        if (!$bucket) {
+            return null;
+        }
+        // Only expenses can be funded from savings
+        if ($type !== 'expense') {
+            $savingsBucketId = null;
+        }
+    }
+
+    // If account specified, validate it
+    if ($accountId !== null) {
+        $account = getAccount($userId, $accountId);
+        if (!$account) {
+            return null;
+        }
+    }
+
+    $pdo->beginTransaction();
+    try {
+        // Reverse old account balance if transaction was linked to an account
+        if ($existingTransaction['account_id']) {
+            $oldDelta = ($existingTransaction['type'] === 'income') ? -$existingTransaction['amount'] : $existingTransaction['amount'];
+            _updateAccountBalance($pdo, $existingTransaction['account_id'], $oldDelta);
+        }
+
+        // Remove old savings transaction if any was linked
+        if ($existingTransaction['savings_bucket_id']) {
+            // Find and delete the linked savings transaction
+            $stmt = $pdo->prepare("
+                SELECT st.*, sb.name as bucket_name, sb.icon as bucket_icon
+                FROM savings_transactions st
+                LEFT JOIN savings_buckets sb ON st.bucket_id = sb.id
+                WHERE st.linked_transaction_id = ? AND st.user_id = ?
+            ");
+            $stmt->execute([$transactionId, $userId]);
+            $linkedSavings = $stmt->fetch();
+            if ($linkedSavings) {
+                _deleteSavingsTransactionInternal($pdo, $userId, $linkedSavings['id'], $linkedSavings);
+            }
+        }
+
+        // Update the transaction
+        $stmt = $pdo->prepare("
+            UPDATE transactions
+            SET description = ?, amount = ?, category = ?, category_id = ?, type = ?, date = ?, savings_bucket_id = ?, account_id = ?
+            WHERE id = ? AND user_id = ?
+        ");
+        $stmt->execute([$description, $amount, $category['name'], $categoryId, $type, $date, $savingsBucketId, $accountId, $transactionId, $userId]);
+
+        // If expense is funded from savings bucket, create a new withdrawal
+        if ($savingsBucketId !== null && $type === 'expense') {
+            _addSavingsTransactionInternal(
+                $pdo,
+                $userId,
+                $savingsBucketId,
+                $amount,
+                'withdrawal',
+                "Expense: $description",
+                $date,
+                $transactionId
+            );
+        }
+
+        // Update new account balance if linked
+        if ($accountId !== null) {
+            $delta = ($type === 'income') ? $amount : -$amount;
+            _updateAccountBalance($pdo, $accountId, $delta);
+        }
+
+        $pdo->commit();
+        return getTransaction($userId, $transactionId);
+    } catch (Exception $e) {
+        $pdo->rollBack();
+        throw $e;
+    }
+}
+
+function deleteTransactionWithAccount($userId, $transactionId) {
+    $pdo = Database::getInstance()->getPdo();
+
+    // Get the existing transaction
+    $existingTransaction = getTransaction($userId, $transactionId);
+    if (!$existingTransaction) {
+        return false;
+    }
+
+    $pdo->beginTransaction();
+    try {
+        // Remove linked savings transaction if any
+        if ($existingTransaction['savings_bucket_id']) {
+            $stmt = $pdo->prepare("
+                SELECT st.*, sb.name as bucket_name, sb.icon as bucket_icon
+                FROM savings_transactions st
+                LEFT JOIN savings_buckets sb ON st.bucket_id = sb.id
+                WHERE st.linked_transaction_id = ? AND st.user_id = ?
+            ");
+            $stmt->execute([$transactionId, $userId]);
+            $linkedSavings = $stmt->fetch();
+            if ($linkedSavings) {
+                _deleteSavingsTransactionInternal($pdo, $userId, $linkedSavings['id'], $linkedSavings);
+            }
+        }
+
+        // Reverse account balance if transaction was linked
+        if ($existingTransaction['account_id']) {
+            $delta = ($existingTransaction['type'] === 'income') ? -$existingTransaction['amount'] : $existingTransaction['amount'];
+            _updateAccountBalance($pdo, $existingTransaction['account_id'], $delta);
         }
 
         // Delete the transaction
