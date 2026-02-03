@@ -1136,9 +1136,10 @@ body {
 .balance-header {
     display: flex;
     justify-content: space-between;
-    align-items: flex-start;
+    align-items: center;
     margin-bottom: var(--space-sm);
-    gap: var(--space-md);
+    gap: var(--space-sm);
+    flex-wrap: wrap;
 }
 
 .balance-label-row {
@@ -1148,16 +1149,17 @@ body {
 }
 
 .balance-label {
-    font-size: 0.9rem;
+    font-size: 0.85rem;
     color: var(--text-secondary);
     text-transform: uppercase;
-    letter-spacing: 0.08em;
+    letter-spacing: 0.05em;
     font-weight: 500;
+    white-space: nowrap;
 }
 
 .balance-period-selector {
-    padding: var(--space-xs) var(--space-sm);
-    font-size: 0.8rem;
+    padding: 4px 8px;
+    font-size: 0.7rem;
     background: rgba(255, 255, 255, 0.1);
     border: 1px solid rgba(255, 255, 255, 0.2);
     border-radius: var(--radius-sm);
@@ -1179,8 +1181,9 @@ body {
 }
 
 .btn-info {
-    width: 32px;
-    height: 32px;
+    width: 26px;
+    height: 26px;
+    min-width: 26px;
     padding: 0;
     background: var(--color-primary);
     border: none;
@@ -1192,6 +1195,7 @@ body {
     align-items: center;
     justify-content: center;
     box-shadow: 0 2px 8px rgba(99, 102, 241, 0.4);
+    flex-shrink: 0;
 }
 
 .btn-info:hover {
@@ -1200,17 +1204,18 @@ body {
 }
 
 .btn-info svg {
-    width: 18px;
-    height: 18px;
+    width: 16px;
+    height: 16px;
 }
 
 /* Balance Toggle Switch */
 .balance-toggle {
     display: flex;
     align-items: center;
-    gap: var(--space-sm);
+    gap: var(--space-xs);
     cursor: pointer;
     user-select: none;
+    flex-shrink: 0;
 }
 
 .balance-toggle input {
