@@ -156,6 +156,7 @@ const elements = {
     totalIncome: document.getElementById('total-income'),
     totalExpenses: document.getElementById('total-expenses'),
     balanceLabel: document.getElementById('balance-label'),
+    balancePeriodSelector: document.getElementById('balance-period-selector'),
     balanceToggle: document.getElementById('balance-toggle'),
     toggleLabel: document.getElementById('toggle-label'),
     totalSaved: document.getElementById('total-saved'),
@@ -1414,8 +1415,9 @@ async function loadAppData() {
 
 async function loadSummary() {
     try {
-        // Always load all-time summary for balance card
-        const summary = await api('api.php?resource=summary&period=all-time');
+        // Use selected period from balance card
+        const period = elements.balancePeriodSelector?.value || 'all-time';
+        const summary = await api(`api.php?resource=summary&period=${period}`);
         state.summary = summary && typeof summary === 'object' ? summary : null;
         // Decrypt category data in summary
         if (state.summary?.categories) {
@@ -2917,15 +2919,16 @@ function renderCategoriesInSection() {
 
 function updateCategoryScrollIndicator() {
     const container = elements.categoriesListContainer;
-    if (!container) return;
+    const section = elements.categoriesMenuSection;
+    if (!container || !section) return;
 
     const canScroll = container.scrollHeight > container.clientHeight;
     const isAtBottom = container.scrollTop + container.clientHeight >= container.scrollHeight - 10;
 
     if (canScroll && !isAtBottom) {
-        container.classList.add('can-scroll');
+        section.classList.add('can-scroll');
     } else {
-        container.classList.remove('can-scroll');
+        section.classList.remove('can-scroll');
     }
 }
 
@@ -3194,6 +3197,11 @@ function setupBalanceCard() {
     // Balance toggle handler
     elements.balanceToggle?.addEventListener('change', () => {
         updateBalances();
+    });
+
+    // Balance period selector handler
+    elements.balancePeriodSelector?.addEventListener('change', async () => {
+        await loadSummary();
     });
 
     // Balance info button
@@ -4660,6 +4668,37 @@ function setupModals() {
         const meter = elements.changePasswordModal.querySelector('.password-strength');
         if (meter) meter.style.display = 'none';
         openModal(elements.changePasswordModal);
+    });
+
+    // Check for Updates button
+    document.getElementById('check-updates-btn')?.addEventListener('click', async () => {
+        showToast('Checking for updates...');
+        try {
+            // Unregister service worker
+            if ('serviceWorker' in navigator) {
+                const registrations = await navigator.serviceWorker.getRegistrations();
+                for (const registration of registrations) {
+                    await registration.unregister();
+                }
+            }
+
+            // Clear all caches
+            if ('caches' in window) {
+                const cacheNames = await caches.keys();
+                for (const cacheName of cacheNames) {
+                    await caches.delete(cacheName);
+                }
+            }
+
+            // Reload the page
+            showToast('Update complete. Reloading...');
+            setTimeout(() => {
+                window.location.reload(true);
+            }, 1000);
+        } catch (error) {
+            console.error('Update check failed:', error);
+            showToast('Update failed. Try refreshing manually.');
+        }
     });
 
     // Change Password form submission

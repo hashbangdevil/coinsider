@@ -369,6 +369,13 @@
             <div class="balance-header">
                 <div class="balance-label-row">
                     <span class="balance-label" id="balance-label">Net Balance</span>
+                    <select class="period-selector balance-period-selector" id="balance-period-selector">
+                        <option value="this-month">This Month</option>
+                        <option value="last-month">Last Month</option>
+                        <option value="this-year">This Year</option>
+                        <option value="last-year">Last Year</option>
+                        <option value="all-time" selected>All Time</option>
+                    </select>
                     <button class="btn-info" id="balance-info-btn" title="What's this?">
                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                             <circle cx="12" cy="12" r="10"/>
@@ -708,10 +715,29 @@
                     </svg>
                 </button>
 
+                <!-- Check for Updates -->
+                <button class="settings-card settings-card-btn" id="check-updates-btn">
+                    <div class="settings-card-header">
+                        <div class="settings-card-icon">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <polyline points="23 4 23 10 17 10"/>
+                                <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/>
+                            </svg>
+                        </div>
+                        <div class="settings-card-info">
+                            <h4>Check for Updates</h4>
+                            <p>Refresh app and clear cache</p>
+                        </div>
+                    </div>
+                    <svg class="settings-card-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <polyline points="9 18 15 12 9 6"/>
+                    </svg>
+                </button>
+
                 <!-- App Version -->
                 <div class="app-version">
                     <span>Coinsider</span>
-                    <span id="app-version">v1.0.57</span>
+                    <span id="app-version">v1.0.58</span>
                 </div>
             </div>
         </section>

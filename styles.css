@@ -1155,6 +1155,29 @@ body {
     font-weight: 500;
 }
 
+.balance-period-selector {
+    padding: var(--space-xs) var(--space-sm);
+    font-size: 0.8rem;
+    background: rgba(255, 255, 255, 0.1);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    border-radius: var(--radius-sm);
+    color: var(--text-secondary);
+    cursor: pointer;
+    transition: all var(--transition-fast);
+}
+
+.balance-period-selector:hover,
+.balance-period-selector:focus {
+    background: rgba(255, 255, 255, 0.15);
+    border-color: rgba(255, 255, 255, 0.3);
+    color: var(--text-primary);
+}
+
+.balance-period-selector option {
+    background: var(--bg-secondary);
+    color: var(--text-primary);
+}
+
 .btn-info {
     width: 32px;
     height: 32px;
@@ -2427,34 +2450,43 @@ select option {
 }
 
 .categories-list-container {
-    max-height: calc(100vh - 200px);
+    max-height: calc(100vh - 140px);
     overflow-y: auto;
-    display: flex;
-    flex-direction: column;
-    gap: var(--space-md);
+    display: block;
     position: relative;
-    padding-bottom: var(--space-md);
+    padding-bottom: 100px;
 }
 
-/* Scroll indicator wrapper */
-.categories-menu-section-wrapper {
-    position: relative;
+.categories-list-container > .category-accordion {
+    margin-bottom: var(--space-md);
 }
 
-.categories-list-container::after {
+.categories-list-container > .category-accordion:last-child {
+    margin-bottom: 0;
+}
+
+/* Scroll indicator - use a separate element approach */
+#categories-menu-section {
+    position: relative;
+    overflow: hidden;
+    padding-bottom: 0;
+}
+
+#categories-menu-section::after {
     content: '';
-    position: sticky;
+    position: fixed;
     bottom: 0;
     left: 0;
     right: 0;
-    height: 40px;
+    height: 80px;
     background: linear-gradient(to top, var(--bg-primary) 0%, transparent 100%);
     pointer-events: none;
     opacity: 0;
     transition: opacity var(--transition-fast);
+    z-index: 10;
 }
 
-.categories-list-container.can-scroll::after {
+#categories-menu-section.can-scroll::after {
     opacity: 1;
 }
 
@@ -2523,8 +2555,9 @@ select option {
 }
 
 .category-accordion-content.expanded {
-    max-height: 1000px;
-    padding: var(--space-sm) 0 0 0;
+    max-height: 2000px;
+    padding: var(--space-sm) 0 var(--space-sm) 0;
+    overflow: visible;
 }
 
 .category-list-item {
