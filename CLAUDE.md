@@ -132,10 +132,12 @@ rather than via Playwright's `webServer` so teardown survives a killed run.
 - Runs on the host (Node); needs a one-time `npm install` + `npx playwright install chromium`.
 - Serial (`workers: 1`) against the one shared container; `helpers.js` `uniqueEmail()`
   keeps tests independent within the shared DB. `signUp()` is the common entry.
-- Coverage: auth (signup/login/logout/session) and transactions. The client-side
-  **encryption round-trip** is the key gap — `tests/e2e/encryption.spec.js` has a
-  documented `test.fixme` stub with the real selector map; author it against a live
-  run (`npm run test:e2e:headed`) so each modal step is confirmed, not guessed.
+- Coverage: auth (signup/login/logout/session), transactions, and the client-side
+  **encryption round-trip** (`encryption.spec.js`): enable encryption → the written
+  description is ciphertext over the raw API but plaintext in the UI → log out and
+  back in → it still decrypts. Note: with encryption on, a full page **reload** logs
+  the user out (`init()` requires a session/remembered key to auto-unlock and falls
+  back to re-login), so the round-trip is tested via explicit logout→login, not reload.
 
 ## Conventions / gotchas
 
