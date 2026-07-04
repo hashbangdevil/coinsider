@@ -1,286 +1,141 @@
-# Xneelo Shop - Lightweight Self-Hosted E-commerce Platform
+# Coinsider
 
-A lightweight, self-hosted PHP/SQLite e-commerce platform designed for hosting customers to install and manage their own online stores.
+**Think. Track. Thrive.** — a smart, self-hosted personal budget manager, packaged as an installable Progressive Web App (PWA).
+
+Coinsider lets you track income and expenses, set per-category budgets, manage recurring transactions, save toward goals with savings buckets, and keep balances across multiple accounts — all on infrastructure you control. Your financial data can optionally be **end-to-end encrypted** in your browser, so the server never sees it in the clear.
+
+## Features
+
+- **Transactions** — log income and expenses, categorize, filter, and browse full history
+- **Categories** — user-defined income/expense categories with icons, colors, and monthly budgets
+- **Recurring transactions** — monthly/yearly recurring entries, with pause/resume
+- **Savings buckets** — goal-based saving with allocations, withdrawals, and adjustments
+- **Accounts** — track multiple accounts (bank, credit card, cash, savings, e-wallet, investment) and transfers between them
+- **Insights** — summaries, spending trends, category drill-down, and budget-vs-actual comparison over flexible date ranges
+- **Multi-currency** support (default ZAR)
+- **Accounts & authentication** — signup/login, password reset, email verification (optional SMTP)
+- **Client-side encryption** — optional AES-256-GCM encryption of your data with a recovery phrase for account recovery
+- **PWA** — installable, offline-capable, mobile-first
+
+## Tech stack
+
+- **Frontend:** vanilla HTML/CSS/JavaScript (no framework, no build step), service worker for PWA
+- **Backend:** PHP 8 REST API
+- **Database:** SQLite
+- **Email:** PHPMailer (optional, for password reset & verification)
+- **Runtime:** Apache + PHP via Docker
 
 ## Running locally
 
-The app can be run locally in Docker.
+The app runs in Docker (Apache + PHP 8.5).
 
-**Note**: To reset the website installation, delete `data/shop.db`.
+### 1. Configure user permissions
 
-### Set up user permissions for the Docker container
-
-Make sure you have the correct GID and UID set up in your .env file (copy example.env to .env if you're setting it up for the first time)
+The container runs as your host user so the bind-mounted files stay writable. Find your IDs:
 
 ```
-id -g
-id -u
-```
-Copy the correct values into .env
-
-.env
-```
-GID=1000
-UID=1000
+id -u   # UID
+id -g   # GID
 ```
 
-### Run the app with Docker Compose
+Put them in `.env` (create it if it doesn't exist):
 
-Then start Apache in Docker:
+```
+UID=502
+GID=20
+```
+
+### 2. Start the app
 
 ```
 docker compose up --build
 ```
 
-`--build` can be omitted if the app has been built already.
+(`--build` can be omitted on subsequent runs.)
 
-## Running PHPUnit tests
+The app is served at **http://localhost:8888**.
 
-First make sure you have PHP and Composer installed locally.
+The SQLite database is created automatically at `data/budget.db` on first use. **To reset the installation, delete `data/budget.db`** — it will be recreated on the next request.
 
-Run the test suite using Composer:
+## Email configuration (optional)
 
-```
-composer test
-```
+Email sending (password reset, verification) is **disabled by default** — in development, reset links are shown directly. To enable real email:
 
-
-## Features
-
-### Customer Storefront
-- **Homepage** with featured products and categories
-- **Shop** page with category filtering, search, and sorting
-- **Product detail** pages with image gallery, variants, and add-to-cart
-- **Shopping cart** with quantity management and coupon codes
-- **Checkout** with guest or registered checkout
-- **Order confirmation** with receipt display
-- **Customer accounts** - registration, login, password reset
-- **Order history** and tracking
-
-### Admin Panel (/site-admin/)
-- **Dashboard** with sales statistics, recent orders, low stock alerts
-- **Products** - CRUD operations, images, variants, inventory tracking
-- **Categories** - hierarchical categories with parent/child relationships
-- **Orders** - order management, status updates, tracking numbers
-- **Customers** - customer management, order history
-- **Invoices** - invoice generation, payment tracking, email sending
-- **Pages** - custom pages (About, Contact, Policies)
-- **Coupons** - percentage/fixed discounts, usage limits, date ranges
-- **Settings** - comprehensive settings panel:
-  - Store details (name, logo, contact)
-  - Appearance (theme, colors)
-  - Currency formatting
-  - Tax configuration
-  - Shipping settings
-  - Payment gateways (PayFast, Stripe, PayPal, Yoco, EFT)
-  - Email/SMTP configuration
-  - Social media links
-- **License** - license activation and subscription management
-- **Profile** - admin profile and password management
-
-### Payment Gateways
-- **PayFast** (South Africa) - with sandbox mode
-- **Stripe** - global card payments
-- **PayPal** - checkout integration
-- **Yoco** (South Africa) - card payments
-- **EFT/Bank Transfer** - manual payment
-
-### Theme System
-Three built-in themes with customizable colors:
-- **Modern** - clean, minimal design
-- **Classic** - traditional e-commerce layout
-- **Minimalist** - ultra-clean, content-focused
-
-### License Management
-- 60-day free trial
-- Central license server validation
-- Domain tracking
-- Auto-expiry with graceful degradation
-
-## Requirements
-
-- PHP 7.4 or higher
-- SQLite3 extension
-- cURL extension (for payment gateways and license validation)
-- GD or ImageMagick extension (for image processing)
-
-## Installation
-
-1. **Upload files** to your hosting account's document root (public_html)
-
-2. **Create data directory** with write permissions:
-   ```bash
-   mkdir data
-   chmod 755 data
+1. Copy the example credentials file:
    ```
-
-3. **Create uploads directory** with write permissions:
-   ```bash
-   mkdir -p uploads/products uploads/logo
-   chmod -R 755 uploads
+   cp smtpcreds.env.example smtpcreds.env
    ```
+2. Fill in your SMTP settings in `smtpcreds.env`.
 
-4. **Navigate to your domain** - the setup wizard will guide you through:
-   - Database creation
-   - Store name and details
-   - Admin account creation
-   - Payment gateway configuration
-   - Theme selection
+`smtpcreds.env` is loaded from the first location found:
+1. One level **above** the project folder (most secure — outside the web root)
+2. The project root
+3. The `api/` folder (development only)
 
-5. **Start selling!** Access your admin panel at `yourdomain.com/site-admin/`
-
-## Directory Structure
+For Docker, you can also mount it:
 
 ```
-xneelo-shop/
-├── assets/
-│   ├── css/
-│   │   ├── main.css          # Core styles
-│   │   └── themes/           # Theme variations
-│   └── js/
-│       └── main.js           # Frontend JavaScript
-├── config/
-│   ├── config.php            # Application configuration
-│   └── database.php          # Database connection & schema
-├── data/
-│   └── shop.db               # SQLite database
-├── includes/
-│   ├── auth.php              # Authentication helpers
-│   ├── functions.php         # Helper functions
-│   ├── storefront-header.php # Storefront header/navigation
-│   └── storefront-footer.php # Storefront footer
-├── install/
-│   └── index.php             # Setup wizard
-├── models/
-│   ├── AdminUser.php
-│   ├── Category.php
-│   ├── Coupon.php
-│   ├── CreditNote.php
-│   ├── Customer.php
-│   ├── Invoice.php
-│   ├── License.php
-│   ├── Model.php             # Base model class
-│   ├── Order.php
-│   ├── Page.php
-│   ├── Product.php
-│   └── Setting.php
-├── site-admin/
-│   ├── includes/
-│   │   ├── header.php        # Admin header/sidebar
-│   │   └── footer.php        # Admin footer
-│   ├── categories.php
-│   ├── coupons.php
-│   ├── customers.php
-│   ├── index.php             # Dashboard
-│   ├── invoices.php
-│   ├── license.php
-│   ├── login.php
-│   ├── logout.php
-│   ├── orders.php
-│   ├── pages.php
-│   ├── products.php
-│   ├── profile.php
-│   └── settings.php
-├── uploads/
-│   ├── logo/
-│   └── products/
-├── account.php               # Customer account dashboard
-├── cart.php                  # Shopping cart
-├── checkout.php              # Checkout process
-├── forgot-password.php
-├── index.php                 # Homepage
-├── login.php                 # Customer login
-├── logout.php                # Customer logout
-├── order-confirmation.php    # Order receipt
-├── order-view.php            # Single order detail
-├── orders.php                # Customer order history
-├── page.php                  # Custom page display
-├── payment-callback.php      # Payment gateway callbacks
-├── payment.php               # Payment initialization
-├── product.php               # Product detail page
-├── register.php              # Customer registration
-├── reset-password.php
-└── shop.php                  # Shop/catalog page
+-v /path/to/smtpcreds.env:/var/www/html/smtpcreds.env
 ```
 
-## Configuration
+## Testing
 
-### Payment Gateway Setup
+Two test suites, both run through Docker (no PHP or PHP tooling needed on the host):
 
-#### PayFast (South Africa)
-1. Create account at payfast.co.za
-2. Get Merchant ID, Merchant Key, and Passphrase
-3. Enter in Settings → Payment → PayFast
-4. Enable sandbox mode for testing
+**PHP — PHPUnit.** Unit tests of the SQLite data/aggregation layer plus HTTP-level
+tests of the API handlers (auth, sessions, and per-user data isolation), run against
+an isolated in-memory / throwaway database:
 
-#### Stripe
-1. Create account at stripe.com
-2. Get Publishable Key and Secret Key
-3. Enter in Settings → Payment → Stripe
+```
+docker compose run --rm php composer test
+```
 
-#### PayPal
-1. Create developer account at developer.paypal.com
-2. Create app and get Client ID and Secret
-3. Enter in Settings → Payment → PayPal
+**Browser — Playwright.** End-to-end tests that drive the real UI against a
+disposable, isolated app instance (never your dev database): signup/login/logout,
+adding transactions, and the full client-side **encryption round-trip**. Runs on the
+host via Node:
 
-#### Yoco (South Africa)
-1. Create account at yoco.com
-2. Get Public Key and Secret Key
-3. Enter in Settings → Payment → Yoco
+```
+npm install
+npx playwright install chromium
+npm run test:e2e
+```
 
-#### EFT/Bank Transfer
-1. Enter bank account details
-2. Optionally add payment instructions
-3. Orders will show as pending until manually marked paid
+See [CLAUDE.md](CLAUDE.md) for how each layer is structured and a one-time setup note.
 
-### SMTP Email Configuration
+## Project structure
 
-For transactional emails (order confirmations, password resets):
+```
+index.html        App shell (all screens and modals)
+app.js            All client-side application logic
+crypto.js         Client-side encryption (Web Crypto / AES-256-GCM)
+styles.css        Styles
+sw.js             Service worker
+manifest.json     PWA manifest
+api/              PHP REST API (api.php router, auth.php, db.php, config.php, email.php)
+data/budget.db    SQLite database (web-inaccessible)
+```
 
-1. Go to Settings → Email
-2. Enter SMTP details:
-   - Host (e.g., smtp.gmail.com)
-   - Port (587 for TLS, 465 for SSL)
-   - Username
-   - Password
-   - Encryption type
-3. Set From Name and From Email
+See [CLAUDE.md](CLAUDE.md) for architecture details and contributor notes.
 
-## License
+## Security notes
 
-Xneelo Shop includes a 60-day free trial. After the trial:
-- Store continues to function
-- "Powered by Xneelo Shop" badge appears
-- No software updates
-- No priority support
+Built-in protections:
 
-To activate a license:
-1. Purchase at shop.xneelo.com
-2. Enter license key in Admin → License
-3. Badge is removed and updates enabled
+- **Passwords** are hashed with bcrypt (`password_hash`); hashes never leave the server.
+- **Brute-force throttling** on login and encryption-password checks (per-account lockout after repeated failures) and on password-reset requests.
+- **SQL injection**: every query uses PDO prepared statements (parameterized).
+- **Per-user isolation**: all data is scoped by `user_id`; a user cannot read or modify another account's data.
+- **Sessions**: cookies are `HttpOnly` + `SameSite=Lax` (+ `Secure` over HTTPS), and the session ID is regenerated on login to prevent fixation.
+- **Reset/verification tokens** are 32-byte random, time-limited, and single-use.
+- Server error responses are generic (internal details are logged, not returned).
+- The `data/` directory (SQLite DB) is blocked from web access via `.htaccess`, and security headers (X-Frame-Options, X-Content-Type-Options, Referrer-Policy) are set there too.
 
-## Security Features
+Production checklist (Apache):
 
-- CSRF protection on all forms
-- Password hashing with PASSWORD_DEFAULT (bcrypt)
-- SQL injection prevention via PDO prepared statements
-- XSS prevention with output escaping
-- Session security (httponly cookies, strict mode)
-- Email enumeration prevention
-- Admin/customer authentication separation
+- Enable HTTPS (uncomment the redirect in `.htaccess`).
+- Ensure `AllowOverride All` is set for the vhost so `.htaccess` (including the `data/` deny) is honored.
+- Set your domain in the CORS allow-list and `APP_URL` in `api/config.php`.
+- Keep `smtpcreds.env` outside the web root (one level above the project).
 
-## Support
-
-- Documentation: shop.xneelo.com/docs
-- Email: support@xneelo.com
-- Issues: github.com/xneelo/shop/issues
-
-## Changelog
-
-### v1.0.0
-- Initial release
-- Full e-commerce functionality
-- 3 theme variations
-- 5 payment gateways
-- Comprehensive admin panel
-- License management system
+**Client-side encryption:** with encryption enabled the server stores only wrapped keys and ciphertext and cannot decrypt your data. Transaction *amounts* are intentionally left unencrypted so summaries and trends can be computed. **Keep your recovery phrase safe — losing both your password and recovery phrase means the data cannot be recovered.**
