@@ -46,6 +46,13 @@ class Database {
         return self::$instance;
     }
 
+    // Discard the cached connection. Intended for the test suite, which resets
+    // between tests so each test gets a fresh in-memory database (see
+    // tests/DatabaseTestCase.php). Not used by the app at runtime.
+    public static function reset() {
+        self::$instance = null;
+    }
+
     public function getPdo() {
         return $this->pdo;
     }

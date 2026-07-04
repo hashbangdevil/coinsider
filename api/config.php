@@ -29,8 +29,8 @@ if (isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] === 'on') {
     ini_set('session.cookie_secure', 1);
 }
 
-// Start session
-if (session_status() === PHP_SESSION_NONE) {
+// Start session (skipped under CLI, e.g. the PHPUnit test runner)
+if (PHP_SAPI !== 'cli' && session_status() === PHP_SESSION_NONE) {
     session_start();
 }
 
@@ -38,8 +38,10 @@ if (session_status() === PHP_SESSION_NONE) {
 // DATABASE CONFIGURATION  
 // ========================================
 
-// Path to SQLite database file
-define('DB_PATH', __DIR__ . '/../data/budget.db');
+// Path to SQLite database file.
+// Overridable via the COINSIDER_DB_PATH env var (used by the test suite to
+// point at an isolated in-memory database — see tests/bootstrap.php).
+define('DB_PATH', getenv('COINSIDER_DB_PATH') ?: __DIR__ . '/../data/budget.db');
 
 // ========================================
 // APP CONFIGURATION

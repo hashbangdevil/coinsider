@@ -6,6 +6,10 @@ smtpcreds.env
 vendor/
 composer.lock
 
+# PHPUnit
+.phpunit.cache/
+.phpunit.result.cache
+
 # Database
 data/
 *.db
