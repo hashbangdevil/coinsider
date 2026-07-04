@@ -15,7 +15,7 @@ Coinsider lets you track income and expenses, set per-category budgets, manage r
 - **Multi-currency** support (default ZAR)
 - **Accounts & authentication** — signup/login, password reset, email verification (optional SMTP)
 - **Client-side encryption** — optional AES-256-GCM encryption of your data with a recovery phrase for account recovery
-- **PWA** — installable, offline-capable, mobile-first
+- **PWA** — installable to your home screen, mobile-first; a service worker caches the app shell for fast loads (viewing and editing data still requires a connection to the server)
 
 ## Tech stack
 
