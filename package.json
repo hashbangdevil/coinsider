@@ -1,0 +1,14 @@
+{
+  "name": "coinsider-e2e",
+  "version": "1.0.0",
+  "description": "Playwright end-to-end tests for the Coinsider PWA",
+  "private": true,
+  "scripts": {
+    "test:e2e": "playwright test",
+    "test:e2e:ui": "playwright test --ui",
+    "test:e2e:headed": "playwright test --headed"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.48.0"
+  }
+}

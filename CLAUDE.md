@@ -72,6 +72,11 @@ Email is off by default (`EMAIL_ENABLED` in `config.php`; reset links shown dire
 
 ## Tests
 
+Two independent suites: **PHPUnit** (PHP: DB + HTTP layers) and **Playwright**
+(browser E2E). Both need Docker; the host has no PHP.
+
+### PHPUnit (`composer test`)
+
 PHPUnit (dev dependency) drives a `tests/` suite in two layers.
 
 **DB layer** — exercises the `api/db.php` data/aggregation functions directly
@@ -112,9 +117,25 @@ docker compose run --rm -u root php bash -c "apt-get update && apt-get install -
 ```
 
 This is the same reason the Dockerfile's build-time `composer install --no-dev`
-is suffixed with `|| true`. Coverage is the DB and HTTP handler layers; the
-browser UI (`crypto.js`/`app.js`, ~6k lines) still has no JS/E2E runner — a
-Playwright suite driving the running app would be the natural next slice.
+is suffixed with `|| true`.
+
+### Playwright E2E (`npm run test:e2e`)
+
+Browser tests in `tests/e2e/` drive the real UI (`app.js`/`index.html`) against a
+**disposable, isolated app container** — never the dev `data/budget.db`.
+`tests/e2e/global-setup.js` starts a detached `docker compose run` container named
+`coinsider-e2e` on port **8890** with an empty throwaway DB (`COINSIDER_DB_PATH`
+under `/tmp`), waits for it, and `global-teardown.js` force-removes it (setup also
+clears any leftover first, so a crashed run self-heals). Lifecycle is managed here
+rather than via Playwright's `webServer` so teardown survives a killed run.
+
+- Runs on the host (Node); needs a one-time `npm install` + `npx playwright install chromium`.
+- Serial (`workers: 1`) against the one shared container; `helpers.js` `uniqueEmail()`
+  keeps tests independent within the shared DB. `signUp()` is the common entry.
+- Coverage: auth (signup/login/logout/session) and transactions. The client-side
+  **encryption round-trip** is the key gap — `tests/e2e/encryption.spec.js` has a
+  documented `test.fixme` stub with the real selector map; author it against a live
+  run (`npm run test:e2e:headed`) so each modal step is confirmed, not guessed.
 
 ## Conventions / gotchas
 
