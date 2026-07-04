@@ -52,8 +52,9 @@ define('DB_PATH', getenv('COINSIDER_DB_PATH') ?: __DIR__ . '/../data/budget.db')
 // App name
 define('APP_NAME', 'Coinsider');
 
-// Base URL of your app (no trailing slash)
-define('APP_URL', 'http://localhost:8888');
+// Base URL of your app (no trailing slash). Set APP_URL in the environment for
+// production (e.g. https://budget.example.com); defaults to the local dev host.
+define('APP_URL', getenv('APP_URL') ?: 'http://localhost:8888');
 
 // Session lifetime in seconds (default: 30 days)
 define('SESSION_LIFETIME', 60 * 60 * 24 * 30);
@@ -77,9 +78,10 @@ define('AUTH_WINDOW_SECONDS', 900); // 15 minutes
 // When false, reset links are shown directly (for development)
 define('EMAIL_ENABLED', false);
 
-// Email settings (configure for production)
-define('MAIL_FROM', 'noreply@example.com');
-define('MAIL_FROM_NAME', APP_NAME);
+// Email settings. Set MAIL_FROM in the environment for production (e.g.
+// noreply@yourdomain.com); MAIL_FROM_NAME defaults to the app name.
+define('MAIL_FROM', getenv('MAIL_FROM') ?: 'noreply@example.com');
+define('MAIL_FROM_NAME', getenv('MAIL_FROM_NAME') ?: APP_NAME);
 
 // ========================================
 // SECURITY - CORS
