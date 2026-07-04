@@ -1351,7 +1351,12 @@ async function updateUserCurrency(currency) {
 
 async function loadAppData() {
     try {
-        const period = 'all-time';
+        // Restore last-selected balance period (persisted across reloads/sessions)
+        // and reflect it in the selector, so the dashboard summary matches.
+        const period = localStorage.getItem('balancePeriod') || 'all-time';
+        if (elements.balancePeriodSelector && elements.balancePeriodSelector.value !== period) {
+            elements.balancePeriodSelector.value = period;
+        }
         const [categories, transactions, summary, recurring, savingsBucketsData, accountsData] = await Promise.all([
             api('api.php?resource=categories'),
             api('api.php?resource=transactions&limit=50'),
@@ -1415,6 +1420,13 @@ async function loadAppData() {
 
 async function loadSummary() {
     try {
+        // Restore last-selected period (persisted across reloads/sessions).
+        // loadSummary can run before setupBalanceCard on init, so restore here.
+        const savedPeriod = localStorage.getItem('balancePeriod');
+        if (savedPeriod && elements.balancePeriodSelector && elements.balancePeriodSelector.value !== savedPeriod) {
+            elements.balancePeriodSelector.value = savedPeriod;
+        }
+
         // Use selected period from balance card
         const period = elements.balancePeriodSelector?.value || 'all-time';
         const summary = await api(`api.php?resource=summary&period=${period}`);
@@ -2985,9 +2997,9 @@ function createCategoryListItem(category) {
     const item = document.createElement('div');
     item.className = 'category-list-item';
     item.innerHTML = `
-        <div class="category-list-icon">${category.icon}</div>
+        <div class="category-list-icon">${escapeHtml(category.icon)}</div>
         <div class="category-list-info">
-            <span class="category-list-name">${category.name}</span>
+            <span class="category-list-name">${escapeHtml(category.name)}</span>
             ${category.budget_amount > 0 ? `<span class="category-list-budget">${formatCurrency(category.budget_amount)}/mo</span>` : ''}
         </div>
         <div class="category-list-actions">
@@ -3055,9 +3067,9 @@ function renderRecurringInSection() {
         item.className = `recurring-item ${rule.is_active ? '' : 'paused'}`;
         item.innerHTML = `
             <div class="recurring-content">
-                <div class="recurring-icon ${rule.type}">${category.icon}</div>
+                <div class="recurring-icon ${rule.type}">${escapeHtml(category.icon)}</div>
                 <div class="recurring-info">
-                    <div class="recurring-description">${rule.description}</div>
+                    <div class="recurring-description">${escapeHtml(rule.description)}</div>
                     <div class="recurring-meta">
                         <span>${rule.frequency === 'monthly' ? 'Monthly' : 'Yearly'}</span>
                         <span>•</span>
@@ -3211,6 +3223,8 @@ function setupBalanceCard() {
 
     // Balance period selector handler
     elements.balancePeriodSelector?.addEventListener('change', async () => {
+        // Persist the user's choice so it survives reloads/reopens
+        localStorage.setItem('balancePeriod', elements.balancePeriodSelector.value);
         await loadSummary();
     });
 
@@ -4317,7 +4331,7 @@ function drawChart(categoriesWithSpending) {
         return `
             <div class="legend-item">
                 <div class="legend-color" style="background: ${colors[index]}"></div>
-                <span class="legend-label">${icons[index]} ${item.name}</span>
+                <span class="legend-label">${escapeHtml(icons[index])} ${escapeHtml(item.name)}</span>
                 <span class="legend-value">${percentage}%</span>
             </div>
         `;
@@ -4380,7 +4394,7 @@ function renderSpendingTable(sortKey = 'spent', sortDir = 'desc') {
                 <td>
                     <div class="category-cell">
                         <span class="category-color" style="background: ${cat.color}"></span>
-                        <span class="category-icon">${cat.icon}</span>
+                        <span class="category-icon">${escapeHtml(cat.icon)}</span>
                         ${escapeHtml(cat.name)}
                     </div>
                 </td>
@@ -5632,7 +5646,7 @@ function renderCategoryDrilldown(category, transactions, period) {
                     <div class="transaction-item" data-id="${transaction.id}" onclick="openEditTransactionModal(${transaction.id})">
                         <div class="transaction-content">
                             <div class="transaction-icon ${transaction.type}" style="background: ${isIncome ? 'var(--color-success-light)' : category.color + '20'}">
-                                ${category.icon}
+                                ${escapeHtml(category.icon)}
                             </div>
                             <div class="transaction-info">
                                 <div class="transaction-description">${escapeHtml(transaction.description)}</div>

@@ -155,18 +155,20 @@ function handleLogin() {
         errorResponse('Email and password are required');
     }
     
-    // Find user
+    // Brute-force protection: throttle repeated failures per email.
+    if (countRecentAuthAttempts('login', $email, AUTH_WINDOW_SECONDS) >= AUTH_MAX_ATTEMPTS) {
+        errorResponse('Too many login attempts. Please try again later.', 429);
+    }
+
+    // Find and verify user (single generic failure to prevent email enumeration).
     $user = findUserByEmail($email);
-    
-    if (!$user) {
-        // Use generic message to prevent email enumeration
+    if (!$user || !verifyPassword($user, $password)) {
+        recordAuthAttempt('login', $email);
         errorResponse('Invalid email or password', 401);
     }
-    
-    // Verify password
-    if (!verifyPassword($user, $password)) {
-        errorResponse('Invalid email or password', 401);
-    }
+
+    // Successful login — reset the failed-attempt counter.
+    clearAuthAttempts('login', $email);
 
     // Migrate user categories if needed (for existing users)
     migrateUserCategories($user['id']);
@@ -218,9 +220,15 @@ function handleForgotPassword() {
     if (empty($email) || !isValidEmail($email)) {
         errorResponse('Please enter a valid email address');
     }
-    
+
+    // Throttle to prevent reset-email abuse / bombing (keyed per email, hourly).
+    if (countRecentAuthAttempts('forgot', $email, 3600) >= 5) {
+        errorResponse('Too many requests. Please try again later.', 429);
+    }
+    recordAuthAttempt('forgot', $email);
+
     $user = findUserByEmail($email);
-    
+
     // Always return success to prevent email enumeration
     $response = [
         'success' => true,
@@ -539,11 +547,19 @@ function handleVerifyPassword() {
     $input = json_decode(file_get_contents('php://input'), true);
     $password = $input['password'] ?? '';
 
+    // Brute-force protection, keyed per authenticated user.
+    $identifier = (string) $user['id'];
+    if (countRecentAuthAttempts('verify', $identifier, AUTH_WINDOW_SECONDS) >= AUTH_MAX_ATTEMPTS) {
+        errorResponse('Too many attempts. Please try again later.', 429);
+    }
+
     $fullUser = findUserById($user['id']);
     if (!$fullUser || !verifyPassword($fullUser, $password)) {
+        recordAuthAttempt('verify', $identifier);
         errorResponse('Incorrect password', 401);
     }
 
+    clearAuthAttempts('verify', $identifier);
     jsonResponse(['success' => true]);
 }
 
@@ -681,8 +697,14 @@ function handleStatus() {
 // ========================================
 
 function setUserSession($user) {
+    // Prevent session fixation: issue a fresh session ID on authentication.
+    // (No-op under CLI, where sessions are disabled for the test runner.)
+    if (session_status() === PHP_SESSION_ACTIVE) {
+        session_regenerate_id(true);
+    }
+
     $_SESSION['user'] = sanitizeUser($user);
-    
+
     // Extend session cookie
     setcookie(session_name(), session_id(), [
         'expires' => time() + SESSION_LIFETIME,

@@ -10,9 +10,11 @@ ini_set('log_errors', 1);
 
 // Ensure JSON error responses
 set_exception_handler(function($e) {
+    // Log the real error server-side; never leak internals (SQL, paths) to clients.
+    error_log('Uncaught exception: ' . $e->getMessage() . ' in ' . $e->getFile() . ':' . $e->getLine());
     http_response_code(500);
     header('Content-Type: application/json');
-    echo json_encode(['error' => 'Server error: ' . $e->getMessage()]);
+    echo json_encode(['error' => 'Server error']);
     exit;
 });
 
@@ -60,7 +62,12 @@ define('SESSION_LIFETIME', 60 * 60 * 24 * 30);
 define('RESET_TOKEN_EXPIRY', 60 * 60);
 
 // Minimum password length
-define('MIN_PASSWORD_LENGTH', 6);
+define('MIN_PASSWORD_LENGTH', 10);
+
+// Brute-force throttling: max failed attempts within the trailing window before
+// a 429 is returned (login & encryption password checks, keyed per account).
+define('AUTH_MAX_ATTEMPTS', 8);
+define('AUTH_WINDOW_SECONDS', 900); // 15 minutes
 
 // ========================================
 // EMAIL CONFIGURATION (for password reset)

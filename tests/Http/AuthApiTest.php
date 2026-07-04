@@ -112,4 +112,24 @@ final class AuthApiTest extends HttpTestCase
         // Session gone → protected resource is now 401.
         $this->assertSame(401, $client->get('/api/api.php?resource=categories')->getStatusCode());
     }
+
+    public function testLoginIsRateLimitedAfterRepeatedFailures(): void
+    {
+        $email = 'ratelimit@example.com';
+        $this->signup($this->client(), $email, 'password123');
+
+        // Exhaust the failed-attempt budget (AUTH_MAX_ATTEMPTS = 8).
+        for ($i = 0; $i < 8; $i++) {
+            $res = $this->client()->post('/api/auth.php?action=login', [
+                'json' => ['email' => $email, 'password' => 'wrong-password'],
+            ]);
+            $this->assertSame(401, $res->getStatusCode(), "attempt $i should still be 401");
+        }
+
+        // Now throttled — even the correct password is rejected with 429.
+        $res = $this->client()->post('/api/auth.php?action=login', [
+            'json' => ['email' => $email, 'password' => 'password123'],
+        ]);
+        $this->assertSame(429, $res->getStatusCode());
+    }
 }

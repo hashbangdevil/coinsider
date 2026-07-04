@@ -287,6 +287,17 @@ class Database {
         $this->pdo->exec("CREATE INDEX IF NOT EXISTS idx_accounts_user ON accounts(user_id)");
         $this->pdo->exec("CREATE INDEX IF NOT EXISTS idx_account_transfers_user ON account_transfers(user_id)");
         $this->pdo->exec("CREATE INDEX IF NOT EXISTS idx_transactions_account ON transactions(account_id)");
+
+        // Auth attempt log for brute-force throttling (login / forgot / verify).
+        $this->pdo->exec("
+            CREATE TABLE IF NOT EXISTS auth_attempts (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                action TEXT NOT NULL,
+                identifier TEXT NOT NULL,
+                created_at INTEGER NOT NULL
+            )
+        ");
+        $this->pdo->exec("CREATE INDEX IF NOT EXISTS idx_auth_attempts_lookup ON auth_attempts(action, identifier, created_at)");
     }
 }
 
@@ -334,6 +345,32 @@ function createUser($email, $name, $password) {
 
 function verifyPassword($user, $password) {
     return password_verify($password, $user['password_hash']);
+}
+
+// ========================================
+// Auth rate limiting (brute-force protection)
+// ========================================
+
+// Record one failed/attempted auth action against an identifier (email or user id).
+function recordAuthAttempt($action, $identifier) {
+    $pdo = Database::getInstance()->getPdo();
+    $stmt = $pdo->prepare("INSERT INTO auth_attempts (action, identifier, created_at) VALUES (?, ?, ?)");
+    $stmt->execute([$action, strtolower(trim($identifier)), time()]);
+}
+
+// Count attempts for an identifier within the trailing window (seconds).
+function countRecentAuthAttempts($action, $identifier, $windowSeconds) {
+    $pdo = Database::getInstance()->getPdo();
+    $stmt = $pdo->prepare("SELECT COUNT(*) AS c FROM auth_attempts WHERE action = ? AND identifier = ? AND created_at > ?");
+    $stmt->execute([$action, strtolower(trim($identifier)), time() - $windowSeconds]);
+    return (int) $stmt->fetch()['c'];
+}
+
+// Clear attempts for an identifier (called after a successful auth).
+function clearAuthAttempts($action, $identifier) {
+    $pdo = Database::getInstance()->getPdo();
+    $stmt = $pdo->prepare("DELETE FROM auth_attempts WHERE action = ? AND identifier = ?");
+    $stmt->execute([$action, strtolower(trim($identifier))]);
 }
 
 function setResetToken($userId, $token, $expires) {
