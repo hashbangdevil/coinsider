@@ -133,9 +133,13 @@ Built-in protections:
 
 Production checklist (Apache):
 
-- Enable HTTPS (uncomment the redirect in `.htaccess`).
+- Serve over HTTPS with a valid TLS certificate — the `.htaccess` HTTP→HTTPS redirect is enabled by default (localhost is excluded so local dev still works).
 - Ensure `AllowOverride All` is set for the vhost so `.htaccess` (including the `data/` deny) is honored.
-- Set your domain in the CORS allow-list and `APP_URL` in `api/config.php`.
+- Set the `APP_URL` and `MAIL_FROM` environment variables to your domain, and add your origin to the CORS allow-list in `api/config.php`.
 - Keep `smtpcreds.env` outside the web root (one level above the project).
 
 **Client-side encryption:** with encryption enabled the server stores only wrapped keys and ciphertext and cannot decrypt your data. Transaction *amounts* are intentionally left unencrypted so summaries and trends can be computed. **Keep your recovery phrase safe — losing both your password and recovery phrase means the data cannot be recovered.**
+
+## License
+
+Released into the public domain under [The Unlicense](LICENSE) — do whatever you like with it.
