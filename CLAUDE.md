@@ -72,17 +72,30 @@ Email is off by default (`EMAIL_ENABLED` in `config.php`; reset links shown dire
 
 ## Tests
 
-PHPUnit (dev dependency) drives a `tests/` suite that exercises the `api/db.php`
-data/aggregation functions directly against an **in-memory SQLite** database — no
-HTTP server, session, or on-disk DB. Key pieces:
+PHPUnit (dev dependency) drives a `tests/` suite in two layers.
+
+**DB layer** — exercises the `api/db.php` data/aggregation functions directly
+against an **in-memory SQLite** database (no HTTP server, session, or on-disk DB):
 
 - `tests/bootstrap.php` sets `COINSIDER_DB_PATH=:memory:` (honored by the
-  `DB_PATH` define in `config.php`) and requires `api/db.php`.
+  `DB_PATH` define in `config.php`) and requires `api/db.php`. It also calls
+  `restore_error_handler()`/`restore_exception_handler()` to pop config.php's
+  throw-on-warning / exit-on-exception handlers, which are meant for serving real
+  requests and would otherwise hijack the test runner.
 - `DatabaseTestCase` calls `Database::reset()` in `setUp()` so every test gets a
   fresh connection + freshly created schema (full isolation, order-independent).
 - Add DB-layer tests by extending `DatabaseTestCase`; use the `makeUser()` /
   `makeCategory()` helpers. Cover per-user scoping (`user_id`) on anything new —
   several existing tests assert one user can't read another's rows.
+
+**HTTP layer** (`tests/Http/`) — exercises the handler layer end-to-end: query-string
+routing, `requireAuth()`, PHP session cookies, and the JSON contracts the frontend
+reads. `HttpTestCase` boots PHP's built-in server (`php -S`, one per test class, on
+port 8899) pointed at a throwaway **file-based** SQLite DB via `COINSIDER_DB_PATH`,
+and drives it with a cookie-carrying Guzzle client so login/session behaviour is
+real. A file DB (not `:memory:`) is required because the server is a separate
+process; `setUp()` deletes the file so each test recreates a fresh schema. Extend
+`HttpTestCase` and use `client()` (isolated cookie jar per "user") and `signup()`.
 
 Run it in the container (host has no PHP):
 
@@ -99,10 +112,9 @@ docker compose run --rm -u root php bash -c "apt-get update && apt-get install -
 ```
 
 This is the same reason the Dockerfile's build-time `composer install --no-dev`
-is suffixed with `|| true`. Scope is currently the DB/aggregation layer; the
-handler layer (`api.php`/`auth.php`) needs HTTP-level tests (it calls
-`requireAuth()`/`exit`), and `crypto.js`/`app.js` need a JS runner — neither is
-wired up yet.
+is suffixed with `|| true`. Coverage is the DB and HTTP handler layers; the
+browser UI (`crypto.js`/`app.js`, ~6k lines) still has no JS/E2E runner — a
+Playwright suite driving the running app would be the natural next slice.
 
 ## Conventions / gotchas
 

@@ -20,4 +20,13 @@ require __DIR__ . '/../vendor/autoload.php';
 // them explicitly. config.php is pulled in transitively by db.php.
 require __DIR__ . '/../api/db.php';
 
+// config.php installs a global error handler that throws on any warning and an
+// exception handler that exit()s — correct for serving real HTTP requests, but
+// they hijack the PHPUnit runner (e.g. an expected "connection refused" while
+// polling for the test server would become a fatal). Hand error handling back
+// to PHPUnit in this process; the separate server process keeps its own.
+restore_error_handler();
+restore_exception_handler();
+
 require __DIR__ . '/DatabaseTestCase.php';
+require __DIR__ . '/Http/HttpTestCase.php';
