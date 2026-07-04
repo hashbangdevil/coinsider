@@ -2,6 +2,9 @@
 .env
 smtpcreds.env
 
+# Local / personal (deployment scripts specific to one host)
+deploy.sh
+
 # Composer
 vendor/
 composer.lock
