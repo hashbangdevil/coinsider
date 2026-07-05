@@ -6583,6 +6583,9 @@ async function confirmAllReview() {
     }
     next.disabled = false;
     showToast(`Confirmed ${ok} transaction${ok === 1 ? '' : 's'}`);
+    // Flip the CTA immediately based on remaining rows, before the network
+    // refresh below — so it never lingers if loadAppData/fetch is slow or fails.
+    updateReviewCTA(document.querySelectorAll('[data-imp-review]').length);
     await loadAppData();
     renderAll();
     renderReview(await fetchPendingReview());
