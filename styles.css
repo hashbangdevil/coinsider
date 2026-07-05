@@ -5032,6 +5032,8 @@ select:focus,
     z-index: 1;
 }
 .import-table tr.import-dup { opacity: 0.5; }
+/* let the description column wrap (at spaces first) so the table fits the modal */
+.import-table .import-desc { white-space: normal; overflow-wrap: break-word; min-width: 130px; }
 .import-badge {
     display: inline-block;
     font-size: 0.72rem;
@@ -5040,5 +5042,11 @@ select:focus,
     background: var(--color-warning);
     color: var(--text-inverse);
 }
-.import-table select { max-width: 200px; }
+.import-table select {
+    width: 100%;
+    min-width: 190px;
+    font-size: 0.85rem;
+    /* lighter than the global select padding so the category name isn't clipped */
+    padding: var(--space-xs) calc(var(--space-md) + 18px) var(--space-xs) var(--space-sm);
+}
 .import-empty { padding: var(--space-lg); text-align: center; color: var(--text-secondary); }

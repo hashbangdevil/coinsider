@@ -6458,7 +6458,7 @@ function renderImportPreview() {
         <tr class="${r.duplicate ? 'import-dup' : ''}">
             <td><input type="checkbox" data-imp-include="${i}"${r.include ? ' checked' : ''}></td>
             <td>${escapeHtml(r.date)}</td>
-            <td>${escapeHtml(r.description)}${r.duplicate ? ' <span class="import-badge">dup</span>' : ''}</td>
+            <td class="import-desc">${escapeHtml(r.description)}${r.duplicate ? ' <span class="import-badge">dup</span>' : ''}</td>
             <td>${r.type === 'expense' ? '−' : '+'}${formatCurrency(r.amount)}</td>
             <td><select data-imp-cat="${i}">${importCategoryOptions(r.type, r.categoryId)}</select></td>
         </tr>`).join('');
@@ -6518,7 +6518,7 @@ function renderReview(list) {
     const body = list.map(t => `
         <tr data-imp-review="${t.id}">
             <td>${escapeHtml(t.date)}</td>
-            <td>${escapeHtml(t.description || '')}</td>
+            <td class="import-desc">${escapeHtml(t.description || '')}</td>
             <td>${t.type === 'expense' ? '−' : '+'}${formatCurrency(Math.abs(t.amount))}</td>
             <td><select data-imp-review-cat="${t.id}">${importCategoryOptions(t.type, t.category_id)}</select></td>
             <td><button class="btn btn-small btn-primary" data-imp-confirm="${t.id}">Confirm</button></td>
