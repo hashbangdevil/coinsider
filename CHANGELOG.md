@@ -15,6 +15,8 @@ command that keeps every version surface in sync — do not hand-edit versions.
 
 ## [Unreleased]
 
+## [1.1.0] - 2026-07-05
+
 ### Changed
 - `scripts/release.sh --push` now also creates the GitHub release from the
   promoted changelog section (via the `gh` CLI), skipping gracefully with
