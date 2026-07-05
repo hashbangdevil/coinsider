@@ -6307,6 +6307,8 @@ function importGoToStep(step) {
     };
     title.textContent = labels[step][0];
     next.textContent = labels[step][1];
+    const cancel = document.getElementById('import-cancel-btn');
+    if (cancel && step !== 'review') cancel.style.display = '';
 }
 
 // --- Flow ------------------------------------------------------------------
@@ -6318,6 +6320,7 @@ async function openImportModal() {
     importState.headers = [];
     importState.mapping = {};
     importState.parsed = [];
+    importState.reviewDone = false;
     const fileEl = document.getElementById('import-file');
     if (fileEl) fileEl.value = '';
     const hdrEl = document.getElementById('import-has-header');
@@ -6325,13 +6328,16 @@ async function openImportModal() {
 
     const accGroup = document.getElementById('import-account-group');
     const accSel = document.getElementById('import-account');
+    const accHint = document.getElementById('import-account-hint');
     if (state.accountsModuleEnabled && (state.accounts || []).length) {
         accSel.innerHTML = '<option value="">— no account —</option>' +
             state.accounts.map(a => `<option value="${a.id}">${escapeHtml(a.name)}</option>`).join('');
         accGroup.style.display = '';
+        if (accHint) accHint.style.display = 'none';
     } else {
         accGroup.style.display = 'none';
         accSel.innerHTML = '';
+        if (accHint) accHint.style.display = '';
     }
 
     importGoToStep('source');
@@ -6526,6 +6532,25 @@ function renderReview(list) {
     document.getElementById('import-review-table').innerHTML =
         '<thead><tr><th>Date</th><th>Description</th><th>Amount</th><th>Category</th><th></th></tr></thead>' +
         `<tbody>${body || '<tr><td colspan="5" class="import-empty">Nothing to review.</td></tr>'}</tbody>`;
+    updateReviewCTA(list.length);
+}
+
+// Once everything is confirmed, turn the primary CTA into an obvious "Close"
+// and hide "Cancel" (the imported rows are already saved).
+function updateReviewCTA(remaining) {
+    const next = document.getElementById('import-next-btn');
+    const cancel = document.getElementById('import-cancel-btn');
+    const summary = document.getElementById('import-review-summary');
+    if (remaining > 0) {
+        next.textContent = 'Confirm all';
+        importState.reviewDone = false;
+        if (cancel) cancel.style.display = '';
+    } else {
+        next.textContent = 'Close';
+        importState.reviewDone = true;
+        if (cancel) cancel.style.display = 'none';
+        if (summary) summary.textContent = 'All caught up — nothing left to review.';
+    }
 }
 
 async function confirmReviewRow(id) {
@@ -6536,6 +6561,7 @@ async function confirmReviewRow(id) {
         await api(`api.php?resource=transactions&id=${id}`, { method: 'PUT', body: { confirm: true, category_id: categoryId } });
         const tr = document.querySelector(`[data-imp-review="${id}"]`);
         if (tr) tr.remove();
+        updateReviewCTA(document.querySelectorAll('[data-imp-review]').length);
         await loadAppData();
         renderAll();
     } catch (e) { showToast(e.message || 'Confirm failed'); }
@@ -6566,7 +6592,10 @@ async function importNext() {
     if (importState.step === 'source') return importParseFile();
     if (importState.step === 'map') return importBuildPreview();
     if (importState.step === 'preview') return submitImport();
-    if (importState.step === 'review') return confirmAllReview();
+    if (importState.step === 'review') {
+        if (importState.reviewDone) { closeModal(document.getElementById('import-modal')); return; }
+        return confirmAllReview();
+    }
 }
 
 function setupImport() {

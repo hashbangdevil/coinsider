@@ -55,7 +55,12 @@ test.describe('CSV import', () => {
     await page.locator('#import-next-btn').click(); // Confirm all
     await expect(page.locator('#import-review-summary')).toContainText('All caught up');
 
-    await page.locator('#import-modal .modal-close').click();
+    // Once confirmed, the primary CTA becomes an obvious "Close".
+    await expect(page.locator('#import-next-btn')).toHaveText('Close');
+    await expect(page.locator('#import-cancel-btn')).toBeHidden();
+    await page.locator('#import-next-btn').click(); // Close
+    await expect(page.locator('#import-modal')).toBeHidden();
+
     await expect(page.locator('#transactions-list')).toContainText('WOOLWORTHS');
   });
 
