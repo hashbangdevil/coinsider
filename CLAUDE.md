@@ -37,7 +37,9 @@ data/budget.db    SQLite database (gitignored data dir; protected by .htaccess)
 - PHP sessions (cookie-based) carry auth. `requireAuth()` in `config.php` gates every data handler.
 
 ### API resources (`api/api.php`, `?resource=`)
-`categories`, `transactions`, `recurring` (supports `pause`/`resume`), `summary`, `trends`, `budget-comparison`, `savings-buckets`, `savings-transactions`, `accounts` (supports `activate`/`deactivate`), `account-transfers`. Standard GET/POST/PUT/DELETE per resource.
+`categories`, `transactions` (GET supports `needs_review=1`; PUT supports a `confirm` body to assign a category + clear the review flag), `recurring` (supports `pause`/`resume`), `summary`, `trends`, `budget-comparison`, `savings-buckets`, `savings-transactions`, `accounts` (supports `activate`/`deactivate`), `account-transfers`, `import` (POST: batch CSV import). Standard GET/POST/PUT/DELETE per resource.
+
+**CSV import** is client-side by necessity: descriptions are E2E-encrypted, so the browser parses the CSV, learns category suggestions from the user's own decrypted history (no learning schema — past transactions are the training data), flags likely duplicates, encrypts, and posts a batch to `resource=import`. Imported rows carry `transactions.needs_review = 1` until confirmed. See the "CSV Import" sections in `app.js` (UI/parse/learn) and `api/db.php` (`importTransactions`, `confirmTransaction`).
 
 ### Auth actions (`api/auth.php`, `?action=`)
 `signup`, `login`, `logout`, `status`, `forgot-password`, `reset-password`, `change-password`, `update-settings`, `verify-email`, `resend-verification`, `verification-status`, and encryption: `get-encryption`, `enable-encryption`, `disable-encryption`, `update-encryption-key`, `update-recovery-key`, `verify-password`, `get-encryption-by-token`.

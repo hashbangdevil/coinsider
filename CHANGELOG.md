@@ -15,6 +15,14 @@ command that keeps every version surface in sync — do not hand-edit versions.
 
 ## [Unreleased]
 
+### Added
+- **CSV import** (e.g. bank statements): pick an account, upload a CSV, map its
+  columns (remembered per bank layout), preview with likely duplicates flagged,
+  and import. Imported transactions are marked for review, then confirmed with a
+  category. Category suggestions are learned client-side from your own history and
+  improve as you confirm. Parsing and learning run entirely in the browser, so
+  end-to-end encryption is preserved.
+
 ## [1.1.0] - 2026-07-05
 
 ### Changed

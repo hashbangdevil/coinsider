@@ -4982,3 +4982,63 @@ select:focus,
         opacity: 1 !important;
     }
 }
+
+/* ===================================
+   CSV Import
+   =================================== */
+.modal-content-wide { max-width: 760px; width: 95%; }
+
+.import-banner {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-md);
+    padding: var(--space-sm) var(--space-md);
+    margin-bottom: var(--space-md);
+    border-radius: var(--radius-md);
+    background: var(--color-warning);
+    color: var(--text-inverse);
+    font-size: 0.9rem;
+}
+
+#import-map-fields { display: grid; gap: var(--space-md); }
+.import-map-row {
+    display: grid;
+    grid-template-columns: 1fr 1.4fr;
+    gap: var(--space-md);
+    align-items: center;
+}
+.import-map-row > label { font-size: 0.9rem; color: var(--text-secondary); }
+
+.import-table-wrap {
+    overflow: auto;
+    max-height: 52vh;
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-md);
+}
+.import-table { width: 100%; border-collapse: collapse; font-size: 0.85rem; }
+.import-table th,
+.import-table td {
+    padding: var(--space-sm) var(--space-md);
+    text-align: left;
+    border-bottom: 1px solid var(--border-color-light);
+    white-space: nowrap;
+}
+.import-table th {
+    position: sticky;
+    top: 0;
+    background: var(--bg-elevated);
+    color: var(--text-secondary);
+    z-index: 1;
+}
+.import-table tr.import-dup { opacity: 0.5; }
+.import-badge {
+    display: inline-block;
+    font-size: 0.72rem;
+    padding: 2px 8px;
+    border-radius: var(--radius-full);
+    background: var(--color-warning);
+    color: var(--text-inverse);
+}
+.import-table select { max-width: 200px; }
+.import-empty { padding: var(--space-lg); text-align: center; color: var(--text-secondary); }

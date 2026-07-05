@@ -334,6 +334,17 @@
                     <span class="nav-item-label">Accounts</span>
                     <span class="nav-item-desc">Bank, cards & cash</span>
                 </button>
+                <button class="nav-item" id="nav-import">
+                    <div class="nav-item-icon">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                            <polyline points="7 10 12 15 17 10"/>
+                            <line x1="12" y1="15" x2="12" y2="3"/>
+                        </svg>
+                    </div>
+                    <span class="nav-item-label">Import CSV</span>
+                    <span class="nav-item-desc">From your bank export</span>
+                </button>
                 <div class="nav-divider"></div>
                 <button class="nav-item" data-section="settings">
                     <div class="nav-item-icon">
@@ -1070,6 +1081,68 @@
     </div>
 
     <!-- All Transactions Modal -->
+    <!-- CSV Import Modal -->
+    <div class="modal" id="import-modal" data-persist="true">
+        <div class="modal-backdrop"></div>
+        <div class="modal-content modal-content-wide">
+            <div class="modal-header">
+                <h3 id="import-modal-title">Import Transactions</h3>
+                <button class="btn-icon modal-close">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+                    </svg>
+                </button>
+            </div>
+
+            <!-- Prior imports awaiting review -->
+            <div class="import-banner" id="import-pending-banner" style="display:none;">
+                <span id="import-pending-text"></span>
+                <button type="button" class="btn btn-secondary btn-small" id="import-review-existing-btn">Review now</button>
+            </div>
+
+            <!-- Step 1: source (account + file) -->
+            <div class="import-step" id="import-step-source">
+                <div class="input-group" id="import-account-group" style="display:none;">
+                    <label for="import-account">Account</label>
+                    <select id="import-account"></select>
+                </div>
+                <div class="input-group">
+                    <label for="import-file">CSV file</label>
+                    <input type="file" id="import-file" accept=".csv,text/csv">
+                </div>
+                <label class="checkbox-label">
+                    <input type="checkbox" id="import-has-header" checked>
+                    <span class="checkbox-text">First row is a header</span>
+                </label>
+                <p class="form-description">Export a CSV from your bank. You'll map its columns in the next step.</p>
+            </div>
+
+            <!-- Step 2: column mapping -->
+            <div class="import-step" id="import-step-map" style="display:none;">
+                <p class="form-description">Map your bank's columns. This is remembered per bank layout.</p>
+                <div id="import-map-fields"></div>
+            </div>
+
+            <!-- Step 3: preview -->
+            <div class="import-step" id="import-step-preview" style="display:none;">
+                <p class="form-description" id="import-preview-summary"></p>
+                <div class="import-table-wrap"><table class="import-table" id="import-preview-table"></table></div>
+            </div>
+
+            <!-- Step 4: review (post-import category confirmation) -->
+            <div class="import-step" id="import-step-review" style="display:none;">
+                <p class="form-description" id="import-review-summary"></p>
+                <div class="import-table-wrap"><table class="import-table" id="import-review-table"></table></div>
+            </div>
+
+            <div class="modal-actions">
+                <button type="button" class="btn btn-secondary" id="import-back-btn" style="display:none;">Back</button>
+                <button type="button" class="btn btn-secondary modal-cancel" id="import-cancel-btn">Cancel</button>
+                <button type="button" class="btn btn-primary" id="import-next-btn">Next</button>
+            </div>
+        </div>
+    </div>
+
     <div class="modal" id="transactions-modal">
         <div class="modal-backdrop"></div>
         <div class="modal-content modal-large">

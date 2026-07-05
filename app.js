@@ -1961,7 +1961,7 @@ function renderTransactions() {
                     </div>
                     <div class="transaction-info">
                         <div class="transaction-description">${escapeHtml(transaction.description)}</div>
-                        <div class="transaction-meta">${escapeHtml(catName)} • ${formatDate(transaction.date)}${accountBadge ? ' ' + accountBadge : ''}</div>
+                        <div class="transaction-meta">${escapeHtml(catName)} • ${formatDate(transaction.date)}${accountBadge ? ' ' + accountBadge : ''}${transaction.needs_review == 1 ? ' <span class="import-badge">review</span>' : ''}</div>
                     </div>
                     <div class="transaction-amount ${transaction.type}">
                         ${isIncome ? '+' : '-'}${formatCurrency(transaction.amount)}
@@ -4162,7 +4162,7 @@ function renderTransactionsModal() {
                     </div>
                     <div class="transaction-info">
                         <div class="transaction-description">${escapeHtml(transaction.description)}</div>
-                        <div class="transaction-meta">${escapeHtml(catName)} • ${formatDate(transaction.date)}${accountBadge ? ' ' + accountBadge : ''}</div>
+                        <div class="transaction-meta">${escapeHtml(catName)} • ${formatDate(transaction.date)}${accountBadge ? ' ' + accountBadge : ''}${transaction.needs_review == 1 ? ' <span class="import-badge">review</span>' : ''}</div>
                     </div>
                     <div class="transaction-amount ${transaction.type}">
                         ${isIncome ? '+' : '-'}${formatCurrency(transaction.amount)}
@@ -5967,6 +5967,7 @@ async function init() {
     setupAccountModals();
     setupBalanceCard();
     setupInstallPrompt();
+    setupImport();
 
     // Chart period selector change handler
     elements.chartPeriodSelector?.addEventListener('change', async () => {
@@ -6112,6 +6113,490 @@ async function init() {
 document.addEventListener('DOMContentLoaded', init);
 
 // Make functions available globally for onclick handlers
+// ========================================
+// CSV Import
+// ========================================
+
+const importState = {
+    accountId: null,
+    hasHeader: true,
+    headers: [],
+    rows: [],
+    mapping: {},
+    parsed: [],
+    step: 'source'
+};
+
+// --- Parsing helpers -------------------------------------------------------
+
+function importPad(n) { return String(n).padStart(2, '0'); }
+
+// Detect the most likely delimiter from the header line.
+function detectDelimiter(text) {
+    const first = (text.split(/\r?\n/)[0]) || '';
+    const counts = {
+        ',': (first.match(/,/g) || []).length,
+        ';': (first.match(/;/g) || []).length,
+        '\t': (first.match(/\t/g) || []).length
+    };
+    return Object.entries(counts).sort((a, b) => b[1] - a[1])[0][0] || ',';
+}
+
+// RFC-4180-ish CSV parser: handles quotes, escaped quotes, and quoted newlines.
+function parseCSV(text, delim) {
+    const rows = [];
+    let row = [], field = '', inQuotes = false;
+    for (let i = 0; i < text.length; i++) {
+        const c = text[i];
+        if (inQuotes) {
+            if (c === '"') {
+                if (text[i + 1] === '"') { field += '"'; i++; }
+                else inQuotes = false;
+            } else field += c;
+        } else if (c === '"') {
+            inQuotes = true;
+        } else if (c === delim) {
+            row.push(field); field = '';
+        } else if (c === '\r') {
+            // ignore; \n handles the line break
+        } else if (c === '\n') {
+            row.push(field); rows.push(row); row = []; field = '';
+        } else {
+            field += c;
+        }
+    }
+    if (field.length > 0 || row.length > 0) { row.push(field); rows.push(row); }
+    return rows.filter(r => r.some(c => c.trim() !== ''));
+}
+
+// Normalise a description to a merchant-ish key for matching/learning.
+function normalizeDesc(s) {
+    return (s || '')
+        .toLowerCase()
+        .replace(/[0-9]+/g, ' ')
+        .replace(/[^a-z ]+/g, ' ')
+        .replace(/\s+/g, ' ')
+        .trim();
+}
+
+function parseImportDate(raw, format) {
+    const s = (raw || '').trim();
+    if (!s) return null;
+    let m = s.match(/^(\d{4})[-/.](\d{1,2})[-/.](\d{1,2})/);
+    if (m) return `${m[1]}-${importPad(m[2])}-${importPad(m[3])}`;
+    m = s.match(/^(\d{1,2})[-/.](\d{1,2})[-/.](\d{2,4})/);
+    if (m) {
+        let a = +m[1], b = +m[2], y = +m[3];
+        if (y < 100) y += 2000;
+        const day = (format === 'MDY') ? b : a;
+        const mon = (format === 'MDY') ? a : b;
+        if (mon >= 1 && mon <= 12 && day >= 1 && day <= 31) {
+            return `${y}-${importPad(mon)}-${importPad(day)}`;
+        }
+    }
+    const d = new Date(s);
+    if (!isNaN(d.getTime())) return `${d.getFullYear()}-${importPad(d.getMonth() + 1)}-${importPad(d.getDate())}`;
+    return null;
+}
+
+function parseImportAmount(raw) {
+    if (raw == null) return null;
+    let s = String(raw).trim();
+    if (!s) return null;
+    let neg = false;
+    if (/^\(.*\)$/.test(s)) { neg = true; s = s.slice(1, -1); }
+    if (s.indexOf('-') !== -1) neg = true;
+    s = s.replace(/[^0-9.,]/g, '');
+    if (s.indexOf(',') !== -1 && s.indexOf('.') !== -1) {
+        if (s.lastIndexOf(',') > s.lastIndexOf('.')) s = s.replace(/\./g, '').replace(',', '.');
+        else s = s.replace(/,/g, '');
+    } else if (s.indexOf(',') !== -1) {
+        s = /,\d{1,2}$/.test(s) ? s.replace(',', '.') : s.replace(/,/g, '');
+    }
+    const val = parseFloat(s);
+    if (isNaN(val)) return null;
+    return neg ? -Math.abs(val) : val;
+}
+
+// --- Learning & duplicates (client-side, over decrypted history) -----------
+
+function importHistory() {
+    return (state.allTransactions && state.allTransactions.length) ? state.allTransactions : (state.transactions || []);
+}
+
+// Suggest the category most often used for descriptions like this one.
+function suggestCategoryId(description, type) {
+    const key = normalizeDesc(description);
+    if (!key) return null;
+    const counts = {};
+    for (const t of importHistory()) {
+        if (t.type !== type || !t.category_id) continue;
+        const tk = normalizeDesc(t.description || '');
+        if (!tk) continue;
+        let match = (tk === key);
+        if (!match && key.length >= 4) {
+            match = tk.includes(key) || key.includes(tk) || tk.split(' ')[0] === key.split(' ')[0];
+        }
+        if (match) counts[t.category_id] = (counts[t.category_id] || 0) + 1;
+    }
+    let best = null, bestN = 0;
+    for (const cid in counts) if (counts[cid] > bestN) { bestN = counts[cid]; best = parseInt(cid); }
+    return best;
+}
+
+function isLikelyDuplicate(row, accountId) {
+    const key = normalizeDesc(row.description);
+    return importHistory().some(t =>
+        t.date === row.date &&
+        Math.abs(Math.abs(parseFloat(t.amount)) - row.amount) < 0.005 &&
+        String(t.account_id || '') === String(accountId || '') &&
+        normalizeDesc(t.description || '') === key
+    );
+}
+
+// --- Mapping persistence ---------------------------------------------------
+
+function importMappingKey() { return 'import_map_' + (importState.headers || []).join('|').toLowerCase(); }
+function loadSavedMapping() { try { return JSON.parse(localStorage.getItem(importMappingKey())); } catch { return null; } }
+function saveImportMapping() { try { localStorage.setItem(importMappingKey(), JSON.stringify(importState.mapping)); } catch {} }
+
+function guessMapping(headers) {
+    const find = (needles) => {
+        for (let i = 0; i < headers.length; i++) {
+            const h = headers[i].toLowerCase();
+            if (needles.some(n => h.includes(n))) return String(i);
+        }
+        return '';
+    };
+    return {
+        date: find(['date']),
+        description: find(['description', 'desc', 'narrative', 'details', 'reference', 'payee', 'memo']),
+        amount: find(['amount', 'value']),
+        debit: find(['debit', 'money out', 'withdrawal']),
+        credit: find(['credit', 'money in', 'deposit'])
+    };
+}
+
+// --- UI helpers ------------------------------------------------------------
+
+function importCategoryOptions(type, selectedId) {
+    const cats = (state.categories || []).filter(c => c.type === type);
+    let html = '<option value="">— category —</option>';
+    for (const c of cats) {
+        const sel = String(c.id) === String(selectedId) ? ' selected' : '';
+        html += `<option value="${c.id}"${sel}>${escapeHtml(c.name)}</option>`;
+    }
+    return html;
+}
+
+function importGoToStep(step) {
+    importState.step = step;
+    ['source', 'map', 'preview', 'review'].forEach(s => {
+        const el = document.getElementById('import-step-' + s);
+        if (el) el.style.display = (s === step) ? '' : 'none';
+    });
+    const back = document.getElementById('import-back-btn');
+    const next = document.getElementById('import-next-btn');
+    const title = document.getElementById('import-modal-title');
+    back.style.display = (step === 'map' || step === 'preview') ? '' : 'none';
+    const labels = {
+        source: ['Import Transactions', 'Next'],
+        map: ['Map columns', 'Next'],
+        preview: ['Preview & categorise', 'Import'],
+        review: ['Review imported', 'Confirm all']
+    };
+    title.textContent = labels[step][0];
+    next.textContent = labels[step][1];
+}
+
+// --- Flow ------------------------------------------------------------------
+
+async function openImportModal() {
+    closeNavDrawer();
+    importState.accountId = null;
+    importState.rows = [];
+    importState.headers = [];
+    importState.mapping = {};
+    importState.parsed = [];
+    const fileEl = document.getElementById('import-file');
+    if (fileEl) fileEl.value = '';
+    const hdrEl = document.getElementById('import-has-header');
+    if (hdrEl) hdrEl.checked = true;
+
+    const accGroup = document.getElementById('import-account-group');
+    const accSel = document.getElementById('import-account');
+    if (state.accountsModuleEnabled && (state.accounts || []).length) {
+        accSel.innerHTML = '<option value="">— no account —</option>' +
+            state.accounts.map(a => `<option value="${a.id}">${escapeHtml(a.name)}</option>`).join('');
+        accGroup.style.display = '';
+    } else {
+        accGroup.style.display = 'none';
+        accSel.innerHTML = '';
+    }
+
+    importGoToStep('source');
+    openModal(document.getElementById('import-modal'));
+    updateImportPendingBanner();
+}
+
+async function updateImportPendingBanner() {
+    const banner = document.getElementById('import-pending-banner');
+    try {
+        const pending = await api('api.php?resource=transactions&needs_review=1&limit=10000');
+        const n = Array.isArray(pending) ? pending.length : 0;
+        if (n > 0) {
+            document.getElementById('import-pending-text').textContent =
+                `${n} transaction${n === 1 ? '' : 's'} from a previous import await review.`;
+            banner.style.display = '';
+        } else {
+            banner.style.display = 'none';
+        }
+    } catch { banner.style.display = 'none'; }
+}
+
+async function importParseFile() {
+    const file = document.getElementById('import-file').files?.[0];
+    if (!file) { showToast('Choose a CSV file'); return; }
+    importState.accountId = document.getElementById('import-account')?.value || null;
+    importState.hasHeader = document.getElementById('import-has-header').checked;
+
+    const text = await file.text();
+    const rows = parseCSV(text, detectDelimiter(text));
+    if (!rows.length) { showToast('No rows found in that file'); return; }
+
+    importState.rows = rows;
+    importState.headers = importState.hasHeader
+        ? rows[0].map(h => h.trim())
+        : rows[0].map((_, i) => `Column ${i + 1}`);
+
+    renderMappingUI();
+    importGoToStep('map');
+}
+
+function renderMappingUI() {
+    const headers = importState.headers;
+    const saved = loadSavedMapping();
+    const m = saved || guessMapping(headers);
+    importState.mapping = Object.assign({ dateFormat: 'DMY', amountSign: 'neg-expense' }, m);
+
+    const colOptions = (selected) => '<option value="">— none —</option>' +
+        headers.map((h, i) => `<option value="${i}"${String(selected) === String(i) ? ' selected' : ''}>${escapeHtml(h)}</option>`).join('');
+    const field = (key, label) =>
+        `<div class="import-map-row"><label>${label}</label><select data-imp-map="${key}">${colOptions(importState.mapping[key])}</select></div>`;
+
+    const mm = importState.mapping;
+    let html = field('date', 'Date') + field('description', 'Description') +
+        field('amount', 'Amount (single column)') + field('debit', 'Debit / money out') + field('credit', 'Credit / money in');
+    html += `<div class="import-map-row"><label>Date format</label><select data-imp-map="dateFormat">
+        <option value="DMY"${mm.dateFormat === 'DMY' ? ' selected' : ''}>Day / Month / Year</option>
+        <option value="MDY"${mm.dateFormat === 'MDY' ? ' selected' : ''}>Month / Day / Year</option>
+        <option value="YMD"${mm.dateFormat === 'YMD' ? ' selected' : ''}>Year-Month-Day</option>
+    </select></div>`;
+    html += `<div class="import-map-row"><label>Single-amount sign</label><select data-imp-map="amountSign">
+        <option value="neg-expense"${mm.amountSign !== 'pos-expense' ? ' selected' : ''}>Negative = expense</option>
+        <option value="pos-expense"${mm.amountSign === 'pos-expense' ? ' selected' : ''}>Positive = expense</option>
+    </select></div>`;
+    document.getElementById('import-map-fields').innerHTML = html;
+}
+
+function buildParsedRows() {
+    const m = importState.mapping;
+    const dataRows = importState.hasHeader ? importState.rows.slice(1) : importState.rows;
+    const cell = (r, key) => {
+        const i = m[key];
+        return (i === '' || i == null) ? '' : (r[i] ?? '');
+    };
+    const hasAmount = m.amount !== '' && m.amount != null;
+    const out = [];
+    for (const r of dataRows) {
+        const date = parseImportDate(cell(r, 'date'), m.dateFormat);
+        const description = String(cell(r, 'description')).trim();
+        let amount, type;
+        if (hasAmount) {
+            const a = parseImportAmount(cell(r, 'amount'));
+            if (a == null) continue;
+            type = (m.amountSign === 'pos-expense') ? (a > 0 ? 'expense' : 'income') : (a < 0 ? 'expense' : 'income');
+            amount = Math.abs(a);
+        } else {
+            const dv = parseImportAmount(cell(r, 'debit'));
+            const cv = parseImportAmount(cell(r, 'credit'));
+            if (dv && Math.abs(dv) > 0) { type = 'expense'; amount = Math.abs(dv); }
+            else if (cv && Math.abs(cv) > 0) { type = 'income'; amount = Math.abs(cv); }
+            else continue;
+        }
+        if (!date || !description || !(amount > 0)) continue;
+        const categoryId = suggestCategoryId(description, type);
+        const duplicate = isLikelyDuplicate({ date, description, amount }, importState.accountId);
+        out.push({ date, description, amount, type, categoryId, duplicate, include: !duplicate });
+    }
+    return out;
+}
+
+function importBuildPreview() {
+    const m = importState.mapping;
+    const hasAmount = m.amount !== '' && m.amount != null;
+    const hasDC = (m.debit !== '' && m.debit != null) || (m.credit !== '' && m.credit != null);
+    if (m.date === '' || m.date == null || m.description === '' || m.description == null) {
+        showToast('Map at least Date and Description'); return;
+    }
+    if (!hasAmount && !hasDC) { showToast('Map an Amount column, or Debit/Credit columns'); return; }
+
+    saveImportMapping();
+    importState.parsed = buildParsedRows();
+    renderImportPreview();
+    importGoToStep('preview');
+}
+
+function renderImportPreview() {
+    const p = importState.parsed;
+    const dupCount = p.filter(r => r.duplicate).length;
+    document.getElementById('import-preview-summary').textContent = p.length
+        ? `${p.length} row${p.length === 1 ? '' : 's'} parsed${dupCount ? `, ${dupCount} likely duplicate${dupCount === 1 ? '' : 's'} unticked` : ''}. Check categories, then import.`
+        : 'No valid rows were parsed — go back and check your column mapping.';
+
+    const body = p.map((r, i) => `
+        <tr class="${r.duplicate ? 'import-dup' : ''}">
+            <td><input type="checkbox" data-imp-include="${i}"${r.include ? ' checked' : ''}></td>
+            <td>${escapeHtml(r.date)}</td>
+            <td>${escapeHtml(r.description)}${r.duplicate ? ' <span class="import-badge">dup</span>' : ''}</td>
+            <td>${r.type === 'expense' ? '−' : '+'}${formatCurrency(r.amount)}</td>
+            <td><select data-imp-cat="${i}">${importCategoryOptions(r.type, r.categoryId)}</select></td>
+        </tr>`).join('');
+    document.getElementById('import-preview-table').innerHTML =
+        '<thead><tr><th></th><th>Date</th><th>Description</th><th>Amount</th><th>Category (suggested)</th></tr></thead>' +
+        `<tbody>${body || '<tr><td colspan="5" class="import-empty">No valid rows found.</td></tr>'}</tbody>`;
+}
+
+async function submitImport() {
+    const rows = importState.parsed.filter(r => r.include);
+    if (!rows.length) { showToast('Nothing selected to import'); return; }
+    const next = document.getElementById('import-next-btn');
+    next.disabled = true;
+    try {
+        const transactions = await Promise.all(rows.map(async r => {
+            const enc = await encryptTransaction({ description: r.description });
+            return {
+                description: enc.description,
+                amount: r.amount,
+                type: r.type,
+                date: r.date,
+                category_id: r.categoryId || null
+            };
+        }));
+        const res = await api('api.php?resource=import', {
+            method: 'POST',
+            body: { account_id: importState.accountId || null, transactions }
+        });
+        showToast(`Imported ${res.imported} transaction${res.imported === 1 ? '' : 's'}`);
+        await loadAppData();
+        renderAll();
+        await openReviewStep();
+    } catch (e) {
+        showToast(e.message || 'Import failed');
+    } finally {
+        next.disabled = false;
+    }
+}
+
+async function fetchPendingReview() {
+    let list = await api('api.php?resource=transactions&needs_review=1&limit=10000');
+    if (!Array.isArray(list)) list = [];
+    if (CryptoModule?.isReady()) list = await decryptTransactions(list);
+    return list;
+}
+
+async function openReviewStep() {
+    const pending = await fetchPendingReview();
+    renderReview(pending);
+    importGoToStep('review');
+}
+
+function renderReview(list) {
+    document.getElementById('import-review-summary').textContent = list.length
+        ? `${list.length} transaction${list.length === 1 ? '' : 's'} awaiting confirmation. Set a category and confirm.`
+        : 'All caught up — nothing left to review.';
+    const body = list.map(t => `
+        <tr data-imp-review="${t.id}">
+            <td>${escapeHtml(t.date)}</td>
+            <td>${escapeHtml(t.description || '')}</td>
+            <td>${t.type === 'expense' ? '−' : '+'}${formatCurrency(Math.abs(t.amount))}</td>
+            <td><select data-imp-review-cat="${t.id}">${importCategoryOptions(t.type, t.category_id)}</select></td>
+            <td><button class="btn btn-small btn-primary" data-imp-confirm="${t.id}">Confirm</button></td>
+        </tr>`).join('');
+    document.getElementById('import-review-table').innerHTML =
+        '<thead><tr><th>Date</th><th>Description</th><th>Amount</th><th>Category</th><th></th></tr></thead>' +
+        `<tbody>${body || '<tr><td colspan="5" class="import-empty">Nothing to review.</td></tr>'}</tbody>`;
+}
+
+async function confirmReviewRow(id) {
+    const sel = document.querySelector(`[data-imp-review-cat="${id}"]`);
+    const categoryId = sel && sel.value ? parseInt(sel.value) : 0;
+    if (!categoryId) { showToast('Pick a category first'); return; }
+    try {
+        await api(`api.php?resource=transactions&id=${id}`, { method: 'PUT', body: { confirm: true, category_id: categoryId } });
+        const tr = document.querySelector(`[data-imp-review="${id}"]`);
+        if (tr) tr.remove();
+        await loadAppData();
+        renderAll();
+    } catch (e) { showToast(e.message || 'Confirm failed'); }
+}
+
+async function confirmAllReview() {
+    const selects = Array.from(document.querySelectorAll('[data-imp-review-cat]')).filter(s => s.value);
+    if (!selects.length) { showToast('Set categories to confirm'); return; }
+    const next = document.getElementById('import-next-btn');
+    next.disabled = true;
+    let ok = 0;
+    for (const s of selects) {
+        const id = s.getAttribute('data-imp-review-cat');
+        try {
+            await api(`api.php?resource=transactions&id=${id}`, { method: 'PUT', body: { confirm: true, category_id: parseInt(s.value) } });
+            ok++;
+            document.querySelector(`[data-imp-review="${id}"]`)?.remove();
+        } catch {}
+    }
+    next.disabled = false;
+    showToast(`Confirmed ${ok} transaction${ok === 1 ? '' : 's'}`);
+    await loadAppData();
+    renderAll();
+    renderReview(await fetchPendingReview());
+}
+
+async function importNext() {
+    if (importState.step === 'source') return importParseFile();
+    if (importState.step === 'map') return importBuildPreview();
+    if (importState.step === 'preview') return submitImport();
+    if (importState.step === 'review') return confirmAllReview();
+}
+
+function setupImport() {
+    document.getElementById('nav-import')?.addEventListener('click', openImportModal);
+    document.getElementById('import-next-btn')?.addEventListener('click', importNext);
+    document.getElementById('import-back-btn')?.addEventListener('click', () => {
+        if (importState.step === 'preview') importGoToStep('map');
+        else if (importState.step === 'map') importGoToStep('source');
+    });
+    document.getElementById('import-review-existing-btn')?.addEventListener('click', openReviewStep);
+
+    const modal = document.getElementById('import-modal');
+    modal?.addEventListener('change', (e) => {
+        const t = e.target;
+        if (t.matches('[data-imp-map]')) {
+            importState.mapping[t.getAttribute('data-imp-map')] = t.value;
+        } else if (t.matches('[data-imp-include]')) {
+            const row = importState.parsed[+t.getAttribute('data-imp-include')];
+            if (row) row.include = t.checked;
+        } else if (t.matches('[data-imp-cat]')) {
+            const row = importState.parsed[+t.getAttribute('data-imp-cat')];
+            if (row) row.categoryId = t.value ? parseInt(t.value) : null;
+        }
+    });
+    modal?.addEventListener('click', (e) => {
+        const btn = e.target.closest && e.target.closest('[data-imp-confirm]');
+        if (btn) confirmReviewRow(btn.getAttribute('data-imp-confirm'));
+    });
+}
+
 window.deleteCategory = deleteCategory;
 window.openEditCategoryModal = openEditCategoryModal;
 window.deleteTransaction = deleteTransaction;
