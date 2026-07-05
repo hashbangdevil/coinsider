@@ -3,7 +3,7 @@
 smtpcreds.env
 
 # Local / personal (deployment scripts specific to one host)
-deploy.sh
+deploy.sh*
 
 # Composer
 vendor/
