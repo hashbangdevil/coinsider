@@ -46,7 +46,8 @@ switch ($resource) {
         handleAccountTransfers($method, $id);
         break;
     case '':
-        jsonResponse(['message' => 'Coinsider API', 'version' => '1.0']);
+        $version = @file_get_contents(__DIR__ . '/../VERSION');
+        jsonResponse(['message' => 'Coinsider API', 'version' => $version ? trim($version) : 'unknown']);
         break;
     default:
         errorResponse('Not found', 404);

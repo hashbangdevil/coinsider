@@ -141,7 +141,8 @@ rather than via Playwright's `webServer` so teardown survives a killed run.
 
 ## Conventions / gotchas
 
-- **No build tooling.** Edit `app.js`/`styles.css`/`index.html` directly. After CSS/JS changes, bump the `?v=` query param in `index.html` so clients (and the service worker) pick up the new file.
+- **No build tooling.** Edit `app.js`/`styles.css`/`index.html` directly. Cache-busting `?v=` params and the service-worker cache name are tied to the app version and bumped at release time (see Versioning below), not per edit — during local dev, hard-refresh or use the in-app "Check for Updates" to bypass the cache.
+- **Versioning (semver).** `VERSION` is the single source of truth. Do **not** hand-edit the version in `index.html` (`#app-version`, `?v=`), `sw.js` (`CACHE_NAME`), or `api.php` — run `scripts/release.sh <patch|minor|major|X.Y.Z>`, which syncs every surface, promotes the `CHANGELOG.md` `[Unreleased]` section, commits, and creates a `vX.Y.Z` tag (`--dry-run` to preview, `--push` to publish). `api.php` reads `VERSION` at runtime. Record notable changes under `## [Unreleased]` in `CHANGELOG.md` as you go.
 - `app.js` is one large file organized by `// ====` section banners (search those to navigate). Functions used in inline `onclick=` handlers are exposed on `window` at the bottom of the file — add new ones there if referenced from HTML.
 - API routing is **query-string based**, not RESTful paths. New resources go in the `switch` in `api.php` plus a `handleX()` function.
 - All money math that needs aggregation must keep amounts unencrypted (see encryption section).

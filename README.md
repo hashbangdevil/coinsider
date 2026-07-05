@@ -103,6 +103,31 @@ npm run test:e2e
 
 See [CLAUDE.md](CLAUDE.md) for how each layer is structured and a one-time setup note.
 
+## Versioning & releases
+
+Coinsider follows [Semantic Versioning](https://semver.org). The `VERSION` file
+is the single source of truth; the displayed app version, the service-worker
+cache name, the asset cache-busting params, and the API version response all
+derive from it. Changes are recorded in [CHANGELOG.md](CHANGELOG.md).
+
+Cut a release with the helper (there's no build step, so this one command keeps
+every version surface in sync):
+
+```
+scripts/release.sh patch            # 1.0.0 -> 1.0.1 (bug fixes)
+scripts/release.sh minor            # 1.0.0 -> 1.1.0 (new features)
+scripts/release.sh major            # 1.0.0 -> 2.0.0 (breaking changes)
+scripts/release.sh 1.4.2            # or set an explicit version
+
+scripts/release.sh patch --dry-run  # preview without writing
+scripts/release.sh patch --push     # also push the commit + tag to origin
+```
+
+It updates `VERSION`, `index.html`, `sw.js`, and `CHANGELOG.md`, then commits and
+creates an annotated `vX.Y.Z` tag. Run the tests (`composer test` and
+`npm run test:e2e`) and note changes under `## [Unreleased]` in the changelog
+before releasing.
+
 ## Project structure
 
 ```
