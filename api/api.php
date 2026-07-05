@@ -45,6 +45,9 @@ switch ($resource) {
     case 'account-transfers':
         handleAccountTransfers($method, $id);
         break;
+    case 'import':
+        handleImport($method);
+        break;
     case '':
         $version = @file_get_contents(__DIR__ . '/../VERSION');
         jsonResponse(['message' => 'Coinsider API', 'version' => $version ? trim($version) : 'unknown']);
@@ -212,10 +215,11 @@ function handleTransactions($method, $id) {
                 $categoryId = isset($_GET['category_id']) ? intval($_GET['category_id']) : null;
                 $startDate = isset($_GET['start_date']) ? $_GET['start_date'] : null;
                 $endDate = isset($_GET['end_date']) ? $_GET['end_date'] : null;
+                $needsReview = isset($_GET['needs_review']) ? (intval($_GET['needs_review']) === 1) : null;
 
                 // Use filtered query if any filter params are provided
-                if ($categoryId !== null || $startDate !== null || $endDate !== null) {
-                    $transactions = getTransactionsFiltered($userId, $limit, $categoryId, $startDate, $endDate);
+                if ($categoryId !== null || $startDate !== null || $endDate !== null || $needsReview !== null) {
+                    $transactions = getTransactionsFiltered($userId, $limit, $categoryId, $startDate, $endDate, $needsReview);
                 } else {
                     $transactions = getTransactions($userId, $limit);
                 }
@@ -284,6 +288,20 @@ function handleTransactions($method, $id) {
             }
 
             $data = json_decode(file_get_contents('php://input'), true);
+
+            // Confirm path: assign a category to an imported transaction and
+            // clear its needs_review flag (used by the CSV import review queue).
+            if (!empty($data['confirm'])) {
+                $confirmCategoryId = isset($data['category_id']) ? intval($data['category_id']) : 0;
+                if (!$confirmCategoryId) {
+                    errorResponse('category_id is required to confirm');
+                }
+                $transaction = confirmTransaction($userId, $id, $confirmCategoryId);
+                if (!$transaction) {
+                    errorResponse('Transaction not found or invalid category');
+                }
+                jsonResponse($transaction);
+            }
 
             // Support both category_id (new) and category (legacy)
             $hasCategoryId = isset($data['category_id']) && !empty($data['category_id']);
@@ -359,6 +377,37 @@ function handleTransactions($method, $id) {
         default:
             errorResponse('Method not allowed', 405);
     }
+}
+
+// ========================================
+// CSV Import Handler
+// ========================================
+
+function handleImport($method) {
+    if ($method !== 'POST') {
+        errorResponse('Method not allowed', 405);
+    }
+
+    $user = requireAuth();
+    $userId = $user['id'];
+
+    $data = json_decode(file_get_contents('php://input'), true);
+    $accountId = (isset($data['account_id']) && !empty($data['account_id'])) ? intval($data['account_id']) : null;
+    $items = $data['transactions'] ?? null;
+
+    if (!is_array($items) || count($items) === 0) {
+        errorResponse('No transactions to import');
+    }
+    if (count($items) > 5000) {
+        errorResponse('Too many rows in a single import (max 5000)');
+    }
+
+    $count = importTransactions($userId, $accountId, $items);
+    if ($count === null) {
+        errorResponse('Invalid account', 400);
+    }
+
+    jsonResponse(['success' => true, 'imported' => $count], 201);
 }
 
 // ========================================

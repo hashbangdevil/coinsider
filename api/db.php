@@ -270,6 +270,13 @@ class Database {
             // Column already exists, ignore
         }
 
+        // Add needs_review flag to transactions (CSV import: mark for confirmation)
+        try {
+            $this->pdo->exec("ALTER TABLE transactions ADD COLUMN needs_review INTEGER DEFAULT 0");
+        } catch (PDOException $e) {
+            // Column already exists, ignore
+        }
+
         // Indexes
         $this->pdo->exec("CREATE INDEX IF NOT EXISTS idx_users_email ON users(email)");
         $this->pdo->exec("CREATE INDEX IF NOT EXISTS idx_users_reset_token ON users(reset_token)");
@@ -1449,7 +1456,7 @@ function getCategoryTotalsForDateRange($userId, $startDate, $endDate) {
     return $results;
 }
 
-function getTransactionsFiltered($userId, $limit = 100, $categoryId = null, $startDate = null, $endDate = null) {
+function getTransactionsFiltered($userId, $limit = 100, $categoryId = null, $startDate = null, $endDate = null, $needsReview = null) {
     $pdo = Database::getInstance()->getPdo();
 
     $sql = "
@@ -1463,6 +1470,11 @@ function getTransactionsFiltered($userId, $limit = 100, $categoryId = null, $sta
         WHERE t.user_id = ?
     ";
     $params = [$userId];
+
+    if ($needsReview !== null) {
+        $sql .= " AND t.needs_review = ?";
+        $params[] = $needsReview ? 1 : 0;
+    }
 
     if ($categoryId !== null) {
         $sql .= " AND t.category_id = ?";
@@ -2397,6 +2409,98 @@ function createTransactionWithAccount($userId, $description, $amount, $categoryI
         $pdo->rollBack();
         throw $e;
     }
+}
+
+// ========================================
+// CSV Import
+// ========================================
+
+// Batch-import transactions from a parsed CSV. All rows are flagged
+// needs_review = 1 for the user to confirm/categorise afterwards. Category is
+// optional at import time (assigned during review); description and any
+// category name are already encrypted client-side when encryption is on.
+// Returns the number of rows inserted, or null if the account is invalid.
+function importTransactions($userId, $accountId, $items) {
+    $pdo = Database::getInstance()->getPdo();
+
+    // Validate the destination account once (if one was chosen).
+    if ($accountId !== null) {
+        if (!getAccount($userId, $accountId)) {
+            return null;
+        }
+    }
+
+    $pdo->beginTransaction();
+    try {
+        $stmt = $pdo->prepare("
+            INSERT INTO transactions (user_id, description, amount, category, category_id, type, date, account_id, needs_review)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1)
+        ");
+
+        $count = 0;
+        $balanceDelta = 0.0;
+        foreach ($items as $item) {
+            $type = $item['type'] ?? 'expense';
+            if (!in_array($type, ['income', 'expense'], true)) {
+                continue; // skip malformed rows rather than abort the whole import
+            }
+            $amount = (float) ($item['amount'] ?? 0);
+            $date = $item['date'] ?? date('Y-m-d');
+            $description = (string) ($item['description'] ?? '');
+
+            // Category is optional at import; validate & keep only if it's the
+            // user's own and the type matches, else leave uncategorised.
+            $categoryId = !empty($item['category_id']) ? (int) $item['category_id'] : null;
+            $categoryName = '';
+            if ($categoryId !== null) {
+                $cat = getCategory($userId, $categoryId);
+                if (!$cat || $cat['type'] !== $type) {
+                    $categoryId = null;
+                } else {
+                    $categoryName = $cat['name'];
+                }
+            }
+
+            $stmt->execute([$userId, $description, $amount, $categoryName, $categoryId, $type, $date, $accountId]);
+            $count++;
+            if ($accountId !== null) {
+                $balanceDelta += ($type === 'income') ? $amount : -$amount;
+            }
+        }
+
+        if ($accountId !== null && $balanceDelta != 0.0) {
+            _updateAccountBalance($pdo, $accountId, $balanceDelta);
+        }
+
+        $pdo->commit();
+        return $count;
+    } catch (Throwable $e) {
+        $pdo->rollBack();
+        throw $e;
+    }
+}
+
+// Confirm an imported transaction: assign a category and clear needs_review.
+// The category must be the user's own and match the transaction's type.
+function confirmTransaction($userId, $transactionId, $categoryId) {
+    $pdo = Database::getInstance()->getPdo();
+
+    $transaction = getTransaction($userId, $transactionId);
+    if (!$transaction) {
+        return null;
+    }
+    $category = getCategory($userId, $categoryId);
+    if (!$category || $category['type'] !== $transaction['type']) {
+        return null;
+    }
+
+    $stmt = $pdo->prepare("
+        UPDATE transactions
+        SET category = ?, category_id = ?, needs_review = 0
+        WHERE id = ? AND user_id = ?
+    ");
+    $stmt->execute([$category['name'], $categoryId, $transactionId, $userId]);
+    return getTransaction($userId, $transactionId);
 }
 
 function updateTransactionWithAccount($userId, $transactionId, $description, $amount, $categoryId, $type, $date, $savingsBucketId = null, $accountId = null) {
