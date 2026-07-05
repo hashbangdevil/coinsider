@@ -12,7 +12,11 @@
 #   scripts/release.sh major             # 1.0.0 -> 2.0.0
 #   scripts/release.sh 1.4.2             # set an explicit version
 #   scripts/release.sh patch --dry-run   # preview only; no writes/commit/tag
-#   scripts/release.sh patch --push      # also push commit + tag to origin
+#   scripts/release.sh patch --push      # push commit + tag AND create the GitHub release
+#
+# --push creates a GitHub release from the new tag (notes = the promoted
+# CHANGELOG section) via the gh CLI. If gh is missing or unauthenticated the
+# push still succeeds and the release step is skipped with instructions.
 #
 # Before a real release: commit/stash your work (a clean tree is required) and
 # run the test suites (composer test && npm run test:e2e).
@@ -79,7 +83,7 @@ if $DRY_RUN; then
   echo "  sw.js              -> CACHE_NAME = 'coinsider-v$NEW'"
   echo "  CHANGELOG.md       -> promote [Unreleased] to [$NEW] - $DATE"
   echo "[dry-run] would commit 'Release v$NEW' and tag 'v$NEW'"
-  $PUSH && echo "[dry-run] would push commit + tag to origin"
+  $PUSH && echo "[dry-run] would push commit + tag to origin and create GitHub release v$NEW"
   exit 0
 fi
 
@@ -106,6 +110,34 @@ if $PUSH; then
   git push origin HEAD
   git push origin "v$NEW"
   echo "Pushed commit and tag v$NEW to origin."
+
+  # Create the GitHub release from the just-promoted changelog section.
+  # Non-fatal: the tag is already published, so a gh problem must not fail the run.
+  if command -v gh >/dev/null 2>&1; then
+    NOTES="$(mktemp)"
+    awk -v ver="$NEW" '
+      $0 ~ "^## \\[" ver "\\]" { f = 1; next }
+      f && /^## \[/ { exit }
+      f { print }
+    ' CHANGELOG.md > "$NOTES"
+
+    if [[ -s "$NOTES" ]]; then
+      NOTE_ARGS=(--notes-file "$NOTES")
+    else
+      NOTE_ARGS=(--generate-notes)
+    fi
+
+    if gh release create "v$NEW" --title "v$NEW" "${NOTE_ARGS[@]}" --verify-tag; then
+      echo "Created GitHub release v$NEW."
+    else
+      echo "WARNING: 'gh release create' failed (run 'gh auth login'?). The tag is pushed;" >&2
+      echo "         create it later with: gh release create v$NEW --title v$NEW --notes-file <notes>" >&2
+    fi
+    rm -f "$NOTES"
+  else
+    echo "Note: gh (GitHub CLI) not found — skipped GitHub release creation." >&2
+    echo "      Install gh, then: gh release create v$NEW --title v$NEW --generate-notes" >&2
+  fi
 else
-  echo "To publish:  git push origin HEAD && git push origin v$NEW"
+  echo "To publish:  git push origin HEAD && git push origin v$NEW  (or re-run with --push)"
 fi

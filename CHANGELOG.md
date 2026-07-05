@@ -15,6 +15,11 @@ command that keeps every version surface in sync — do not hand-edit versions.
 
 ## [Unreleased]
 
+### Changed
+- `scripts/release.sh --push` now also creates the GitHub release from the
+  promoted changelog section (via the `gh` CLI), skipping gracefully with
+  instructions if `gh` is missing or unauthenticated.
+
 ## [1.0.0] - 2026-07-05
 
 First versioned release. Coinsider is a self-hosted personal budget manager PWA:
