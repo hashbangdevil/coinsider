@@ -15,6 +15,8 @@ command that keeps every version surface in sync — do not hand-edit versions.
 
 ## [Unreleased]
 
+## [1.2.0] - 2026-07-06
+
 ### Added
 - **CSV import** (e.g. bank statements): pick an account, upload a CSV, map its
   columns (remembered per bank layout), preview with likely duplicates flagged,

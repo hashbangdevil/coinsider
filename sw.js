@@ -3,7 +3,7 @@
 // ========================================
 
 // Kept in sync with the VERSION file by scripts/release.sh — do not hand-edit.
-const CACHE_NAME = 'coinsider-v1.1.0';
+const CACHE_NAME = 'coinsider-v1.2.0';
 
 // Use relative paths for subdirectory support
 const STATIC_ASSETS = [
