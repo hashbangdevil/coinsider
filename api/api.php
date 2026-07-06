@@ -247,9 +247,11 @@ function handleTransactions($method, $id) {
             $savingsBucketId = isset($data['savings_bucket_id']) ? intval($data['savings_bucket_id']) : null;
             if ($savingsBucketId === 0) $savingsBucketId = null;
 
-            // Check for optional account
+            // Account is required in the ledger model — default to the user's
+            // first account when the client doesn't send one.
             $accountId = isset($data['account_id']) ? intval($data['account_id']) : null;
             if ($accountId === 0) $accountId = null;
+            if ($accountId === null) $accountId = getDefaultAccountId($userId);
 
             if ($hasCategoryId) {
                 // New flow with category_id (and optional savings bucket and account)
@@ -320,9 +322,11 @@ function handleTransactions($method, $id) {
             $savingsBucketId = isset($data['savings_bucket_id']) ? intval($data['savings_bucket_id']) : null;
             if ($savingsBucketId === 0) $savingsBucketId = null;
 
-            // Check for optional account
+            // Account is required in the ledger model — default to the user's
+            // first account when the client doesn't send one.
             $accountId = isset($data['account_id']) ? intval($data['account_id']) : null;
             if ($accountId === 0) $accountId = null;
+            if ($accountId === null) $accountId = getDefaultAccountId($userId);
 
             if ($hasCategoryId) {
                 // New flow with category_id (and optional savings bucket and account)
@@ -393,6 +397,7 @@ function handleImport($method) {
 
     $data = json_decode(file_get_contents('php://input'), true);
     $accountId = (isset($data['account_id']) && !empty($data['account_id'])) ? intval($data['account_id']) : null;
+    if ($accountId === null) $accountId = getDefaultAccountId($userId);
     $items = $data['transactions'] ?? null;
 
     if (!is_array($items) || count($items) === 0) {
@@ -493,7 +498,8 @@ function handleRecurring($method, $id) {
                 $data['frequency'],
                 $data['start_date'],
                 $endDate,
-                $skipFirst
+                $skipFirst,
+                (isset($data['account_id']) && !empty($data['account_id'])) ? intval($data['account_id']) : getDefaultAccountId($userId)
             );
 
             if (!$recurring) {
@@ -572,7 +578,8 @@ function handleRecurring($method, $id) {
                 $data['type'],
                 $data['frequency'],
                 $data['start_date'],
-                $endDate
+                $endDate,
+                (isset($data['account_id']) && !empty($data['account_id'])) ? intval($data['account_id']) : getDefaultAccountId($userId)
             );
 
             if (!$recurring) {
@@ -1189,8 +1196,21 @@ function handleAccounts($method, $id) {
                 errorResponse('Account not found', 404);
             }
 
+            // Ledger model: never delete the user's last account.
+            if (count(getAccounts($userId)) <= 1) {
+                errorResponse('You must keep at least one account', 409);
+            }
+
+            $reassignTo = isset($_GET['reassign_to']) ? intval($_GET['reassign_to']) : null;
+
             if (accountHasTransactions($userId, $id)) {
-                errorResponse('Cannot delete account with linked transactions. Remove or reassign transactions first.', 409);
+                if (!$reassignTo) {
+                    errorResponse('Cannot delete account with linked transactions. Reassign them to another account first.', 409);
+                }
+                if (!reassignAndDeleteAccount($userId, $id, $reassignTo)) {
+                    errorResponse('Could not reassign to that account', 400);
+                }
+                jsonResponse(['success' => true]);
             }
 
             $deleted = deleteAccount($userId, $id);

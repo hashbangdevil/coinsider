@@ -15,6 +15,26 @@ command that keeps every version surface in sync — do not hand-edit versions.
 
 ## [Unreleased]
 
+### Changed
+- **Accounts are now a mandatory ledger.** Every user always has at least one
+  account (an auto-created "Default account"), and every transaction, recurring
+  rule, and import is recorded against an account — the optional "Accounts
+  module" toggle is retired. Existing users migrate automatically and transparently
+  on next login: they get a Default account, their account-less history folds into
+  it (balance rolled up), and recurring rules are attached. See
+  `docs/accounts-ledger.md`.
+
+### Added
+- First-login **onboarding** to name the default account and quick-add others
+  (Cash, Credit card, Savings), or skip.
+- **Transfer** type in the add-transaction modal (From/To accounts, no category),
+  available once you have two or more accounts.
+- **Reassign on delete**: deleting an account that has transactions prompts you to
+  move them (and its balance) to another account. The account edit screen also
+  gains a Delete button (previously missing).
+- Recurring transactions carry an account; generated transactions inherit it and
+  update the account balance.
+
 ## [1.2.0] - 2026-07-06
 
 ### Added

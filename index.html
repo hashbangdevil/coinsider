@@ -936,6 +936,7 @@
                 <div class="transaction-type-toggle">
                     <button type="button" class="type-btn active" data-type="expense">Expense</button>
                     <button type="button" class="type-btn" data-type="income">Income</button>
+                    <button type="button" class="type-btn" data-type="transfer" id="transaction-type-transfer" style="display:none;">Transfer</button>
                 </div>
                 <div class="input-group">
                     <label for="transaction-description">Description</label>
@@ -948,7 +949,7 @@
                         <input type="number" id="transaction-amount" placeholder="0.00" step="0.01" min="0" required>
                     </div>
                 </div>
-                <div class="input-group">
+                <div class="input-group" id="transaction-category-group">
                     <label for="transaction-category">Category</label>
                     <select id="transaction-category" required>
                         <option value="">Select category</option>
@@ -960,11 +961,14 @@
                     <input type="date" id="transaction-date" required>
                 </div>
                 <div class="input-group" id="transaction-account-group" style="display: none;">
-                    <label for="transaction-account">Account (optional)</label>
+                    <label for="transaction-account">Account</label>
                     <select id="transaction-account">
-                        <option value="">No account</option>
                         <!-- Accounts populated dynamically by JavaScript -->
                     </select>
+                </div>
+                <div class="input-group" id="transaction-transfer-to-group" style="display: none;">
+                    <label for="transaction-transfer-to">To account</label>
+                    <select id="transaction-transfer-to"></select>
                 </div>
                 <div class="input-group" id="savings-bucket-group" style="display: none;">
                     <label for="transaction-bucket">Fund from Savings (optional)</label>
@@ -1304,6 +1308,10 @@
                     <select id="recurring-category" required>
                         <option value="">Select category</option>
                     </select>
+                </div>
+                <div class="input-group">
+                    <label for="recurring-account">Account</label>
+                    <select id="recurring-account"></select>
                 </div>
                 <div class="input-group">
                     <label for="recurring-frequency">Frequency</label>
@@ -2037,10 +2045,60 @@
                     <span class="input-hint">Balance right now (only when adding new account)</span>
                 </div>
                 <div class="modal-actions">
+                    <button type="button" class="btn btn-danger" id="account-delete-btn" style="display:none;">Delete</button>
                     <button type="button" class="btn btn-secondary modal-cancel">Cancel</button>
                     <button type="submit" class="btn btn-primary" id="account-submit-btn">Add Account</button>
                 </div>
             </form>
+        </div>
+    </div>
+
+    <!-- Accounts Onboarding Modal -->
+    <div class="modal" id="onboarding-modal" data-persist="true">
+        <div class="modal-backdrop"></div>
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>Set up your accounts</h3>
+            </div>
+            <p class="form-description">Coinsider records every transaction against an account. Name your main account, and add any others you use — you can change this anytime.</p>
+            <div class="input-group">
+                <label for="onboarding-account-name">Main account name</label>
+                <input type="text" id="onboarding-account-name" value="Default account" maxlength="50">
+            </div>
+            <div class="input-group">
+                <label>Add other accounts (optional)</label>
+                <label class="checkbox-label"><input type="checkbox" class="onboarding-extra" data-name="Cash" data-type="cash"><span class="checkbox-text">Cash</span></label>
+                <label class="checkbox-label"><input type="checkbox" class="onboarding-extra" data-name="Credit card" data-type="credit_card"><span class="checkbox-text">Credit card</span></label>
+                <label class="checkbox-label"><input type="checkbox" class="onboarding-extra" data-name="Savings" data-type="savings"><span class="checkbox-text">Savings</span></label>
+            </div>
+            <div class="modal-actions">
+                <button type="button" class="btn btn-secondary" id="onboarding-skip">Skip for now</button>
+                <button type="button" class="btn btn-primary" id="onboarding-done">Get started</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Delete Account (reassign transactions) Modal -->
+    <div class="modal" id="reassign-account-modal">
+        <div class="modal-backdrop"></div>
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>Delete account</h3>
+                <button class="btn-icon modal-close">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+                    </svg>
+                </button>
+            </div>
+            <p class="form-description" id="reassign-account-text">This account has transactions. Move them to another account, then delete it.</p>
+            <div class="input-group">
+                <label for="reassign-account-target">Move transactions to</label>
+                <select id="reassign-account-target"></select>
+            </div>
+            <div class="modal-actions">
+                <button type="button" class="btn btn-secondary modal-cancel">Cancel</button>
+                <button type="button" class="btn btn-danger" id="reassign-account-confirm">Move &amp; delete</button>
+            </div>
         </div>
     </div>
 

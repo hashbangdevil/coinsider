@@ -1909,6 +1909,11 @@ function openEditTransactionModal(transactionId) {
         elements.transactionAccount.value = transaction.account_id || '';
     }
 
+    // Transfers aren't editable as transactions; reset the form for this type.
+    const editTransferBtn = document.getElementById('transaction-type-transfer');
+    if (editTransferBtn) editTransferBtn.style.display = 'none';
+    configureTransactionFormForType(transaction.type);
+
     // Hide recurring options when editing (not applicable for existing transactions)
     const recurringToggle = document.getElementById('recurring-toggle');
     if (recurringToggle) recurringToggle.style.display = 'none';
@@ -1999,7 +2004,7 @@ async function loadRecurringTransactions() {
     }
 }
 
-async function createRecurringTransaction(description, amount, categoryId, type, frequency, startDate, endDate = null, skipFirst = false) {
+async function createRecurringTransaction(description, amount, categoryId, type, frequency, startDate, endDate = null, skipFirst = false, accountId = null) {
     try {
         let body = {
             description,
@@ -2008,7 +2013,8 @@ async function createRecurringTransaction(description, amount, categoryId, type,
             type,
             frequency,
             start_date: startDate,
-            skip_first: skipFirst
+            skip_first: skipFirst,
+            account_id: accountId
         };
         if (endDate) {
             body.end_date = endDate;
@@ -2049,7 +2055,7 @@ async function createRecurringTransaction(description, amount, categoryId, type,
     }
 }
 
-async function updateRecurringTransaction(id, description, amount, categoryId, type, frequency, startDate, endDate = null) {
+async function updateRecurringTransaction(id, description, amount, categoryId, type, frequency, startDate, endDate = null, accountId = null) {
     try {
         let body = {
             description,
@@ -2057,7 +2063,8 @@ async function updateRecurringTransaction(id, description, amount, categoryId, t
             category_id: categoryId,
             type,
             frequency,
-            start_date: startDate
+            start_date: startDate,
+            account_id: accountId
         };
         if (endDate) {
             body.end_date = endDate;
@@ -2125,6 +2132,7 @@ async function toggleRecurringTransaction(id, isActive) {
 let editingRecurringId = null;
 
 function openRecurringFormModal(recurring = null) {
+    populateAccountDropdowns();
     if (recurring) {
         // Editing existing recurring transaction
         editingRecurringId = recurring.id;
@@ -2145,6 +2153,9 @@ function openRecurringFormModal(recurring = null) {
         populateCategoryDropdown(elements.recurringCategory, type);
         if (recurring.category_id) {
             elements.recurringCategory.value = recurring.category_id;
+        }
+        if (recurring.account_id) {
+            document.getElementById('recurring-account').value = recurring.account_id;
         }
 
         // Hide skip-first checkbox when editing
@@ -3365,6 +3376,41 @@ function getAccountById(accountId) {
     return state.accounts.find(a => a.id === accountId);
 }
 
+// Reconfigure the transaction modal for the selected type (expense/income/transfer).
+function configureTransactionFormForType(type) {
+    const isTransfer = type === 'transfer';
+    const categoryGroup = document.getElementById('transaction-category-group');
+    const categorySelect = document.getElementById('transaction-category');
+    const toGroup = document.getElementById('transaction-transfer-to-group');
+    const recurringToggle = document.getElementById('recurring-toggle');
+    const accountLabel = document.querySelector('#transaction-account-group label');
+
+    const descInput = document.getElementById('transaction-description');
+    if (categoryGroup) categoryGroup.style.display = isTransfer ? 'none' : 'block';
+    if (categorySelect) categorySelect.required = !isTransfer;
+    if (descInput) descInput.required = !isTransfer; // description optional for transfers
+    if (toGroup) toGroup.style.display = isTransfer ? 'block' : 'none';
+    if (accountLabel) accountLabel.textContent = isTransfer ? 'From account' : 'Account';
+
+    // Savings buckets only apply to expenses.
+    if (elements.savingsBucketGroup) elements.savingsBucketGroup.style.display = (type === 'expense') ? 'block' : 'none';
+    if (isTransfer && elements.transactionBucket) elements.transactionBucket.value = '';
+
+    // Recurring doesn't apply to transfers (or when editing).
+    if (recurringToggle) recurringToggle.style.display = (!isTransfer && !editingTransactionId) ? 'block' : 'none';
+    if (isTransfer) {
+        // Ensure the "to" account differs from the "from" account.
+        const toSel = document.getElementById('transaction-transfer-to');
+        const fromVal = elements.transactionAccount?.value;
+        if (toSel && String(toSel.value) === String(fromVal)) {
+            const other = state.accounts.find(a => String(a.id) !== String(fromVal));
+            if (other) toSel.value = other.id;
+        }
+        if (elements.transactionRecurring) elements.transactionRecurring.checked = false;
+        if (elements.recurringOptions) elements.recurringOptions.style.display = 'none';
+    }
+}
+
 function getAccountTypeLabel(type) {
     const labels = {
         'bank': 'Bank Account',
@@ -3519,7 +3565,97 @@ async function updateAccount(id, data) {
     }
 }
 
+// ========================================
+// Accounts Onboarding
+// ========================================
+
+// Show the accounts onboarding prompt once, for users who haven't done it.
+function maybeShowOnboarding() {
+    if (!state.user || state.user.onboarding_completed) return;
+    const nameInput = document.getElementById('onboarding-account-name');
+    if (nameInput) {
+        const def = (state.accounts || [])[0];
+        nameInput.value = def ? def.name : 'Default account';
+    }
+    document.querySelectorAll('.onboarding-extra').forEach((cb) => { cb.checked = false; });
+    openModal(document.getElementById('onboarding-modal'));
+}
+
+// Finish (Get started) or skip onboarding. When setting up, rename the default
+// account and create any ticked extras, then mark onboarding complete.
+async function finishOnboarding(setUpAccounts) {
+    try {
+        if (setUpAccounts) {
+            const def = (state.accounts || [])[0];
+            const newName = (document.getElementById('onboarding-account-name')?.value || '').trim();
+            if (def && newName && newName !== def.name) {
+                await api(`api.php?resource=accounts&id=${def.id}`, {
+                    method: 'PUT',
+                    body: { name: newName, type: def.type, icon: def.icon }
+                });
+            }
+            for (const cb of Array.from(document.querySelectorAll('.onboarding-extra:checked'))) {
+                await api('api.php?resource=accounts', {
+                    method: 'POST',
+                    body: { name: cb.dataset.name, type: cb.dataset.type }
+                });
+            }
+        }
+        await api('auth.php?action=complete-onboarding', { method: 'POST' });
+        if (state.user) state.user.onboarding_completed = true;
+        closeModal(document.getElementById('onboarding-modal'));
+        await loadAppData();
+        renderAll();
+        populateAccountDropdowns();
+    } catch (error) {
+        showToast(error.message || 'Could not finish setup');
+    }
+}
+
+function setupOnboarding() {
+    document.getElementById('onboarding-done')?.addEventListener('click', () => finishOnboarding(true));
+    document.getElementById('onboarding-skip')?.addEventListener('click', () => finishOnboarding(false));
+}
+
+let reassignSourceId = null;
+
+// Prompt to move an account's transactions to another account, then delete it.
+function openReassignModal(accountId) {
+    const others = (state.accounts || []).filter(a => a.id !== accountId);
+    if (!others.length) { showToast('You need another account to move transactions to'); return; }
+    reassignSourceId = accountId;
+    const source = getAccountById(accountId);
+    document.getElementById('reassign-account-target').innerHTML = others
+        .map((a, i) => `<option value="${a.id}"${i === 0 ? ' selected' : ''}>${escapeHtml(a.icon || '')} ${escapeHtml(a.name)}</option>`)
+        .join('');
+    const text = document.getElementById('reassign-account-text');
+    if (text && source) {
+        text.textContent = `"${source.name}" has transactions. Choose an account to move them to — it will then be deleted.`;
+    }
+    openModal(document.getElementById('reassign-account-modal'));
+}
+
+async function confirmReassignDelete() {
+    const targetId = document.getElementById('reassign-account-target')?.value;
+    if (!reassignSourceId || !targetId) return;
+    try {
+        await api(`api.php?resource=accounts&id=${reassignSourceId}&reassign_to=${targetId}`, { method: 'DELETE' });
+        closeModal(document.getElementById('reassign-account-modal'));
+        reassignSourceId = null;
+        showToast('Account deleted; transactions moved');
+        await loadAppData();
+        renderAll();
+        populateAccountDropdowns();
+    } catch (error) {
+        showToast(error.message || 'Failed to delete account');
+    }
+}
+
 async function deleteAccount(id) {
+    if ((state.accounts || []).length <= 1) {
+        showToast('You need at least one account');
+        return;
+    }
     try {
         await api(`api.php?resource=accounts&id=${id}`, { method: 'DELETE' });
         const account = state.accounts.find(a => a.id === id);
@@ -3534,7 +3670,7 @@ async function deleteAccount(id) {
         console.error('Failed to delete account:', error);
         const errorMsg = error.message || 'Failed to delete account';
         if (errorMsg.includes('linked transactions')) {
-            showToast('Cannot delete: account has linked transactions');
+            openReassignModal(id); // offer to move the transactions, then delete
         } else {
             showToast(errorMsg);
         }
@@ -3698,7 +3834,7 @@ function populateAccountDropdowns() {
     // Populate transaction account dropdown
     if (elements.transactionAccount) {
         const currentValue = elements.transactionAccount.value;
-        elements.transactionAccount.innerHTML = '<option value="">No account</option>';
+        elements.transactionAccount.innerHTML = '';
 
         state.accounts.forEach(account => {
             const option = document.createElement('option');
@@ -3707,9 +3843,42 @@ function populateAccountDropdowns() {
             elements.transactionAccount.appendChild(option);
         });
 
-        // Restore selection if valid
+        // Ledger model: always an account — restore the selection or default to the first.
         if (currentValue && state.accounts.some(a => a.id == currentValue)) {
             elements.transactionAccount.value = currentValue;
+        } else if (state.accounts.length) {
+            elements.transactionAccount.value = state.accounts[0].id;
+        }
+    }
+
+    // Populate recurring account dropdown (ledger model: always an account).
+    const recurringAccount = document.getElementById('recurring-account');
+    if (recurringAccount) {
+        const currentValue = recurringAccount.value;
+        recurringAccount.innerHTML = state.accounts
+            .map((a) => `<option value="${a.id}">${escapeHtml(a.icon || '')} ${escapeHtml(a.name)}</option>`)
+            .join('');
+        if (currentValue && state.accounts.some(a => a.id == currentValue)) {
+            recurringAccount.value = currentValue;
+        } else if (state.accounts.length) {
+            recurringAccount.value = state.accounts[0].id;
+        }
+    }
+
+    // Populate the transaction modal's "to account" (transfer mode).
+    const transferToInline = document.getElementById('transaction-transfer-to');
+    if (transferToInline) {
+        const currentValue = transferToInline.value;
+        transferToInline.innerHTML = state.accounts
+            .map((a) => `<option value="${a.id}">${escapeHtml(a.icon || '')} ${escapeHtml(a.name)}</option>`)
+            .join('');
+        if (currentValue && state.accounts.some(a => a.id == currentValue)) {
+            transferToInline.value = currentValue;
+        } else if (state.accounts.length >= 2) {
+            // Default "to" to an account different from "from".
+            const fromVal = elements.transactionAccount?.value;
+            const other = state.accounts.find(a => String(a.id) !== String(fromVal));
+            transferToInline.value = other ? other.id : state.accounts[0].id;
         }
     }
 
@@ -3755,6 +3924,10 @@ function openAccountModal(accountId = null) {
 
     elements.accountModalTitle.textContent = currentEditingAccount ? 'Edit Account' : 'Add Account';
     elements.accountSubmitBtn.textContent = currentEditingAccount ? 'Save Changes' : 'Add Account';
+
+    // Delete is only offered when editing an existing account.
+    const accountDeleteBtn = document.getElementById('account-delete-btn');
+    if (accountDeleteBtn) accountDeleteBtn.style.display = currentEditingAccount ? '' : 'none';
 
     if (currentEditingAccount) {
         elements.accountEditId.value = currentEditingAccount.id;
@@ -3882,7 +4055,7 @@ function setupAccountModals() {
     deleteBtn?.addEventListener('click', async () => {
         if (!currentEditingAccount) return;
         const confirmed = await showConfirm(
-            'This cannot be undone. You can only delete accounts with no linked transactions.',
+            'If this account has transactions, you will choose another account to move them to.',
             `Delete "${currentEditingAccount.name}"?`
         );
         if (confirmed) {
@@ -3890,6 +4063,9 @@ function setupAccountModals() {
             await deleteAccount(currentEditingAccount.id);
         }
     });
+
+    // Confirm moving transactions to another account, then deleting.
+    document.getElementById('reassign-account-confirm')?.addEventListener('click', confirmReassignDelete);
 
     // Back button for accounts section
     elements.accountsBackBtn?.addEventListener('click', () => {
@@ -4429,7 +4605,7 @@ function showAppScreen() {
     renderAll();
     updateEncryptionButton();
     showScreen('app');
-
+    maybeShowOnboarding();
 }
 
 function renderAll() {
@@ -4604,11 +4780,13 @@ function setupModals() {
             elements.transactionBucket.value = '';
         }
 
-        // Populate account dropdown and reset value
+        // Populate account dropdown — defaults to the user's first account.
         populateAccountDropdowns();
-        if (elements.transactionAccount) {
-            elements.transactionAccount.value = '';
-        }
+
+        // Transfer type is only available with 2+ accounts; reset to the Expense layout.
+        const transferBtn = document.getElementById('transaction-type-transfer');
+        if (transferBtn) transferBtn.style.display = (state.accounts.length >= 2) ? '' : 'none';
+        configureTransactionFormForType('expense');
 
         // Show recurring toggle and reset options
         const recurringToggle = document.getElementById('recurring-toggle');
@@ -4638,9 +4816,10 @@ function setupModals() {
             document.querySelectorAll('.transaction-type-toggle .type-btn').forEach(b => b.classList.remove('active'));
             btn.classList.add('active');
 
-            // Update category dropdown based on selected type
+            // Update category dropdown based on selected type (not for transfers)
             const type = btn.dataset.type;
-            populateCategoryDropdown(elements.transactionCategory, type);
+            if (type !== 'transfer') populateCategoryDropdown(elements.transactionCategory, type);
+            configureTransactionFormForType(type);
         });
     });
 
@@ -4655,6 +4834,18 @@ function setupModals() {
         const savingsBucketId = elements.transactionBucket?.value ? parseInt(elements.transactionBucket.value) : null;
         const accountId = elements.transactionAccount?.value ? parseInt(elements.transactionAccount.value) : null;
 
+        if (type === 'transfer') {
+            const toEl = document.getElementById('transaction-transfer-to');
+            const toId = toEl && toEl.value ? parseInt(toEl.value) : null;
+            if (!accountId || !toId) { showToast('Choose both accounts'); return; }
+            if (accountId === toId) { showToast('Choose two different accounts'); return; }
+            if (!(parseFloat(amount) > 0)) { showToast('Enter an amount'); return; }
+            await createAccountTransfer(accountId, toId, parseFloat(amount), description, date);
+            editingTransactionId = null;
+            closeModal(elements.transactionModal);
+            return;
+        }
+
         if (!categoryId) {
             showToast('Please select a category');
             return;
@@ -4666,7 +4857,7 @@ function setupModals() {
             // Create recurring transaction instead
             const frequency = document.getElementById('transaction-frequency').value;
             const endDate = document.getElementById('transaction-end-date').value || null;
-            await createRecurringTransaction(description, parseFloat(amount), parseInt(categoryId), type, frequency, date, endDate);
+            await createRecurringTransaction(description, parseFloat(amount), parseInt(categoryId), type, frequency, date, endDate, false, parseInt(elements.transactionAccount?.value) || null);
         } else {
             await createTransaction(description, parseFloat(amount), parseInt(categoryId), type, date, savingsBucketId, accountId);
         }
@@ -4885,9 +5076,9 @@ function setupModals() {
         }
 
         if (editingRecurringId) {
-            await updateRecurringTransaction(editingRecurringId, description, amount, categoryId, type, frequency, startDate, endDate);
+            await updateRecurringTransaction(editingRecurringId, description, amount, categoryId, type, frequency, startDate, endDate, parseInt(document.getElementById('recurring-account')?.value) || null);
         } else {
-            await createRecurringTransaction(description, amount, categoryId, type, frequency, startDate, endDate, skipFirst);
+            await createRecurringTransaction(description, amount, categoryId, type, frequency, startDate, endDate, skipFirst, parseInt(document.getElementById('recurring-account')?.value) || null);
         }
 
         editingRecurringId = null;
@@ -5968,6 +6159,7 @@ async function init() {
     setupBalanceCard();
     setupInstallPrompt();
     setupImport();
+    setupOnboarding();
 
     // Chart period selector change handler
     elements.chartPeriodSelector?.addEventListener('change', async () => {
@@ -6326,19 +6518,16 @@ async function openImportModal() {
     const hdrEl = document.getElementById('import-has-header');
     if (hdrEl) hdrEl.checked = true;
 
+    // Ledger model: every user always has >= 1 account. Default the picker to the
+    // first account (no "no account" option); hide the legacy enable-accounts hint.
     const accGroup = document.getElementById('import-account-group');
     const accSel = document.getElementById('import-account');
     const accHint = document.getElementById('import-account-hint');
-    if (state.accountsModuleEnabled && (state.accounts || []).length) {
-        accSel.innerHTML = '<option value="">— no account —</option>' +
-            state.accounts.map(a => `<option value="${a.id}">${escapeHtml(a.name)}</option>`).join('');
-        accGroup.style.display = '';
-        if (accHint) accHint.style.display = 'none';
-    } else {
-        accGroup.style.display = 'none';
-        accSel.innerHTML = '';
-        if (accHint) accHint.style.display = '';
-    }
+    accGroup.style.display = '';
+    accSel.innerHTML = (state.accounts || [])
+        .map((a, i) => `<option value="${a.id}"${i === 0 ? ' selected' : ''}>${escapeHtml(a.name)}</option>`)
+        .join('');
+    if (accHint) accHint.style.display = 'none';
 
     importGoToStep('source');
     openModal(document.getElementById('import-modal'));

@@ -59,6 +59,9 @@ switch ($action) {
     case 'resend-verification':
         handleResendVerification();
         break;
+    case 'complete-onboarding':
+        handleCompleteOnboarding();
+        break;
     case 'verification-status':
         handleVerificationStatus();
         break;
@@ -113,6 +116,10 @@ function handleSignup() {
 
     // Seed default categories for new user
     seedDefaultCategories($user['id']);
+
+    // Ledger model: every user starts with a "Default account".
+    ensureUserHasAccount($user['id']);
+    $user = findUserById($user['id']); // refresh so accounts_enabled reflects the update
 
     // Send verification email
     $verificationSent = false;
@@ -172,6 +179,10 @@ function handleLogin() {
 
     // Migrate user categories if needed (for existing users)
     migrateUserCategories($user['id']);
+
+    // Ledger model: migrate legacy account-less data on login (idempotent).
+    ensureUserHasAccount($user['id']);
+    $user = findUserById($user['id']); // refresh so accounts_enabled reflects the update
 
     // Set session
     setUserSession($user);
@@ -660,6 +671,17 @@ function handleResendVerification() {
 // Get Verification Status
 // ========================================
 
+function handleCompleteOnboarding() {
+    $user = requireAuth();
+    completeOnboarding($user['id']);
+
+    $fresh = findUserById($user['id']);
+    if ($fresh) {
+        $_SESSION['user'] = sanitizeUser($fresh);
+    }
+    jsonResponse(['success' => true, 'user' => $_SESSION['user']]);
+}
+
 function handleVerificationStatus() {
     $user = requireAuth();
     $status = getEmailVerificationStatus($user['id']);
@@ -678,8 +700,17 @@ function handleVerificationStatus() {
 
 function handleStatus() {
     $user = getCurrentUser();
-    
+
     if ($user) {
+        // Ledger model: ensure the account invariant for already-logged-in
+        // sessions too (idempotent), then return the refreshed user so the
+        // frontend always sees accounts as enabled.
+        ensureUserHasAccount($user['id']);
+        $fresh = findUserById($user['id']);
+        if ($fresh) {
+            $user = sanitizeUser($fresh);
+            $_SESSION['user'] = $user;
+        }
         jsonResponse([
             'authenticated' => true,
             'user' => $user
@@ -726,6 +757,7 @@ function sanitizeUser($user) {
         'currency' => $user['currency'] ?? 'ZAR',
         'encryption_enabled' => (bool) ($user['encryption_enabled'] ?? false),
         'accounts_enabled' => (bool) ($user['accounts_enabled'] ?? false),
+        'onboarding_completed' => (bool) ($user['onboarding_completed'] ?? false),
         'email_verified' => $verificationStatus['verified'] ?? false,
         'verification_grace_days' => $verificationStatus['grace_period_remaining'] ?? 0
     ];
