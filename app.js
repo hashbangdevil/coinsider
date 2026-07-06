@@ -6326,19 +6326,16 @@ async function openImportModal() {
     const hdrEl = document.getElementById('import-has-header');
     if (hdrEl) hdrEl.checked = true;
 
+    // Ledger model: every user always has >= 1 account. Default the picker to the
+    // first account (no "no account" option); hide the legacy enable-accounts hint.
     const accGroup = document.getElementById('import-account-group');
     const accSel = document.getElementById('import-account');
     const accHint = document.getElementById('import-account-hint');
-    if (state.accountsModuleEnabled && (state.accounts || []).length) {
-        accSel.innerHTML = '<option value="">— no account —</option>' +
-            state.accounts.map(a => `<option value="${a.id}">${escapeHtml(a.name)}</option>`).join('');
-        accGroup.style.display = '';
-        if (accHint) accHint.style.display = 'none';
-    } else {
-        accGroup.style.display = 'none';
-        accSel.innerHTML = '';
-        if (accHint) accHint.style.display = '';
-    }
+    accGroup.style.display = '';
+    accSel.innerHTML = (state.accounts || [])
+        .map((a, i) => `<option value="${a.id}"${i === 0 ? ' selected' : ''}>${escapeHtml(a.name)}</option>`)
+        .join('');
+    if (accHint) accHint.style.display = 'none';
 
     importGoToStep('source');
     openModal(document.getElementById('import-modal'));

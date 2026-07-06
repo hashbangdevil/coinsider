@@ -2069,6 +2069,49 @@ function getAccounts($userId) {
     return $stmt->fetchAll();
 }
 
+// Return the user's default (first) account id, or null if they have none.
+function getDefaultAccountId($userId) {
+    $accounts = getAccounts($userId);
+    return !empty($accounts) ? (int) $accounts[0]['id'] : null;
+}
+
+// Ledger invariant: guarantee the user has >= 1 account and no account-less
+// transactions. Idempotent — safe to call on every signup/login.
+function ensureUserHasAccount($userId) {
+    $pdo = Database::getInstance()->getPdo();
+
+    // Accounts are always on in the ledger model.
+    $pdo->prepare("UPDATE users SET accounts_enabled = 1 WHERE id = ? AND accounts_enabled = 0")->execute([$userId]);
+
+    // Guarantee at least one account.
+    $accounts = getAccounts($userId);
+    if (empty($accounts)) {
+        $default = createAccount($userId, 'Default account', 'bank', '🏦', null, 0);
+        $defaultId = (int) $default['id'];
+    } else {
+        $defaultId = (int) $accounts[0]['id'];
+    }
+
+    // Fold any pre-existing account-less transactions into the default account,
+    // adding their net effect to its balance. Runs once (idempotent): after the
+    // first pass there are no account_id IS NULL rows left.
+    $stmt = $pdo->prepare("
+        SELECT COALESCE(SUM(CASE WHEN type = 'income' THEN amount ELSE -amount END), 0) AS delta,
+               COUNT(*) AS n
+        FROM transactions
+        WHERE user_id = ? AND account_id IS NULL
+    ");
+    $stmt->execute([$userId]);
+    $row = $stmt->fetch();
+    if ((int) $row['n'] > 0) {
+        $pdo->prepare("UPDATE transactions SET account_id = ? WHERE user_id = ? AND account_id IS NULL")
+            ->execute([$defaultId, $userId]);
+        _updateAccountBalance($pdo, $defaultId, (float) $row['delta']);
+    }
+
+    return $defaultId;
+}
+
 function getAccount($userId, $accountId) {
     $pdo = Database::getInstance()->getPdo();
     $stmt = $pdo->prepare("SELECT * FROM accounts WHERE id = ? AND user_id = ?");
@@ -2149,6 +2192,11 @@ function updateAccount($userId, $accountId, $data) {
 
 function deleteAccount($userId, $accountId) {
     $pdo = Database::getInstance()->getPdo();
+
+    // The ledger requires at least one account — never delete the last one.
+    if (count(getAccounts($userId)) <= 1) {
+        return false;
+    }
 
     // Check if account has linked transactions
     if (accountHasTransactions($userId, $accountId)) {

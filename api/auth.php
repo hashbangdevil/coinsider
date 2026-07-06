@@ -114,6 +114,10 @@ function handleSignup() {
     // Seed default categories for new user
     seedDefaultCategories($user['id']);
 
+    // Ledger model: every user starts with a "Default account".
+    ensureUserHasAccount($user['id']);
+    $user = findUserById($user['id']); // refresh so accounts_enabled reflects the update
+
     // Send verification email
     $verificationSent = false;
     if (class_exists('Email') && class_exists('SMTPConfig') && SMTPConfig::isConfigured()) {
@@ -172,6 +176,10 @@ function handleLogin() {
 
     // Migrate user categories if needed (for existing users)
     migrateUserCategories($user['id']);
+
+    // Ledger model: migrate legacy account-less data on login (idempotent).
+    ensureUserHasAccount($user['id']);
+    $user = findUserById($user['id']); // refresh so accounts_enabled reflects the update
 
     // Set session
     setUserSession($user);

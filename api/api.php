@@ -247,9 +247,11 @@ function handleTransactions($method, $id) {
             $savingsBucketId = isset($data['savings_bucket_id']) ? intval($data['savings_bucket_id']) : null;
             if ($savingsBucketId === 0) $savingsBucketId = null;
 
-            // Check for optional account
+            // Account is required in the ledger model — default to the user's
+            // first account when the client doesn't send one.
             $accountId = isset($data['account_id']) ? intval($data['account_id']) : null;
             if ($accountId === 0) $accountId = null;
+            if ($accountId === null) $accountId = getDefaultAccountId($userId);
 
             if ($hasCategoryId) {
                 // New flow with category_id (and optional savings bucket and account)
@@ -320,9 +322,11 @@ function handleTransactions($method, $id) {
             $savingsBucketId = isset($data['savings_bucket_id']) ? intval($data['savings_bucket_id']) : null;
             if ($savingsBucketId === 0) $savingsBucketId = null;
 
-            // Check for optional account
+            // Account is required in the ledger model — default to the user's
+            // first account when the client doesn't send one.
             $accountId = isset($data['account_id']) ? intval($data['account_id']) : null;
             if ($accountId === 0) $accountId = null;
+            if ($accountId === null) $accountId = getDefaultAccountId($userId);
 
             if ($hasCategoryId) {
                 // New flow with category_id (and optional savings bucket and account)
@@ -393,6 +397,7 @@ function handleImport($method) {
 
     $data = json_decode(file_get_contents('php://input'), true);
     $accountId = (isset($data['account_id']) && !empty($data['account_id'])) ? intval($data['account_id']) : null;
+    if ($accountId === null) $accountId = getDefaultAccountId($userId);
     $items = $data['transactions'] ?? null;
 
     if (!is_array($items) || count($items) === 0) {
