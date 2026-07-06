@@ -3519,6 +3519,58 @@ async function updateAccount(id, data) {
     }
 }
 
+// ========================================
+// Accounts Onboarding
+// ========================================
+
+// Show the accounts onboarding prompt once, for users who haven't done it.
+function maybeShowOnboarding() {
+    if (!state.user || state.user.onboarding_completed) return;
+    const nameInput = document.getElementById('onboarding-account-name');
+    if (nameInput) {
+        const def = (state.accounts || [])[0];
+        nameInput.value = def ? def.name : 'Default account';
+    }
+    document.querySelectorAll('.onboarding-extra').forEach((cb) => { cb.checked = false; });
+    openModal(document.getElementById('onboarding-modal'));
+}
+
+// Finish (Get started) or skip onboarding. When setting up, rename the default
+// account and create any ticked extras, then mark onboarding complete.
+async function finishOnboarding(setUpAccounts) {
+    try {
+        if (setUpAccounts) {
+            const def = (state.accounts || [])[0];
+            const newName = (document.getElementById('onboarding-account-name')?.value || '').trim();
+            if (def && newName && newName !== def.name) {
+                await api(`api.php?resource=accounts&id=${def.id}`, {
+                    method: 'PUT',
+                    body: { name: newName, type: def.type, icon: def.icon }
+                });
+            }
+            for (const cb of Array.from(document.querySelectorAll('.onboarding-extra:checked'))) {
+                await api('api.php?resource=accounts', {
+                    method: 'POST',
+                    body: { name: cb.dataset.name, type: cb.dataset.type }
+                });
+            }
+        }
+        await api('auth.php?action=complete-onboarding', { method: 'POST' });
+        if (state.user) state.user.onboarding_completed = true;
+        closeModal(document.getElementById('onboarding-modal'));
+        await loadAppData();
+        renderAll();
+        populateAccountDropdowns();
+    } catch (error) {
+        showToast(error.message || 'Could not finish setup');
+    }
+}
+
+function setupOnboarding() {
+    document.getElementById('onboarding-done')?.addEventListener('click', () => finishOnboarding(true));
+    document.getElementById('onboarding-skip')?.addEventListener('click', () => finishOnboarding(false));
+}
+
 let reassignSourceId = null;
 
 // Prompt to move an account's transactions to another account, then delete it.
@@ -4476,7 +4528,7 @@ function showAppScreen() {
     renderAll();
     updateEncryptionButton();
     showScreen('app');
-
+    maybeShowOnboarding();
 }
 
 function renderAll() {
@@ -6012,6 +6064,7 @@ async function init() {
     setupBalanceCard();
     setupInstallPrompt();
     setupImport();
+    setupOnboarding();
 
     // Chart period selector change handler
     elements.chartPeriodSelector?.addEventListener('change', async () => {

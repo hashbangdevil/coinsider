@@ -126,4 +126,22 @@ final class AccountsLedgerTest extends DatabaseTestCase
         $this->assertFalse(reassignAndDeleteAccount($userA['id'], $a1['id'], $foreign['id']));
         $this->assertNotFalse(getAccount($userA['id'], $a1['id'])); // source untouched
     }
+
+    public function testExistingUserWithTransactionsSkipsOnboarding(): void
+    {
+        $user = $this->makeUser();
+        $cat = $this->makeCategory($user['id'], 'Food', 'expense');
+        createTransactionWithCategoryId($user['id'], 'x', 10, $cat['id'], 'expense', '2026-07-01');
+
+        ensureUserHasAccount($user['id']);
+
+        $this->assertSame(1, (int) findUserById($user['id'])['onboarding_completed']);
+    }
+
+    public function testNewUserWithoutTransactionsStillNeedsOnboarding(): void
+    {
+        $user = $this->makeUser();
+        ensureUserHasAccount($user['id']);
+        $this->assertSame(0, (int) findUserById($user['id'])['onboarding_completed']);
+    }
 }

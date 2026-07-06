@@ -59,6 +59,9 @@ switch ($action) {
     case 'resend-verification':
         handleResendVerification();
         break;
+    case 'complete-onboarding':
+        handleCompleteOnboarding();
+        break;
     case 'verification-status':
         handleVerificationStatus();
         break;
@@ -668,6 +671,17 @@ function handleResendVerification() {
 // Get Verification Status
 // ========================================
 
+function handleCompleteOnboarding() {
+    $user = requireAuth();
+    completeOnboarding($user['id']);
+
+    $fresh = findUserById($user['id']);
+    if ($fresh) {
+        $_SESSION['user'] = sanitizeUser($fresh);
+    }
+    jsonResponse(['success' => true, 'user' => $_SESSION['user']]);
+}
+
 function handleVerificationStatus() {
     $user = requireAuth();
     $status = getEmailVerificationStatus($user['id']);
@@ -743,6 +757,7 @@ function sanitizeUser($user) {
         'currency' => $user['currency'] ?? 'ZAR',
         'encryption_enabled' => (bool) ($user['encryption_enabled'] ?? false),
         'accounts_enabled' => (bool) ($user['accounts_enabled'] ?? false),
+        'onboarding_completed' => (bool) ($user['onboarding_completed'] ?? false),
         'email_verified' => $verificationStatus['verified'] ?? false,
         'verification_grace_days' => $verificationStatus['grace_period_remaining'] ?? 0
     ];

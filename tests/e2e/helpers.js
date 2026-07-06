@@ -18,7 +18,7 @@ function today() {
  * Sign up a fresh user through the UI and wait for the dashboard.
  * Returns the email used.
  */
-async function signUp(page, { name = 'E2E User', password = 'password123', prefix = 'user' } = {}) {
+async function signUp(page, { name = 'E2E User', password = 'password123', prefix = 'user', skipOnboarding = true } = {}) {
   const email = uniqueEmail(prefix);
   await page.goto('/');
   await page.locator('[data-show="signup"]').click();
@@ -27,6 +27,15 @@ async function signUp(page, { name = 'E2E User', password = 'password123', prefi
   await page.locator('#signup-password').fill(password);
   await page.locator('#signup-form button[type="submit"]').click();
   await expect(page.locator('#app-screen')).toBeVisible();
+  // New users get the accounts onboarding prompt; dismiss it so tests can interact
+  // with the app (the onboarding tests opt out with skipOnboarding: false).
+  if (skipOnboarding) {
+    const skip = page.locator('#onboarding-skip');
+    if (await skip.isVisible().catch(() => false)) {
+      await skip.click();
+      await expect(page.locator('#onboarding-modal')).toBeHidden();
+    }
+  }
   return email;
 }
 

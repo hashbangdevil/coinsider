@@ -117,6 +117,13 @@ class Database {
             // Column already exists, ignore
         }
 
+        // Add onboarding_completed column (accounts onboarding prompt)
+        try {
+            $this->pdo->exec("ALTER TABLE users ADD COLUMN onboarding_completed INTEGER DEFAULT 0");
+        } catch (PDOException $e) {
+            // Column already exists, ignore
+        }
+
         // Transactions table
         $this->pdo->exec("
             CREATE TABLE IF NOT EXISTS transactions (
@@ -2109,7 +2116,21 @@ function ensureUserHasAccount($userId) {
         _updateAccountBalance($pdo, $defaultId, (float) $row['delta']);
     }
 
+    // Existing users (any transaction history) skip the accounts onboarding prompt.
+    $pdo->prepare("
+        UPDATE users SET onboarding_completed = 1
+        WHERE id = ? AND onboarding_completed = 0
+          AND (SELECT COUNT(*) FROM transactions WHERE transactions.user_id = users.id) > 0
+    ")->execute([$userId]);
+
     return $defaultId;
+}
+
+// Mark the accounts onboarding prompt as done (or skipped) for a user.
+function completeOnboarding($userId) {
+    $pdo = Database::getInstance()->getPdo();
+    $pdo->prepare("UPDATE users SET onboarding_completed = 1 WHERE id = ?")->execute([$userId]);
+    return true;
 }
 
 function getAccount($userId, $accountId) {

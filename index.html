@@ -2045,6 +2045,31 @@
         </div>
     </div>
 
+    <!-- Accounts Onboarding Modal -->
+    <div class="modal" id="onboarding-modal" data-persist="true">
+        <div class="modal-backdrop"></div>
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>Set up your accounts</h3>
+            </div>
+            <p class="form-description">Coinsider records every transaction against an account. Name your main account, and add any others you use — you can change this anytime.</p>
+            <div class="input-group">
+                <label for="onboarding-account-name">Main account name</label>
+                <input type="text" id="onboarding-account-name" value="Default account" maxlength="50">
+            </div>
+            <div class="input-group">
+                <label>Add other accounts (optional)</label>
+                <label class="checkbox-label"><input type="checkbox" class="onboarding-extra" data-name="Cash" data-type="cash"><span class="checkbox-text">Cash</span></label>
+                <label class="checkbox-label"><input type="checkbox" class="onboarding-extra" data-name="Credit card" data-type="credit_card"><span class="checkbox-text">Credit card</span></label>
+                <label class="checkbox-label"><input type="checkbox" class="onboarding-extra" data-name="Savings" data-type="savings"><span class="checkbox-text">Savings</span></label>
+            </div>
+            <div class="modal-actions">
+                <button type="button" class="btn btn-secondary" id="onboarding-skip">Skip for now</button>
+                <button type="button" class="btn btn-primary" id="onboarding-done">Get started</button>
+            </div>
+        </div>
+    </div>
+
     <!-- Delete Account (reassign transactions) Modal -->
     <div class="modal" id="reassign-account-modal">
         <div class="modal-backdrop"></div>

@@ -17,6 +17,42 @@ test.describe('Accounts ledger', () => {
     await expect(page.locator('#transaction-account option:checked')).toContainText('Default account');
   });
 
+  test('a new user sees the onboarding prompt and can set up accounts', async ({ page }) => {
+    await signUp(page, { name: 'Onboard User', prefix: 'onboard', skipOnboarding: false });
+
+    await expect(page.locator('#onboarding-modal')).toBeVisible();
+
+    // Rename the default account and add a Cash account.
+    await page.locator('#onboarding-account-name').fill('Everyday');
+    await page.locator('.onboarding-extra[data-name="Cash"]').check();
+    await page.locator('#onboarding-done').click();
+    await expect(page.locator('#onboarding-modal')).toBeHidden();
+
+    // The accounts reflect the setup.
+    const names = await page.evaluate(async () => {
+      const r = await (await fetch('./api/api.php?resource=accounts')).json();
+      return r.accounts.map((a) => a.name);
+    });
+    expect(names).toContain('Everyday');
+    expect(names).toContain('Cash');
+
+    // It does not reappear on reload.
+    await page.reload();
+    await expect(page.locator('#app-screen')).toBeVisible();
+    await expect(page.locator('#onboarding-modal')).toBeHidden();
+  });
+
+  test('skipping onboarding does not reappear on reload', async ({ page }) => {
+    await signUp(page, { name: 'Skip User', prefix: 'skip', skipOnboarding: false });
+    await expect(page.locator('#onboarding-modal')).toBeVisible();
+    await page.locator('#onboarding-skip').click();
+    await expect(page.locator('#onboarding-modal')).toBeHidden();
+
+    await page.reload();
+    await expect(page.locator('#app-screen')).toBeVisible();
+    await expect(page.locator('#onboarding-modal')).toBeHidden();
+  });
+
   test('deleting an account with transactions reassigns them to another account', async ({ page }) => {
     await signUp(page, { name: 'Reassign User', prefix: 'reassign' });
 
