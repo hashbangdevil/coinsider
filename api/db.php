@@ -2213,6 +2213,53 @@ function deleteAccount($userId, $accountId) {
     return $stmt->rowCount() > 0;
 }
 
+// Reassign a source account's transactions to a target account, merge its whole
+// balance into the target, drop transfers that involved it, and delete it.
+// Balances are stored (maintained incrementally), so merging the source's whole
+// current_balance into the target once is correct even for source<->target
+// transfers, and moving the transactions is balance-neutral. Returns false for
+// an invalid target, the same account, or the user's last account.
+function reassignAndDeleteAccount($userId, $accountId, $targetAccountId) {
+    $pdo = Database::getInstance()->getPdo();
+
+    if ((int) $accountId === (int) $targetAccountId) {
+        return false;
+    }
+    $source = getAccount($userId, $accountId);
+    $target = getAccount($userId, $targetAccountId);
+    if (!$source || !$target) {
+        return false;
+    }
+    if (count(getAccounts($userId)) <= 1) {
+        return false; // never leave the user with zero accounts
+    }
+
+    $pdo->beginTransaction();
+    try {
+        // Move the source's transactions to the target (raw update: balance-neutral).
+        $pdo->prepare("UPDATE transactions SET account_id = ? WHERE user_id = ? AND account_id = ?")
+            ->execute([$targetAccountId, $userId, $accountId]);
+
+        // Merge the source's entire balance into the target (once).
+        _updateAccountBalance($pdo, $targetAccountId, (float) $source['current_balance']);
+
+        // Drop transfers that involved the source; their balance effects already
+        // live in the stored account balances.
+        $pdo->prepare("DELETE FROM account_transfers WHERE user_id = ? AND (from_account_id = ? OR to_account_id = ?)")
+            ->execute([$userId, $accountId, $accountId]);
+
+        // Delete the now-empty source account.
+        $pdo->prepare("DELETE FROM accounts WHERE id = ? AND user_id = ?")
+            ->execute([$accountId, $userId]);
+
+        $pdo->commit();
+        return true;
+    } catch (Throwable $e) {
+        $pdo->rollBack();
+        throw $e;
+    }
+}
+
 function accountHasTransactions($userId, $accountId) {
     $pdo = Database::getInstance()->getPdo();
     $stmt = $pdo->prepare("SELECT COUNT(*) as count FROM transactions WHERE user_id = ? AND account_id = ?");

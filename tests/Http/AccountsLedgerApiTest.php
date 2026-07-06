@@ -70,4 +70,35 @@ final class AccountsLedgerApiTest extends HttpTestCase
         $queue = $this->json($client->get('/api/api.php?resource=transactions&needs_review=1'));
         $this->assertSame($defaultId, (int) $queue[0]['account_id']);
     }
+
+    public function testDeletingAnAccountWithTransactionsRequiresReassign(): void
+    {
+        $client = $this->client();
+        $this->signup($client);
+        $defaultId = $this->defaultAccountId($client);
+        $categoryId = $this->firstExpenseCategoryId($client);
+
+        // Second account with a transaction on it.
+        $credit = $this->json($client->post('/api/api.php?resource=accounts', [
+            'json' => ['name' => 'Credit', 'type' => 'credit_card'],
+        ]));
+        $creditId = (int) $credit['id'];
+        $client->post('/api/api.php?resource=transactions', [
+            'json' => ['description' => 'on credit', 'amount' => 20, 'category_id' => $categoryId, 'type' => 'expense', 'date' => '2026-07-01', 'account_id' => $creditId],
+        ]);
+
+        // Without a reassign target → blocked.
+        $res = $client->delete("/api/api.php?resource=accounts&id={$creditId}");
+        $this->assertSame(409, $res->getStatusCode());
+
+        // With a reassign target → deleted, and the transaction moves to it.
+        $res = $client->delete("/api/api.php?resource=accounts&id={$creditId}&reassign_to={$defaultId}");
+        $this->assertSame(200, $res->getStatusCode());
+
+        $txns = $this->json($client->get('/api/api.php?resource=transactions'));
+        $this->assertSame($defaultId, (int) $txns[0]['account_id']);
+
+        $names = array_column($this->json($client->get('/api/api.php?resource=accounts'))['accounts'], 'name');
+        $this->assertNotContains('Credit', $names);
+    }
 }

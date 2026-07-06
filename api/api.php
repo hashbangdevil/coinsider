@@ -1194,8 +1194,21 @@ function handleAccounts($method, $id) {
                 errorResponse('Account not found', 404);
             }
 
+            // Ledger model: never delete the user's last account.
+            if (count(getAccounts($userId)) <= 1) {
+                errorResponse('You must keep at least one account', 409);
+            }
+
+            $reassignTo = isset($_GET['reassign_to']) ? intval($_GET['reassign_to']) : null;
+
             if (accountHasTransactions($userId, $id)) {
-                errorResponse('Cannot delete account with linked transactions. Remove or reassign transactions first.', 409);
+                if (!$reassignTo) {
+                    errorResponse('Cannot delete account with linked transactions. Reassign them to another account first.', 409);
+                }
+                if (!reassignAndDeleteAccount($userId, $id, $reassignTo)) {
+                    errorResponse('Could not reassign to that account', 400);
+                }
+                jsonResponse(['success' => true]);
             }
 
             $deleted = deleteAccount($userId, $id);

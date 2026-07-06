@@ -88,4 +88,42 @@ final class AccountsLedgerTest extends DatabaseTestCase
         $this->assertTrue(deleteAccount($user['id'], $second['id']));
         $this->assertCount(1, getAccounts($user['id']));
     }
+
+    public function testReassignMovesTransactionsAndMergesBalance(): void
+    {
+        $user = $this->makeUser();
+        $cat = $this->makeCategory($user['id'], 'Food', 'expense');
+        $a = createAccount($user['id'], 'A', 'bank', '🏦', null, 100);
+        $b = createAccount($user['id'], 'B', 'bank', '🏦', null, 50);
+        createTransactionWithAccount($user['id'], 'x', 30, $cat['id'], 'expense', '2026-07-01', null, $a['id']);
+
+        $this->assertTrue(reassignAndDeleteAccount($user['id'], $a['id'], $b['id']));
+
+        $this->assertFalse(getAccount($user['id'], $a['id'])); // source gone
+        $txns = getTransactions($user['id']);
+        $this->assertSame((int) $b['id'], (int) $txns[0]['account_id']); // moved to target
+        // Target balance = its opening (50) + source's whole balance (100 - 30 = 70).
+        $this->assertEqualsWithDelta(120.0, (float) getAccount($user['id'], $b['id'])['current_balance'], 0.001);
+    }
+
+    public function testReassignRejectsTheSameAccount(): void
+    {
+        $user = $this->makeUser();
+        $a = createAccount($user['id'], 'A', 'bank', '🏦', null, 0);
+        createAccount($user['id'], 'B', 'bank', '🏦', null, 0);
+
+        $this->assertFalse(reassignAndDeleteAccount($user['id'], $a['id'], $a['id']));
+    }
+
+    public function testReassignRejectsAForeignTarget(): void
+    {
+        $userA = $this->makeUser('a@example.com');
+        $userB = $this->makeUser('b@example.com');
+        $a1 = createAccount($userA['id'], 'A1', 'bank', '🏦', null, 0);
+        createAccount($userA['id'], 'A2', 'bank', '🏦', null, 0);
+        $foreign = createAccount($userB['id'], 'B', 'bank', '🏦', null, 0);
+
+        $this->assertFalse(reassignAndDeleteAccount($userA['id'], $a1['id'], $foreign['id']));
+        $this->assertNotFalse(getAccount($userA['id'], $a1['id'])); // source untouched
+    }
 }

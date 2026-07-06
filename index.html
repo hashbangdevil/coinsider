@@ -2037,10 +2037,35 @@
                     <span class="input-hint">Balance right now (only when adding new account)</span>
                 </div>
                 <div class="modal-actions">
+                    <button type="button" class="btn btn-danger" id="account-delete-btn" style="display:none;">Delete</button>
                     <button type="button" class="btn btn-secondary modal-cancel">Cancel</button>
                     <button type="submit" class="btn btn-primary" id="account-submit-btn">Add Account</button>
                 </div>
             </form>
+        </div>
+    </div>
+
+    <!-- Delete Account (reassign transactions) Modal -->
+    <div class="modal" id="reassign-account-modal">
+        <div class="modal-backdrop"></div>
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>Delete account</h3>
+                <button class="btn-icon modal-close">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+                    </svg>
+                </button>
+            </div>
+            <p class="form-description" id="reassign-account-text">This account has transactions. Move them to another account, then delete it.</p>
+            <div class="input-group">
+                <label for="reassign-account-target">Move transactions to</label>
+                <select id="reassign-account-target"></select>
+            </div>
+            <div class="modal-actions">
+                <button type="button" class="btn btn-secondary modal-cancel">Cancel</button>
+                <button type="button" class="btn btn-danger" id="reassign-account-confirm">Move &amp; delete</button>
+            </div>
         </div>
     </div>
 

@@ -3519,6 +3519,40 @@ async function updateAccount(id, data) {
     }
 }
 
+let reassignSourceId = null;
+
+// Prompt to move an account's transactions to another account, then delete it.
+function openReassignModal(accountId) {
+    const others = (state.accounts || []).filter(a => a.id !== accountId);
+    if (!others.length) { showToast('You need another account to move transactions to'); return; }
+    reassignSourceId = accountId;
+    const source = getAccountById(accountId);
+    document.getElementById('reassign-account-target').innerHTML = others
+        .map((a, i) => `<option value="${a.id}"${i === 0 ? ' selected' : ''}>${escapeHtml(a.icon || '')} ${escapeHtml(a.name)}</option>`)
+        .join('');
+    const text = document.getElementById('reassign-account-text');
+    if (text && source) {
+        text.textContent = `"${source.name}" has transactions. Choose an account to move them to — it will then be deleted.`;
+    }
+    openModal(document.getElementById('reassign-account-modal'));
+}
+
+async function confirmReassignDelete() {
+    const targetId = document.getElementById('reassign-account-target')?.value;
+    if (!reassignSourceId || !targetId) return;
+    try {
+        await api(`api.php?resource=accounts&id=${reassignSourceId}&reassign_to=${targetId}`, { method: 'DELETE' });
+        closeModal(document.getElementById('reassign-account-modal'));
+        reassignSourceId = null;
+        showToast('Account deleted; transactions moved');
+        await loadAppData();
+        renderAll();
+        populateAccountDropdowns();
+    } catch (error) {
+        showToast(error.message || 'Failed to delete account');
+    }
+}
+
 async function deleteAccount(id) {
     if ((state.accounts || []).length <= 1) {
         showToast('You need at least one account');
@@ -3538,7 +3572,7 @@ async function deleteAccount(id) {
         console.error('Failed to delete account:', error);
         const errorMsg = error.message || 'Failed to delete account';
         if (errorMsg.includes('linked transactions')) {
-            showToast('Cannot delete: account has linked transactions');
+            openReassignModal(id); // offer to move the transactions, then delete
         } else {
             showToast(errorMsg);
         }
@@ -3762,6 +3796,10 @@ function openAccountModal(accountId = null) {
     elements.accountModalTitle.textContent = currentEditingAccount ? 'Edit Account' : 'Add Account';
     elements.accountSubmitBtn.textContent = currentEditingAccount ? 'Save Changes' : 'Add Account';
 
+    // Delete is only offered when editing an existing account.
+    const accountDeleteBtn = document.getElementById('account-delete-btn');
+    if (accountDeleteBtn) accountDeleteBtn.style.display = currentEditingAccount ? '' : 'none';
+
     if (currentEditingAccount) {
         elements.accountEditId.value = currentEditingAccount.id;
         elements.accountName.value = currentEditingAccount.name;
@@ -3888,7 +3926,7 @@ function setupAccountModals() {
     deleteBtn?.addEventListener('click', async () => {
         if (!currentEditingAccount) return;
         const confirmed = await showConfirm(
-            'This cannot be undone. You can only delete accounts with no linked transactions.',
+            'If this account has transactions, you will choose another account to move them to.',
             `Delete "${currentEditingAccount.name}"?`
         );
         if (confirmed) {
@@ -3896,6 +3934,9 @@ function setupAccountModals() {
             await deleteAccount(currentEditingAccount.id);
         }
     });
+
+    // Confirm moving transactions to another account, then deleting.
+    document.getElementById('reassign-account-confirm')?.addEventListener('click', confirmReassignDelete);
 
     // Back button for accounts section
     elements.accountsBackBtn?.addEventListener('click', () => {
