@@ -3520,6 +3520,10 @@ async function updateAccount(id, data) {
 }
 
 async function deleteAccount(id) {
+    if ((state.accounts || []).length <= 1) {
+        showToast('You need at least one account');
+        return;
+    }
     try {
         await api(`api.php?resource=accounts&id=${id}`, { method: 'DELETE' });
         const account = state.accounts.find(a => a.id === id);
@@ -3698,7 +3702,7 @@ function populateAccountDropdowns() {
     // Populate transaction account dropdown
     if (elements.transactionAccount) {
         const currentValue = elements.transactionAccount.value;
-        elements.transactionAccount.innerHTML = '<option value="">No account</option>';
+        elements.transactionAccount.innerHTML = '';
 
         state.accounts.forEach(account => {
             const option = document.createElement('option');
@@ -3707,9 +3711,11 @@ function populateAccountDropdowns() {
             elements.transactionAccount.appendChild(option);
         });
 
-        // Restore selection if valid
+        // Ledger model: always an account — restore the selection or default to the first.
         if (currentValue && state.accounts.some(a => a.id == currentValue)) {
             elements.transactionAccount.value = currentValue;
+        } else if (state.accounts.length) {
+            elements.transactionAccount.value = state.accounts[0].id;
         }
     }
 
@@ -4604,11 +4610,8 @@ function setupModals() {
             elements.transactionBucket.value = '';
         }
 
-        // Populate account dropdown and reset value
+        // Populate account dropdown — defaults to the user's first account.
         populateAccountDropdowns();
-        if (elements.transactionAccount) {
-            elements.transactionAccount.value = '';
-        }
 
         // Show recurring toggle and reset options
         const recurringToggle = document.getElementById('recurring-toggle');

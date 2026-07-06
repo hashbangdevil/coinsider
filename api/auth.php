@@ -686,8 +686,17 @@ function handleVerificationStatus() {
 
 function handleStatus() {
     $user = getCurrentUser();
-    
+
     if ($user) {
+        // Ledger model: ensure the account invariant for already-logged-in
+        // sessions too (idempotent), then return the refreshed user so the
+        // frontend always sees accounts as enabled.
+        ensureUserHasAccount($user['id']);
+        $fresh = findUserById($user['id']);
+        if ($fresh) {
+            $user = sanitizeUser($fresh);
+            $_SESSION['user'] = $user;
+        }
         jsonResponse([
             'authenticated' => true,
             'user' => $user
