@@ -2677,6 +2677,11 @@ select option {
     color: white;
 }
 
+.type-btn[data-type="transfer"].active {
+    background: var(--color-primary);
+    color: white;
+}
+
 /* ========================================
    Transactions Modal
    ======================================== */

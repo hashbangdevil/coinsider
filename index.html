@@ -936,6 +936,7 @@
                 <div class="transaction-type-toggle">
                     <button type="button" class="type-btn active" data-type="expense">Expense</button>
                     <button type="button" class="type-btn" data-type="income">Income</button>
+                    <button type="button" class="type-btn" data-type="transfer" id="transaction-type-transfer" style="display:none;">Transfer</button>
                 </div>
                 <div class="input-group">
                     <label for="transaction-description">Description</label>
@@ -948,7 +949,7 @@
                         <input type="number" id="transaction-amount" placeholder="0.00" step="0.01" min="0" required>
                     </div>
                 </div>
-                <div class="input-group">
+                <div class="input-group" id="transaction-category-group">
                     <label for="transaction-category">Category</label>
                     <select id="transaction-category" required>
                         <option value="">Select category</option>
@@ -960,11 +961,14 @@
                     <input type="date" id="transaction-date" required>
                 </div>
                 <div class="input-group" id="transaction-account-group" style="display: none;">
-                    <label for="transaction-account">Account (optional)</label>
+                    <label for="transaction-account">Account</label>
                     <select id="transaction-account">
-                        <option value="">No account</option>
                         <!-- Accounts populated dynamically by JavaScript -->
                     </select>
+                </div>
+                <div class="input-group" id="transaction-transfer-to-group" style="display: none;">
+                    <label for="transaction-transfer-to">To account</label>
+                    <select id="transaction-transfer-to"></select>
                 </div>
                 <div class="input-group" id="savings-bucket-group" style="display: none;">
                     <label for="transaction-bucket">Fund from Savings (optional)</label>

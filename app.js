@@ -1909,6 +1909,11 @@ function openEditTransactionModal(transactionId) {
         elements.transactionAccount.value = transaction.account_id || '';
     }
 
+    // Transfers aren't editable as transactions; reset the form for this type.
+    const editTransferBtn = document.getElementById('transaction-type-transfer');
+    if (editTransferBtn) editTransferBtn.style.display = 'none';
+    configureTransactionFormForType(transaction.type);
+
     // Hide recurring options when editing (not applicable for existing transactions)
     const recurringToggle = document.getElementById('recurring-toggle');
     if (recurringToggle) recurringToggle.style.display = 'none';
@@ -3371,6 +3376,41 @@ function getAccountById(accountId) {
     return state.accounts.find(a => a.id === accountId);
 }
 
+// Reconfigure the transaction modal for the selected type (expense/income/transfer).
+function configureTransactionFormForType(type) {
+    const isTransfer = type === 'transfer';
+    const categoryGroup = document.getElementById('transaction-category-group');
+    const categorySelect = document.getElementById('transaction-category');
+    const toGroup = document.getElementById('transaction-transfer-to-group');
+    const recurringToggle = document.getElementById('recurring-toggle');
+    const accountLabel = document.querySelector('#transaction-account-group label');
+
+    const descInput = document.getElementById('transaction-description');
+    if (categoryGroup) categoryGroup.style.display = isTransfer ? 'none' : 'block';
+    if (categorySelect) categorySelect.required = !isTransfer;
+    if (descInput) descInput.required = !isTransfer; // description optional for transfers
+    if (toGroup) toGroup.style.display = isTransfer ? 'block' : 'none';
+    if (accountLabel) accountLabel.textContent = isTransfer ? 'From account' : 'Account';
+
+    // Savings buckets only apply to expenses.
+    if (elements.savingsBucketGroup) elements.savingsBucketGroup.style.display = (type === 'expense') ? 'block' : 'none';
+    if (isTransfer && elements.transactionBucket) elements.transactionBucket.value = '';
+
+    // Recurring doesn't apply to transfers (or when editing).
+    if (recurringToggle) recurringToggle.style.display = (!isTransfer && !editingTransactionId) ? 'block' : 'none';
+    if (isTransfer) {
+        // Ensure the "to" account differs from the "from" account.
+        const toSel = document.getElementById('transaction-transfer-to');
+        const fromVal = elements.transactionAccount?.value;
+        if (toSel && String(toSel.value) === String(fromVal)) {
+            const other = state.accounts.find(a => String(a.id) !== String(fromVal));
+            if (other) toSel.value = other.id;
+        }
+        if (elements.transactionRecurring) elements.transactionRecurring.checked = false;
+        if (elements.recurringOptions) elements.recurringOptions.style.display = 'none';
+    }
+}
+
 function getAccountTypeLabel(type) {
     const labels = {
         'bank': 'Bank Account',
@@ -3822,6 +3862,23 @@ function populateAccountDropdowns() {
             recurringAccount.value = currentValue;
         } else if (state.accounts.length) {
             recurringAccount.value = state.accounts[0].id;
+        }
+    }
+
+    // Populate the transaction modal's "to account" (transfer mode).
+    const transferToInline = document.getElementById('transaction-transfer-to');
+    if (transferToInline) {
+        const currentValue = transferToInline.value;
+        transferToInline.innerHTML = state.accounts
+            .map((a) => `<option value="${a.id}">${escapeHtml(a.icon || '')} ${escapeHtml(a.name)}</option>`)
+            .join('');
+        if (currentValue && state.accounts.some(a => a.id == currentValue)) {
+            transferToInline.value = currentValue;
+        } else if (state.accounts.length >= 2) {
+            // Default "to" to an account different from "from".
+            const fromVal = elements.transactionAccount?.value;
+            const other = state.accounts.find(a => String(a.id) !== String(fromVal));
+            transferToInline.value = other ? other.id : state.accounts[0].id;
         }
     }
 
@@ -4726,6 +4783,11 @@ function setupModals() {
         // Populate account dropdown — defaults to the user's first account.
         populateAccountDropdowns();
 
+        // Transfer type is only available with 2+ accounts; reset to the Expense layout.
+        const transferBtn = document.getElementById('transaction-type-transfer');
+        if (transferBtn) transferBtn.style.display = (state.accounts.length >= 2) ? '' : 'none';
+        configureTransactionFormForType('expense');
+
         // Show recurring toggle and reset options
         const recurringToggle = document.getElementById('recurring-toggle');
         if (recurringToggle) recurringToggle.style.display = 'block';
@@ -4754,9 +4816,10 @@ function setupModals() {
             document.querySelectorAll('.transaction-type-toggle .type-btn').forEach(b => b.classList.remove('active'));
             btn.classList.add('active');
 
-            // Update category dropdown based on selected type
+            // Update category dropdown based on selected type (not for transfers)
             const type = btn.dataset.type;
-            populateCategoryDropdown(elements.transactionCategory, type);
+            if (type !== 'transfer') populateCategoryDropdown(elements.transactionCategory, type);
+            configureTransactionFormForType(type);
         });
     });
 
@@ -4770,6 +4833,18 @@ function setupModals() {
         const isRecurring = elements.transactionRecurring?.checked || false;
         const savingsBucketId = elements.transactionBucket?.value ? parseInt(elements.transactionBucket.value) : null;
         const accountId = elements.transactionAccount?.value ? parseInt(elements.transactionAccount.value) : null;
+
+        if (type === 'transfer') {
+            const toEl = document.getElementById('transaction-transfer-to');
+            const toId = toEl && toEl.value ? parseInt(toEl.value) : null;
+            if (!accountId || !toId) { showToast('Choose both accounts'); return; }
+            if (accountId === toId) { showToast('Choose two different accounts'); return; }
+            if (!(parseFloat(amount) > 0)) { showToast('Enter an amount'); return; }
+            await createAccountTransfer(accountId, toId, parseFloat(amount), description, date);
+            editingTransactionId = null;
+            closeModal(elements.transactionModal);
+            return;
+        }
 
         if (!categoryId) {
             showToast('Please select a category');

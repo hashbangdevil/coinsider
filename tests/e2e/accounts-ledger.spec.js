@@ -53,6 +53,42 @@ test.describe('Accounts ledger', () => {
     await expect(page.locator('#onboarding-modal')).toBeHidden();
   });
 
+  test('a transfer between accounts moves money without a category', async ({ page }) => {
+    await signUp(page, { name: 'Transfer User', prefix: 'transfer' });
+
+    // Create a second account so Transfer becomes available.
+    await page.evaluate(async () => {
+      await fetch('./api/api.php?resource=accounts', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: 'Savings', type: 'savings', starting_balance: 0 }),
+      });
+    });
+    await page.reload();
+
+    await page.locator('#add-transaction-btn').click();
+    await expect(page.locator('#transaction-modal')).toBeVisible();
+
+    // Switch to Transfer: category hides, "to account" shows.
+    await expect(page.locator('#transaction-type-transfer')).toBeVisible();
+    await page.locator('#transaction-type-transfer').click();
+    await expect(page.locator('#transaction-category-group')).toBeHidden();
+    await expect(page.locator('#transaction-transfer-to-group')).toBeVisible();
+
+    // From defaults to the Default account, To to Savings; move 100.
+    await page.locator('#transaction-amount').fill('100');
+    await page.locator('#transaction-date').fill(new Date().toISOString().slice(0, 10));
+    await page.locator('#transaction-submit-btn').click();
+    await expect(page.locator('#transaction-modal')).toBeHidden();
+
+    // Balances moved: -100 out of Default, +100 into Savings.
+    const balances = await page.evaluate(async () => {
+      const r = await (await fetch('./api/api.php?resource=accounts')).json();
+      return Object.fromEntries(r.accounts.map((a) => [a.name, a.current_balance]));
+    });
+    expect(balances['Default account']).toBe(-100);
+    expect(balances['Savings']).toBe(100);
+  });
+
   test('deleting an account with transactions reassigns them to another account', async ({ page }) => {
     await signUp(page, { name: 'Reassign User', prefix: 'reassign' });
 
