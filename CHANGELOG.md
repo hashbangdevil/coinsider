@@ -15,6 +15,9 @@ command that keeps every version surface in sync — do not hand-edit versions.
 
 ## [Unreleased]
 
+### Fixed
+- Spacing between the Transfer button and the account list on the Accounts page.
+
 ## [1.3.0] - 2026-07-06
 
 ### Changed

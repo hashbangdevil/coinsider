@@ -4336,6 +4336,10 @@ select:focus,
 }
 
 /* Accounts List */
+.accounts-actions {
+    margin-bottom: var(--space-md);
+}
+
 .accounts-list {
     display: flex;
     flex-direction: column;
