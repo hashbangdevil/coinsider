@@ -498,7 +498,8 @@ function handleRecurring($method, $id) {
                 $data['frequency'],
                 $data['start_date'],
                 $endDate,
-                $skipFirst
+                $skipFirst,
+                (isset($data['account_id']) && !empty($data['account_id'])) ? intval($data['account_id']) : getDefaultAccountId($userId)
             );
 
             if (!$recurring) {
@@ -577,7 +578,8 @@ function handleRecurring($method, $id) {
                 $data['type'],
                 $data['frequency'],
                 $data['start_date'],
-                $endDate
+                $endDate,
+                (isset($data['account_id']) && !empty($data['account_id'])) ? intval($data['account_id']) : getDefaultAccountId($userId)
             );
 
             if (!$recurring) {

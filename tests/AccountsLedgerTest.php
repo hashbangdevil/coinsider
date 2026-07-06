@@ -144,4 +144,33 @@ final class AccountsLedgerTest extends DatabaseTestCase
         ensureUserHasAccount($user['id']);
         $this->assertSame(0, (int) findUserById($user['id'])['onboarding_completed']);
     }
+
+    public function testRecurringRuleCarriesItsAccountToGeneratedTransactions(): void
+    {
+        $user = $this->makeUser();
+        $defaultId = ensureUserHasAccount($user['id']);
+        $cat = $this->makeCategory($user['id'], 'Rent', 'expense');
+
+        // Monthly rule starting today → generates today's transaction on the account.
+        createRecurringTransaction($user['id'], 'Rent', 1000, $cat['id'], 'expense', 'monthly', date('Y-m-d'), null, false, $defaultId);
+
+        $txns = getTransactions($user['id']);
+        $this->assertNotEmpty($txns);
+        $this->assertSame($defaultId, (int) $txns[0]['account_id']);
+        $this->assertEqualsWithDelta(-1000.0, (float) getAccount($user['id'], $defaultId)['current_balance'], 0.001);
+    }
+
+    public function testEnsureBackfillsAccountLessRecurringRules(): void
+    {
+        $user = $this->makeUser();
+        $cat = $this->makeCategory($user['id'], 'Rent', 'expense');
+        // Future start (no generation yet), no account.
+        $future = date('Y-m-d', strtotime('+1 year'));
+        createRecurringTransaction($user['id'], 'Rent', 1000, $cat['id'], 'expense', 'monthly', $future, null, false, null);
+
+        $defaultId = ensureUserHasAccount($user['id']);
+
+        $rule = getRecurringTransactions($user['id'])[0];
+        $this->assertSame($defaultId, (int) $rule['account_id']);
+    }
 }

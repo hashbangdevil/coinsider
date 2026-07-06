@@ -1999,7 +1999,7 @@ async function loadRecurringTransactions() {
     }
 }
 
-async function createRecurringTransaction(description, amount, categoryId, type, frequency, startDate, endDate = null, skipFirst = false) {
+async function createRecurringTransaction(description, amount, categoryId, type, frequency, startDate, endDate = null, skipFirst = false, accountId = null) {
     try {
         let body = {
             description,
@@ -2008,7 +2008,8 @@ async function createRecurringTransaction(description, amount, categoryId, type,
             type,
             frequency,
             start_date: startDate,
-            skip_first: skipFirst
+            skip_first: skipFirst,
+            account_id: accountId
         };
         if (endDate) {
             body.end_date = endDate;
@@ -2049,7 +2050,7 @@ async function createRecurringTransaction(description, amount, categoryId, type,
     }
 }
 
-async function updateRecurringTransaction(id, description, amount, categoryId, type, frequency, startDate, endDate = null) {
+async function updateRecurringTransaction(id, description, amount, categoryId, type, frequency, startDate, endDate = null, accountId = null) {
     try {
         let body = {
             description,
@@ -2057,7 +2058,8 @@ async function updateRecurringTransaction(id, description, amount, categoryId, t
             category_id: categoryId,
             type,
             frequency,
-            start_date: startDate
+            start_date: startDate,
+            account_id: accountId
         };
         if (endDate) {
             body.end_date = endDate;
@@ -2125,6 +2127,7 @@ async function toggleRecurringTransaction(id, isActive) {
 let editingRecurringId = null;
 
 function openRecurringFormModal(recurring = null) {
+    populateAccountDropdowns();
     if (recurring) {
         // Editing existing recurring transaction
         editingRecurringId = recurring.id;
@@ -2145,6 +2148,9 @@ function openRecurringFormModal(recurring = null) {
         populateCategoryDropdown(elements.recurringCategory, type);
         if (recurring.category_id) {
             elements.recurringCategory.value = recurring.category_id;
+        }
+        if (recurring.account_id) {
+            document.getElementById('recurring-account').value = recurring.account_id;
         }
 
         // Hide skip-first checkbox when editing
@@ -3805,6 +3811,20 @@ function populateAccountDropdowns() {
         }
     }
 
+    // Populate recurring account dropdown (ledger model: always an account).
+    const recurringAccount = document.getElementById('recurring-account');
+    if (recurringAccount) {
+        const currentValue = recurringAccount.value;
+        recurringAccount.innerHTML = state.accounts
+            .map((a) => `<option value="${a.id}">${escapeHtml(a.icon || '')} ${escapeHtml(a.name)}</option>`)
+            .join('');
+        if (currentValue && state.accounts.some(a => a.id == currentValue)) {
+            recurringAccount.value = currentValue;
+        } else if (state.accounts.length) {
+            recurringAccount.value = state.accounts[0].id;
+        }
+    }
+
     // Populate transfer dropdowns
     if (elements.transferFrom) {
         const currentValue = elements.transferFrom.value;
@@ -4762,7 +4782,7 @@ function setupModals() {
             // Create recurring transaction instead
             const frequency = document.getElementById('transaction-frequency').value;
             const endDate = document.getElementById('transaction-end-date').value || null;
-            await createRecurringTransaction(description, parseFloat(amount), parseInt(categoryId), type, frequency, date, endDate);
+            await createRecurringTransaction(description, parseFloat(amount), parseInt(categoryId), type, frequency, date, endDate, false, parseInt(elements.transactionAccount?.value) || null);
         } else {
             await createTransaction(description, parseFloat(amount), parseInt(categoryId), type, date, savingsBucketId, accountId);
         }
@@ -4981,9 +5001,9 @@ function setupModals() {
         }
 
         if (editingRecurringId) {
-            await updateRecurringTransaction(editingRecurringId, description, amount, categoryId, type, frequency, startDate, endDate);
+            await updateRecurringTransaction(editingRecurringId, description, amount, categoryId, type, frequency, startDate, endDate, parseInt(document.getElementById('recurring-account')?.value) || null);
         } else {
-            await createRecurringTransaction(description, amount, categoryId, type, frequency, startDate, endDate, skipFirst);
+            await createRecurringTransaction(description, amount, categoryId, type, frequency, startDate, endDate, skipFirst, parseInt(document.getElementById('recurring-account')?.value) || null);
         }
 
         editingRecurringId = null;

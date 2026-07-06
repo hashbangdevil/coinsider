@@ -284,6 +284,13 @@ class Database {
             // Column already exists, ignore
         }
 
+        // Add account_id to recurring transactions (ledger model)
+        try {
+            $this->pdo->exec("ALTER TABLE recurring_transactions ADD COLUMN account_id INTEGER REFERENCES accounts(id) ON DELETE SET NULL");
+        } catch (PDOException $e) {
+            // Column already exists, ignore
+        }
+
         // Indexes
         $this->pdo->exec("CREATE INDEX IF NOT EXISTS idx_users_email ON users(email)");
         $this->pdo->exec("CREATE INDEX IF NOT EXISTS idx_users_reset_token ON users(reset_token)");
@@ -1127,13 +1134,18 @@ function getRecurringTransaction($userId, $id) {
     return $stmt->fetch();
 }
 
-function createRecurringTransaction($userId, $description, $amount, $categoryId, $type, $frequency, $startDate, $endDate = null, $skipFirst = false) {
+function createRecurringTransaction($userId, $description, $amount, $categoryId, $type, $frequency, $startDate, $endDate = null, $skipFirst = false, $accountId = null) {
     $pdo = Database::getInstance()->getPdo();
 
     // Validate category belongs to user and matches type
     $category = getCategory($userId, $categoryId);
     if (!$category || $category['type'] !== $type) {
         return null;
+    }
+
+    // Ignore an invalid/foreign account.
+    if ($accountId !== null && !getAccount($userId, $accountId)) {
+        $accountId = null;
     }
 
     // Validate end_date >= start_date if provided
@@ -1158,10 +1170,10 @@ function createRecurringTransaction($userId, $description, $amount, $categoryId,
     }
 
     $stmt = $pdo->prepare("
-        INSERT INTO recurring_transactions (user_id, description, amount, category_id, type, frequency, start_date, end_date, next_occurrence)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+        INSERT INTO recurring_transactions (user_id, description, amount, category_id, type, frequency, start_date, end_date, next_occurrence, account_id)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     ");
-    $stmt->execute([$userId, $description, $amount, $categoryId, $type, $frequency, $startDate, $endDate, $nextOccurrence]);
+    $stmt->execute([$userId, $description, $amount, $categoryId, $type, $frequency, $startDate, $endDate, $nextOccurrence, $accountId]);
 
     $newId = $pdo->lastInsertId();
 
@@ -1173,13 +1185,18 @@ function createRecurringTransaction($userId, $description, $amount, $categoryId,
     return getRecurringTransaction($userId, $newId);
 }
 
-function updateRecurringTransaction($userId, $id, $description, $amount, $categoryId, $type, $frequency, $startDate, $endDate = null) {
+function updateRecurringTransaction($userId, $id, $description, $amount, $categoryId, $type, $frequency, $startDate, $endDate = null, $accountId = null) {
     $pdo = Database::getInstance()->getPdo();
 
     // Validate category belongs to user and matches type
     $category = getCategory($userId, $categoryId);
     if (!$category || $category['type'] !== $type) {
         return null;
+    }
+
+    // Ignore an invalid/foreign account.
+    if ($accountId !== null && !getAccount($userId, $accountId)) {
+        $accountId = null;
     }
 
     // Validate end_date >= start_date if provided
@@ -1200,10 +1217,10 @@ function updateRecurringTransaction($userId, $id, $description, $amount, $catego
 
     $stmt = $pdo->prepare("
         UPDATE recurring_transactions
-        SET description = ?, amount = ?, category_id = ?, type = ?, frequency = ?, start_date = ?, end_date = ?, next_occurrence = ?, updated_at = CURRENT_TIMESTAMP
+        SET description = ?, amount = ?, category_id = ?, type = ?, frequency = ?, start_date = ?, end_date = ?, next_occurrence = ?, account_id = ?, updated_at = CURRENT_TIMESTAMP
         WHERE id = ? AND user_id = ?
     ");
-    $stmt->execute([$description, $amount, $categoryId, $type, $frequency, $startDate, $endDate, $nextOccurrence, $id, $userId]);
+    $stmt->execute([$description, $amount, $categoryId, $type, $frequency, $startDate, $endDate, $nextOccurrence, $accountId, $id, $userId]);
 
     return getRecurringTransaction($userId, $id);
 }
@@ -1331,9 +1348,10 @@ function generatePendingRecurringTransactions($userId) {
                 $category = getCategory($userId, $recurring['category_id']);
                 $categoryName = $category ? $category['name'] : 'Unknown';
 
+                $recurringAccountId = $recurring['account_id'] ?? null;
                 $insertStmt = $pdo->prepare("
-                    INSERT INTO transactions (user_id, description, amount, category, category_id, type, date, recurring_id)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                    INSERT INTO transactions (user_id, description, amount, category, category_id, type, date, recurring_id, account_id)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
                 ");
                 $insertStmt->execute([
                     $userId,
@@ -1343,8 +1361,15 @@ function generatePendingRecurringTransactions($userId) {
                     $recurring['category_id'],
                     $recurring['type'],
                     $currentDate,
-                    $recurring['id']
+                    $recurring['id'],
+                    $recurringAccountId
                 ]);
+
+                // Keep the account balance in step with the generated transaction.
+                if (!empty($recurringAccountId)) {
+                    $delta = ($recurring['type'] === 'income') ? (float) $recurring['amount'] : -(float) $recurring['amount'];
+                    _updateAccountBalance($pdo, $recurringAccountId, $delta);
+                }
 
                 $generated[] = [
                     'recurring_id' => $recurring['id'],
@@ -2115,6 +2140,11 @@ function ensureUserHasAccount($userId) {
             ->execute([$defaultId, $userId]);
         _updateAccountBalance($pdo, $defaultId, (float) $row['delta']);
     }
+
+    // Attach any account-less recurring rules to the default account so their
+    // future generated transactions carry an account.
+    $pdo->prepare("UPDATE recurring_transactions SET account_id = ? WHERE user_id = ? AND account_id IS NULL")
+        ->execute([$defaultId, $userId]);
 
     // Existing users (any transaction history) skip the accounts onboarding prompt.
     $pdo->prepare("
