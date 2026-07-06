@@ -15,6 +15,8 @@ command that keeps every version surface in sync — do not hand-edit versions.
 
 ## [Unreleased]
 
+## [1.3.0] - 2026-07-06
+
 ### Changed
 - **Accounts are now a mandatory ledger.** Every user always has at least one
   account (an auto-created "Default account"), and every transaction, recurring
