@@ -1341,13 +1341,14 @@ async function loadAppData() {
         if (elements.balancePeriodSelector && elements.balancePeriodSelector.value !== period) {
             elements.balancePeriodSelector.value = period;
         }
-        const [categories, transactions, summary, recurring, savingsBucketsData, accountsData] = await Promise.all([
+        const [categories, transactions, summary, recurring, savingsBucketsData, accountsData, transfersData] = await Promise.all([
             api('api.php?resource=categories'),
             api('api.php?resource=transactions&limit=50'),
             api(`api.php?resource=summary&period=${period}`),
             api('api.php?resource=recurring'),
             api('api.php?resource=savings-buckets'),
-            api('api.php?resource=accounts')
+            api('api.php?resource=accounts'),
+            api('api.php?resource=account-transfers&limit=500')
         ]);
 
 
@@ -1363,6 +1364,7 @@ async function loadAppData() {
         // Handle accounts response (API returns { accounts, total_balance })
         let accounts = accountsData?.accounts || [];
         let accountsTotalBalance = accountsData?.total_balance || 0;
+        let transfers = Array.isArray(transfersData) ? transfersData : [];
 
         // Decrypt data if encryption is enabled
         if (CryptoModule?.isReady()) {
@@ -1371,6 +1373,7 @@ async function loadAppData() {
             recur = await decryptRecurringTransactions(recur);
             buckets = await decryptBuckets(buckets);
             accounts = await decryptAccounts(accounts);
+            transfers = await decryptAccountTransfers(transfers);
 
             // Also decrypt category data in summary
             if (summary?.categories) {
@@ -1385,6 +1388,7 @@ async function loadAppData() {
         state.savingsSummary = savingsSummary;
         state.accounts = accounts;
         state.accountsTotalBalance = accountsTotalBalance;
+        state.accountTransfers = transfers;
         state.accountsModuleEnabled = state.user?.accounts_enabled || false;
         state.summary = summary && typeof summary === 'object' ? summary : null;
     } catch (error) {
@@ -1396,6 +1400,7 @@ async function loadAppData() {
         state.savingsSummary = null;
         state.accounts = [];
         state.accountsTotalBalance = 0;
+        state.accountTransfers = [];
         state.accountsModuleEnabled = false;
         state.summary = null;
         showToast('Failed to load data');
@@ -1918,19 +1923,27 @@ function renderTransactions() {
 
     container.querySelectorAll('.transaction-item').forEach(item => item.remove());
 
-    // Always use a local array variable to prevent errors
     const transactions = Array.isArray(state.transactions) ? state.transactions : [];
+    const transfers = Array.isArray(state.accountTransfers) ? state.accountTransfers : [];
 
-    if (transactions.length === 0) {
+    // Merge transactions and transfers into one recent list, newest first.
+    const items = [
+        ...transactions.map(t => ({ kind: 'transaction', sort: (t.date || '') + '|' + (t.created_at || ''), data: t })),
+        ...transfers.map(t => ({ kind: 'transfer', sort: (t.date || '') + '|' + (t.created_at || ''), data: t }))
+    ].sort((a, b) => b.sort.localeCompare(a.sort));
+
+    if (items.length === 0) {
         if (elements.noTransactions) elements.noTransactions.style.display = 'flex';
         return;
     }
-
     if (elements.noTransactions) elements.noTransactions.style.display = 'none';
 
-    const recentTransactions = transactions.slice(0, 10);
-
-    recentTransactions.forEach(transaction => {
+    items.slice(0, 10).forEach(item => {
+        if (item.kind === 'transfer') {
+            container.insertAdjacentHTML('beforeend', renderTransferItemHTML(item.data));
+            return;
+        }
+        const transaction = item.data;
         // Use category info from transaction (joined from categories table)
         const catName = transaction.category_name || transaction.category || 'Unknown';
         const catIcon = transaction.category_icon || '📦';
@@ -1969,6 +1982,37 @@ function renderTransactions() {
 
         container.insertAdjacentHTML('beforeend', html);
     });
+}
+
+// Render a transfer as a transaction-style list item (from -> to, neutral amount).
+function renderTransferItemHTML(transfer) {
+    const fromName = transfer.from_account_name || 'Account';
+    const toName = transfer.to_account_name || 'Account';
+    const desc = transfer.description || 'Transfer';
+    return `
+        <div class="transaction-item" data-transfer-id="${transfer.id}">
+            <div class="transaction-content">
+                <div class="transaction-icon transfer">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:18px;height:18px;">
+                        <polyline points="17 1 21 5 17 9"/><path d="M3 11V9a4 4 0 0 1 4-4h14"/>
+                        <polyline points="7 23 3 19 7 15"/><path d="M21 13v2a4 4 0 0 1-4 4H3"/>
+                    </svg>
+                </div>
+                <div class="transaction-info">
+                    <div class="transaction-description">${escapeHtml(desc)}</div>
+                    <div class="transaction-meta">${escapeHtml(fromName)} → ${escapeHtml(toName)} • ${formatDate(transfer.date)}</div>
+                </div>
+                <div class="transaction-amount transfer">${formatCurrency(transfer.amount)}</div>
+            </div>
+            <div class="transaction-actions">
+                <button class="btn btn-delete btn-icon" onclick="event.stopPropagation(); deleteAccountTransfer(${transfer.id})" title="Delete">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <line x1="18" y1="6" x2="6" y2="18"/>
+                        <line x1="6" y1="6" x2="18" y2="18"/>
+                    </svg>
+                </button>
+            </div>
+        </div>`;
 }
 
 // ========================================
@@ -3483,6 +3527,17 @@ async function decryptAccountTransfers(transfers) {
     return Promise.all(transfers.map(decryptAccountTransfer));
 }
 
+// Reload the transfer list into state (decrypted) after a create/delete.
+async function refreshTransfers() {
+    try {
+        let list = await api('api.php?resource=account-transfers&limit=500');
+        list = Array.isArray(list) ? list : [];
+        state.accountTransfers = await decryptAccountTransfers(list);
+    } catch (e) {
+        console.error('Failed to refresh transfers:', e);
+    }
+}
+
 // Accounts CRUD functions
 async function loadAccounts() {
     try {
@@ -3684,7 +3739,9 @@ async function createAccountTransfer(fromAccountId, toAccountId, amount, descrip
         if (fromAccount) fromAccount.current_balance -= amount;
         if (toAccount) toAccount.current_balance += amount;
 
+        await refreshTransfers();
         renderAccounts();
+        renderTransactions();
         showToast('Transfer completed');
         return transfer;
     } catch (error) {
@@ -3697,8 +3754,10 @@ async function createAccountTransfer(fromAccountId, toAccountId, amount, descrip
 async function deleteAccountTransfer(id) {
     try {
         await api(`api.php?resource=account-transfers&id=${id}`, { method: 'DELETE' });
-        // Reload accounts to get updated balances
+        // Reload accounts (balances) and transfers, then re-render.
         await loadAccounts();
+        await refreshTransfers();
+        renderTransactions();
         showToast('Transfer deleted');
     } catch (error) {
         console.error('Failed to delete transfer:', error);
@@ -6809,6 +6868,7 @@ function setupImport() {
 window.deleteCategory = deleteCategory;
 window.openEditCategoryModal = openEditCategoryModal;
 window.deleteTransaction = deleteTransaction;
+window.deleteAccountTransfer = deleteAccountTransfer;
 window.openEditTransactionModal = openEditTransactionModal;
 window.deleteRecurringTransaction = deleteRecurringTransaction;
 window.openEditRecurringModal = openEditRecurringModal;

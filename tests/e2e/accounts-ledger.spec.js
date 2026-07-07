@@ -87,6 +87,12 @@ test.describe('Accounts ledger', () => {
     });
     expect(balances['Default account']).toBe(-100);
     expect(balances['Savings']).toBe(100);
+
+    // The transfer shows up in the recent transactions list (from -> to).
+    const transferRow = page.locator('#transactions-list .transaction-item').filter({ hasText: '→' });
+    await expect(transferRow).toBeVisible();
+    await expect(transferRow).toContainText('Default account');
+    await expect(transferRow).toContainText('Savings');
   });
 
   test('deleting an account with transactions reassigns them to another account', async ({ page }) => {

@@ -1599,6 +1599,11 @@ body {
     background: var(--color-danger-light);
 }
 
+.transaction-icon.transfer {
+    background: var(--color-primary-ghost);
+    color: var(--color-primary);
+}
+
 .transaction-info {
     flex: 1;
     min-width: 0;
@@ -1631,6 +1636,10 @@ body {
 
 .transaction-amount.expense {
     color: var(--color-danger);
+}
+
+.transaction-amount.transfer {
+    color: var(--text-secondary);
 }
 
 .transaction-actions {
