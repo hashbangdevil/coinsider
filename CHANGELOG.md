@@ -15,7 +15,27 @@ command that keeps every version surface in sync — do not hand-edit versions.
 
 ## [Unreleased]
 
+### Added
+- **Account detail view.** Tapping an account opens a screen showing its current
+  balance and type, its combined transaction and transfer history, and Edit/Delete
+  actions.
+- **Transfer history.** A History button on the Accounts page lists every transfer
+  between accounts, newest first.
+- **Net worth** is now shown on the home balance card alongside the period balance,
+  so your all-accounts total is visible independent of the selected period.
+
+### Changed
+- Transfers now appear in the recent transactions list, interleaved with
+  transactions by date.
+- The back/home chevron is larger and higher-contrast, making it easier to see and tap.
+
 ### Fixed
+- Transfers now honour the encryption setting: transfer descriptions for encrypted
+  accounts are decrypted on read instead of showing ciphertext.
+- Removed a stray "click here to reset password" link (pointing at a hardcoded URL)
+  from the forgot-password confirmation screen.
+- The password-reset and encryption screens now note that your recovery phrase stays
+  valid after use, so you are not prompted to save a new one.
 - Spacing between the Transfer button and the account list on the Accounts page.
 
 ## [1.3.0] - 2026-07-06
