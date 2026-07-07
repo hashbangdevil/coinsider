@@ -796,9 +796,10 @@ body {
 }
 
 .btn-back svg {
-    width: 20px;
-    height: 20px;
-    color: var(--text-secondary);
+    width: 24px;
+    height: 24px;
+    color: var(--text-primary);
+    stroke-width: 2.5;
 }
 
 .btn-back:hover {
