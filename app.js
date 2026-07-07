@@ -4388,6 +4388,10 @@ function updateBalances() {
         elements.totalSaved.textContent = formatCurrency(totalSaved);
     }
 
+    // Net worth = sum of account balances (always current, not period-dependent)
+    const netWorthEl = document.getElementById('net-worth-value');
+    if (netWorthEl) netWorthEl.textContent = formatCurrency(state.accountsTotalBalance || 0);
+
     // Show/hide savings detail based on whether user has buckets
     if (elements.savingsDetail) {
         elements.savingsDetail.style.display = hasBuckets ? 'flex' : 'none';

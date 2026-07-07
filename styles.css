@@ -1327,8 +1327,20 @@ body {
     font-size: 2.75rem;
     font-weight: 600;
     letter-spacing: -0.02em;
-    margin-bottom: var(--space-lg);
+    margin-bottom: var(--space-sm);
     color: var(--text-primary);
+}
+
+.net-worth-row {
+    text-align: center;
+    color: var(--text-secondary);
+    font-size: 0.85rem;
+    margin-bottom: var(--space-lg);
+}
+
+.net-worth-row #net-worth-value {
+    color: var(--text-primary);
+    font-weight: 600;
 }
 
 .balance-stats {
