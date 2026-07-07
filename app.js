@@ -288,6 +288,10 @@ const elements = {
     noAccountDetails: document.getElementById('no-account-details'),
     accountDetailsEditBtn: document.getElementById('account-details-edit-btn'),
     accountDetailsDeleteBtn: document.getElementById('account-details-delete-btn'),
+    transferHistoryBtn: document.getElementById('transfer-history-btn'),
+    transferHistoryModal: document.getElementById('transfer-history-modal'),
+    transferHistoryList: document.getElementById('transfer-history-list'),
+    noTransferHistory: document.getElementById('no-transfer-history'),
     bucketDepositBtn: document.getElementById('bucket-deposit-btn'),
     bucketWithdrawBtn: document.getElementById('bucket-withdraw-btn'),
     bucketEditBtn: document.getElementById('bucket-edit-btn'),
@@ -3769,6 +3773,10 @@ async function deleteAccountTransfer(id) {
         if (elements.accountDetailsModal?.classList.contains('active') && currentViewingAccount) {
             await renderAccountDetailsList(currentViewingAccount.id);
         }
+        // Keep the transfer-history view in sync if it's open.
+        if (elements.transferHistoryModal?.classList.contains('active')) {
+            await renderTransferHistory();
+        }
         showToast('Transfer deleted');
     } catch (error) {
         console.error('Failed to delete transfer:', error);
@@ -3987,6 +3995,30 @@ function renderAccountTxRowHTML(t) {
         </div>`;
 }
 
+// Full history of every transfer between accounts.
+async function openTransferHistoryModal() {
+    openModal(elements.transferHistoryModal);
+    await renderTransferHistory();
+}
+
+async function renderTransferHistory() {
+    const container = elements.transferHistoryList;
+    const emptyState = elements.noTransferHistory;
+
+    await refreshTransfers();
+    const transfers = (state.accountTransfers || []).slice().sort((a, b) =>
+        ((b.date || '') + '|' + (b.created_at || '')).localeCompare((a.date || '') + '|' + (a.created_at || '')));
+
+    if (transfers.length === 0) {
+        container.innerHTML = '';
+        if (emptyState) { container.appendChild(emptyState); emptyState.style.display = 'flex'; }
+        return;
+    }
+    if (emptyState) emptyState.style.display = 'none';
+    container.innerHTML = '';
+    transfers.forEach(t => container.insertAdjacentHTML('beforeend', renderTransferItemHTML(t)));
+}
+
 function populateAccountDropdowns() {
     // Populate transaction account dropdown
     if (elements.transactionAccount) {
@@ -4135,6 +4167,7 @@ function setupAccountModals() {
 
     // Transfer button
     elements.transferBtn?.addEventListener('click', () => openTransferModal());
+    elements.transferHistoryBtn?.addEventListener('click', () => openTransferHistoryModal());
 
     // Account form submit
     elements.accountForm?.addEventListener('submit', async (e) => {

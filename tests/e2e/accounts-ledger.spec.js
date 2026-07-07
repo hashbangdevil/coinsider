@@ -177,4 +177,32 @@ test.describe('Accounts ledger', () => {
     // The Credit account is gone.
     await expect(page.locator(`.account-card[data-account-id="${creditId}"]`)).toHaveCount(0);
   });
+
+  test('the transfer history view lists all transfers', async ({ page }) => {
+    await signUp(page, { name: 'History User', prefix: 'history' });
+
+    await page.evaluate(async () => {
+      const post = (r, b) => fetch(`./api/api.php?resource=${r}`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(b),
+      }).then((x) => x.json());
+      const accounts = (await (await fetch('./api/api.php?resource=accounts')).json()).accounts;
+      const def = accounts.find((a) => a.name === 'Default account');
+      const savings = await post('accounts', { name: 'Savings', type: 'savings', starting_balance: 0 });
+      await post('account-transfers', {
+        from_account_id: def.id, to_account_id: savings.id, amount: 40,
+        description: 'Rent set-aside', date: new Date().toISOString().slice(0, 10),
+      });
+    });
+    await page.reload();
+
+    await page.locator('#menu-btn').click();
+    await page.locator('.nav-item[data-section="accounts"]').click();
+    await page.locator('#transfer-history-btn').click();
+
+    await expect(page.locator('#transfer-history-modal')).toBeVisible();
+    const row = page.locator('#transfer-history-list .transaction-item');
+    await expect(row).toContainText('Rent set-aside');
+    await expect(row).toContainText('Default account');
+    await expect(row).toContainText('Savings');
+  });
 });

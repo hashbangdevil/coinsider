@@ -634,6 +634,13 @@
                         </svg>
                         <span>Transfer</span>
                     </button>
+                    <button class="btn btn-small btn-secondary" id="transfer-history-btn">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width: 16px; height: 16px;">
+                            <circle cx="12" cy="12" r="10"/>
+                            <polyline points="12 6 12 12 16 14"/>
+                        </svg>
+                        <span>History</span>
+                    </button>
                 </div>
                 <div class="accounts-list" id="accounts-list"></div>
                 <div class="empty-state" id="no-accounts" style="display: none;">
@@ -1880,6 +1887,30 @@
                     <div class="empty-state" id="no-account-details">
                         <p>No activity yet</p>
                         <span>Transactions and transfers for this account will appear here</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Transfer History Modal -->
+    <div class="modal" id="transfer-history-modal">
+        <div class="modal-backdrop"></div>
+        <div class="modal-content modal-large">
+            <div class="modal-header">
+                <h3>Transfer History</h3>
+                <button class="btn-icon modal-close">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <line x1="18" y1="6" x2="6" y2="18"/>
+                        <line x1="6" y1="6" x2="18" y2="18"/>
+                    </svg>
+                </button>
+            </div>
+            <div class="modal-body">
+                <div class="account-details-list" id="transfer-history-list">
+                    <div class="empty-state" id="no-transfer-history">
+                        <p>No transfers yet</p>
+                        <span>Money you move between accounts will appear here</span>
                     </div>
                 </div>
             </div>
