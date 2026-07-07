@@ -216,10 +216,11 @@ function handleTransactions($method, $id) {
                 $startDate = isset($_GET['start_date']) ? $_GET['start_date'] : null;
                 $endDate = isset($_GET['end_date']) ? $_GET['end_date'] : null;
                 $needsReview = isset($_GET['needs_review']) ? (intval($_GET['needs_review']) === 1) : null;
+                $accountId = isset($_GET['account_id']) ? intval($_GET['account_id']) : null;
 
                 // Use filtered query if any filter params are provided
-                if ($categoryId !== null || $startDate !== null || $endDate !== null || $needsReview !== null) {
-                    $transactions = getTransactionsFiltered($userId, $limit, $categoryId, $startDate, $endDate, $needsReview);
+                if ($categoryId !== null || $startDate !== null || $endDate !== null || $needsReview !== null || $accountId !== null) {
+                    $transactions = getTransactionsFiltered($userId, $limit, $categoryId, $startDate, $endDate, $needsReview, $accountId);
                 } else {
                     $transactions = getTransactions($userId, $limit);
                 }

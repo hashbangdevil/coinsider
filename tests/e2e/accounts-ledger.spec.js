@@ -95,6 +95,48 @@ test.describe('Accounts ledger', () => {
     await expect(transferRow).toContainText('Savings');
   });
 
+  test('the account detail view shows the balance, transactions and transfers', async ({ page }) => {
+    await signUp(page, { name: 'Detail User', prefix: 'detail' });
+
+    // Seed a second account, a transaction on Default, and a transfer out of it.
+    await page.evaluate(async () => {
+      const post = (resource, body) => fetch(`./api/api.php?resource=${resource}`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
+      }).then((r) => r.json());
+      const accounts = (await (await fetch('./api/api.php?resource=accounts')).json()).accounts;
+      const def = accounts.find((a) => a.name === 'Default account');
+      const savings = await post('accounts', { name: 'Savings', type: 'savings', starting_balance: 0 });
+      const cats = await (await fetch('./api/api.php?resource=categories')).json();
+      const expenseCat = cats.find((c) => c.type === 'expense');
+      const today = new Date().toISOString().slice(0, 10);
+      await post('transactions', {
+        type: 'expense', amount: 25, description: 'Groceries',
+        category_id: expenseCat.id, account_id: def.id, date: today,
+      });
+      await post('account-transfers', {
+        from_account_id: def.id, to_account_id: savings.id, amount: 40,
+        description: 'Move to savings', date: today,
+      });
+    });
+    await page.reload();
+
+    // Open the accounts view and tap the Default account card.
+    await page.locator('#menu-btn').click();
+    await page.locator('[data-section="accounts"]').click();
+    await expect(page.locator('#accounts-section')).toBeVisible();
+    await page.locator('.account-card').filter({ hasText: 'Default account' }).click();
+
+    // The detail modal shows the account and its combined activity.
+    await expect(page.locator('#account-details-modal')).toBeVisible();
+    await expect(page.locator('#account-details-title')).toContainText('Default account');
+    await expect(page.locator('#account-details-list')).toContainText('Groceries');
+    await expect(page.locator('#account-details-list')).toContainText('Move to savings');
+
+    // Edit and Delete actions are available from the detail view.
+    await expect(page.locator('#account-details-edit-btn')).toBeVisible();
+    await expect(page.locator('#account-details-delete-btn')).toBeVisible();
+  });
+
   test('deleting an account with transactions reassigns them to another account', async ({ page }) => {
     await signUp(page, { name: 'Reassign User', prefix: 'reassign' });
 
@@ -118,8 +160,8 @@ test.describe('Accounts ledger', () => {
     await page.locator('#menu-btn').click();
     await page.locator('.nav-item[data-section="accounts"]').click();
     await page.locator(`.account-card[data-account-id="${creditId}"]`).click();
-    await expect(page.locator('#account-modal')).toBeVisible();
-    await page.locator('#account-modal .btn-danger').click();
+    await expect(page.locator('#account-details-modal')).toBeVisible();
+    await page.locator('#account-details-delete-btn').click();
 
     // Confirm the delete → it has transactions → reassign modal appears.
     // (JS clicks: the stacked confirm/reassign modals animate, which trips

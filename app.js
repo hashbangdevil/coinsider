@@ -281,6 +281,13 @@ const elements = {
     bucketDetailsHeader: document.getElementById('bucket-details-header'),
     bucketTransactionsList: document.getElementById('bucket-transactions-list'),
     noBucketTransactions: document.getElementById('no-bucket-transactions'),
+    accountDetailsModal: document.getElementById('account-details-modal'),
+    accountDetailsTitle: document.getElementById('account-details-title'),
+    accountDetailsHeader: document.getElementById('account-details-header'),
+    accountDetailsList: document.getElementById('account-details-list'),
+    noAccountDetails: document.getElementById('no-account-details'),
+    accountDetailsEditBtn: document.getElementById('account-details-edit-btn'),
+    accountDetailsDeleteBtn: document.getElementById('account-details-delete-btn'),
     bucketDepositBtn: document.getElementById('bucket-deposit-btn'),
     bucketWithdrawBtn: document.getElementById('bucket-withdraw-btn'),
     bucketEditBtn: document.getElementById('bucket-edit-btn'),
@@ -3758,6 +3765,10 @@ async function deleteAccountTransfer(id) {
         await loadAccounts();
         await refreshTransfers();
         renderTransactions();
+        // Keep the account-details view in sync if it's the one open.
+        if (elements.accountDetailsModal?.classList.contains('active') && currentViewingAccount) {
+            await renderAccountDetailsList(currentViewingAccount.id);
+        }
         showToast('Transfer deleted');
     } catch (error) {
         console.error('Failed to delete transfer:', error);
@@ -3867,10 +3878,113 @@ function renderAccountCard(account) {
         </div>
     `;
 
-    // Click to edit
-    card.addEventListener('click', () => openAccountModal(account.id));
+    // Click to open the account's detail view
+    card.addEventListener('click', () => openAccountDetailsModal(account.id));
 
     return card;
+}
+
+let currentViewingAccount = null;
+
+// Full detail view for a single account: balance, edit/delete, and its
+// combined transaction + transfer history.
+async function openAccountDetailsModal(accountId) {
+    const account = getAccountById(accountId);
+    if (!account) return;
+    currentViewingAccount = account;
+
+    const icon = account.icon || getAccountTypeDefaultIcon(account.type);
+    elements.accountDetailsTitle.textContent = `${icon} ${account.name}`;
+
+    const balance = account.current_balance || 0;
+    const balanceClass = balance < 0 ? 'negative' : (balance > 0 ? 'positive' : '');
+    elements.accountDetailsHeader.innerHTML = `
+        <div class="account-detail-stat">
+            <span class="label">Current Balance</span>
+            <span class="value ${balanceClass}">${formatCurrency(balance)}</span>
+        </div>
+        <div class="account-detail-stat">
+            <span class="label">Type</span>
+            <span class="value">${escapeHtml(getAccountTypeLabel(account.type))}</span>
+        </div>
+    `;
+
+    // Rebind actions to this account each time the modal opens.
+    elements.accountDetailsEditBtn.onclick = () => {
+        closeModal(elements.accountDetailsModal);
+        openAccountModal(accountId);
+    };
+    elements.accountDetailsDeleteBtn.onclick = async () => {
+        const confirmed = await showConfirm(
+            'If this account has transactions, you will choose another account to move them to.',
+            `Delete "${account.name}"?`
+        );
+        if (!confirmed) return;
+        closeModal(elements.accountDetailsModal);
+        await deleteAccount(accountId);
+    };
+
+    openModal(elements.accountDetailsModal);
+    await renderAccountDetailsList(accountId);
+}
+
+async function renderAccountDetailsList(accountId) {
+    const container = elements.accountDetailsList;
+    const emptyState = elements.noAccountDetails;
+
+    // Fetch this account's transactions and transfers fresh (decrypted).
+    let transactions = [];
+    let transfers = [];
+    try {
+        const [txData, xferData] = await Promise.all([
+            api(`api.php?resource=transactions&account_id=${accountId}&limit=200`),
+            api(`api.php?resource=account-transfers&account_id=${accountId}&limit=200`)
+        ]);
+        transactions = Array.isArray(txData) ? await decryptTransactions(txData) : [];
+        transfers = Array.isArray(xferData) ? await decryptAccountTransfers(xferData) : [];
+    } catch (e) {
+        console.error('Failed to load account activity:', e);
+    }
+
+    const items = [
+        ...transactions.map(t => ({ kind: 'transaction', sort: (t.date || '') + '|' + (t.created_at || ''), data: t })),
+        ...transfers.map(t => ({ kind: 'transfer', sort: (t.date || '') + '|' + (t.created_at || ''), data: t }))
+    ].sort((a, b) => b.sort.localeCompare(a.sort));
+
+    if (items.length === 0) {
+        container.innerHTML = '';
+        if (emptyState) { container.appendChild(emptyState); emptyState.style.display = 'flex'; }
+        return;
+    }
+    if (emptyState) emptyState.style.display = 'none';
+    container.innerHTML = '';
+
+    items.forEach(item => {
+        if (item.kind === 'transfer') {
+            container.insertAdjacentHTML('beforeend', renderTransferItemHTML(item.data));
+        } else {
+            container.insertAdjacentHTML('beforeend', renderAccountTxRowHTML(item.data));
+        }
+    });
+}
+
+// Compact transaction row used inside the account-details list.
+function renderAccountTxRowHTML(t) {
+    const isIncome = t.type === 'income';
+    const catName = t.category_name || t.category || 'Uncategorized';
+    const catIcon = t.category_icon || '📦';
+    const sign = isIncome ? '+' : '-';
+    return `
+        <div class="transaction-item" data-id="${t.id}">
+            <div class="transaction-content">
+                <div class="transaction-icon ${t.type}">${escapeHtml(catIcon)}</div>
+                <div class="transaction-info">
+                    <div class="transaction-description">${escapeHtml(t.description || catName)}</div>
+                    <div class="transaction-meta">${escapeHtml(catName)} • ${formatDate(t.date)}</div>
+                </div>
+                <div class="transaction-amount ${t.type}">${sign}${formatCurrency(Math.abs(t.amount))}</div>
+            </div>
+        </div>`;
 }
 
 function populateAccountDropdowns() {

@@ -1488,7 +1488,7 @@ function getCategoryTotalsForDateRange($userId, $startDate, $endDate) {
     return $results;
 }
 
-function getTransactionsFiltered($userId, $limit = 100, $categoryId = null, $startDate = null, $endDate = null, $needsReview = null) {
+function getTransactionsFiltered($userId, $limit = 100, $categoryId = null, $startDate = null, $endDate = null, $needsReview = null, $accountId = null) {
     $pdo = Database::getInstance()->getPdo();
 
     $sql = "
@@ -1511,6 +1511,11 @@ function getTransactionsFiltered($userId, $limit = 100, $categoryId = null, $sta
     if ($categoryId !== null) {
         $sql .= " AND t.category_id = ?";
         $params[] = $categoryId;
+    }
+
+    if ($accountId !== null) {
+        $sql .= " AND t.account_id = ?";
+        $params[] = $accountId;
     }
 
     if ($startDate !== null) {

@@ -1842,6 +1842,50 @@
         </div>
     </div>
 
+    <!-- Account Details Modal -->
+    <div class="modal" id="account-details-modal">
+        <div class="modal-backdrop"></div>
+        <div class="modal-content modal-large">
+            <div class="modal-header">
+                <h3 id="account-details-title">Account</h3>
+                <button class="btn-icon modal-close">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <line x1="18" y1="6" x2="6" y2="18"/>
+                        <line x1="6" y1="6" x2="18" y2="18"/>
+                    </svg>
+                </button>
+            </div>
+            <div class="modal-body">
+                <div class="account-details-header" id="account-details-header">
+                    <!-- Account balance rendered here -->
+                </div>
+                <div class="account-details-actions">
+                    <button type="button" class="btn btn-secondary" id="account-details-edit-btn">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width: 18px; height: 18px; margin-right: 6px;">
+                            <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
+                            <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
+                        </svg>
+                        Edit
+                    </button>
+                    <button type="button" class="btn btn-danger" id="account-details-delete-btn">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <polyline points="3 6 5 6 21 6"/>
+                            <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>
+                        </svg>
+                        Delete
+                    </button>
+                </div>
+                <h4 class="account-history-title">Transactions &amp; Transfers</h4>
+                <div class="account-details-list" id="account-details-list">
+                    <div class="empty-state" id="no-account-details">
+                        <p>No activity yet</p>
+                        <span>Transactions and transfers for this account will appear here</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <!-- PWA Install Banner (Android/Chrome) -->
     <div class="install-banner" id="install-banner">
         <div class="install-banner-content">

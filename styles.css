@@ -4292,6 +4292,73 @@ select:focus,
     overflow-y: auto;
 }
 
+/* Account details modal (mirrors bucket details) */
+.account-details-header {
+    display: flex;
+    gap: var(--space-lg);
+    padding: var(--space-md);
+    background: var(--bg-tertiary);
+    border-radius: var(--radius-md);
+    margin-bottom: var(--space-md);
+}
+
+.account-detail-stat {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-xs);
+}
+
+.account-detail-stat .label {
+    font-size: 0.85rem;
+    color: var(--text-secondary);
+}
+
+.account-detail-stat .value {
+    font-size: 1.5rem;
+    font-weight: 600;
+}
+
+.account-detail-stat .value.negative {
+    color: var(--color-danger);
+}
+
+.account-detail-stat .value.positive {
+    color: var(--color-success);
+}
+
+.account-details-actions {
+    display: flex;
+    gap: var(--space-sm);
+    margin-bottom: var(--space-lg);
+    flex-wrap: wrap;
+}
+
+.account-details-actions .btn {
+    flex: 1;
+    min-width: 120px;
+}
+
+.account-details-actions .btn svg {
+    width: 20px;
+    height: 20px;
+    flex-shrink: 0;
+}
+
+.account-history-title {
+    font-size: 1rem;
+    font-weight: 600;
+    margin-bottom: var(--space-md);
+    color: var(--text-secondary);
+}
+
+.account-details-list {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-sm);
+    max-height: 320px;
+    overflow-y: auto;
+}
+
 .bucket-transaction-item {
     display: flex;
     justify-content: space-between;
