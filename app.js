@@ -1180,22 +1180,6 @@ async function handleForgotPassword(e) {
         
         // Show success message
         showAuthForm('reset-success');
-
-        // If in dev mode (email disabled), show the reset link in a toast
-        if (data.reset_link) {
-            showToast('Dev mode: Click the link shown below', 5000);
-            // Display the link in a more visible way
-            const successEl = document.getElementById('reset-success');
-            let devLinkEl = successEl.querySelector('.dev-reset-link');
-            if (!devLinkEl) {
-                devLinkEl = document.createElement('a');
-                devLinkEl.className = 'dev-reset-link';
-                devLinkEl.style.cssText = 'display:block;margin-top:16px;padding:12px;background:var(--bg-card);border-radius:8px;color:var(--color-primary);word-break:break-all;font-size:0.85rem;text-align:center;';
-                successEl.appendChild(devLinkEl);
-            }
-            devLinkEl.href = data.reset_link;
-            devLinkEl.textContent = 'Click here to reset password';
-        }
     } catch (error) {
         showToast(error.message || 'Request failed');
     } finally {
