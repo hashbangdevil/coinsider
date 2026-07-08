@@ -15,6 +15,8 @@ command that keeps every version surface in sync — do not hand-edit versions.
 
 ## [Unreleased]
 
+## [1.4.0] - 2026-07-08
+
 ### Added
 - **Account detail view.** Tapping an account opens a screen showing its current
   balance and type, its combined transaction and transfer history, and Edit/Delete
