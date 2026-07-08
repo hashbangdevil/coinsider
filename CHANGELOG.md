@@ -15,6 +15,11 @@ command that keeps every version surface in sync — do not hand-edit versions.
 
 ## [Unreleased]
 
+### Changed
+- **Net worth moved to Reports.** It now lives in a dedicated card at the top of
+  the Reports section (all-accounts total plus a per-account breakdown) instead of
+  on the home balance card, where it was easy to confuse with the period balance.
+
 ## [1.4.0] - 2026-07-08
 
 ### Added
