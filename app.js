@@ -2892,6 +2892,8 @@ function showMenuSection(sectionName) {
     switch (sectionName) {
         case 'reports':
             elements.reportsSection.style.display = 'block';
+            // Net worth = current sum of all account balances (period-independent)
+            renderNetWorth();
             // Render charts now that the section is visible
             renderChart();
             const months = parseInt(document.getElementById('trends-range-selector')?.value) || 12;
@@ -4594,10 +4596,6 @@ function updateBalances() {
         elements.totalSaved.textContent = formatCurrency(totalSaved);
     }
 
-    // Net worth = sum of account balances (always current, not period-dependent)
-    const netWorthEl = document.getElementById('net-worth-value');
-    if (netWorthEl) netWorthEl.textContent = formatCurrency(state.accountsTotalBalance || 0);
-
     // Show/hide savings detail based on whether user has buckets
     if (elements.savingsDetail) {
         elements.savingsDetail.style.display = hasBuckets ? 'flex' : 'none';
@@ -4606,6 +4604,28 @@ function updateBalances() {
     // Update income/expenses
     if (elements.totalIncome) elements.totalIncome.textContent = formatCurrency(income);
     if (elements.totalExpenses) elements.totalExpenses.textContent = formatCurrency(expense);
+}
+
+// Net worth report: the current all-accounts total plus a per-account breakdown.
+// This is always the live balance, independent of the selected reporting period.
+function renderNetWorth() {
+    const totalEl = document.getElementById('net-worth-total');
+    if (totalEl) totalEl.textContent = formatCurrency(state.accountsTotalBalance || 0);
+
+    const list = document.getElementById('net-worth-accounts');
+    if (!list) return;
+
+    const accounts = state.accounts || [];
+    list.innerHTML = accounts.map(account => {
+        const balance = account.current_balance || 0;
+        const cls = balance < 0 ? 'negative' : (balance > 0 ? 'positive' : '');
+        const icon = account.icon || getAccountTypeDefaultIcon(account.type);
+        return `
+            <div class="net-worth-account-row">
+                <span class="net-worth-account-name">${escapeHtml(icon)} ${escapeHtml(account.name)}</span>
+                <span class="net-worth-account-balance ${cls}">${formatCurrency(balance)}</span>
+            </div>`;
+    }).join('');
 }
 
 function renderChart() {

@@ -205,4 +205,30 @@ test.describe('Accounts ledger', () => {
     await expect(row).toContainText('Default account');
     await expect(row).toContainText('Savings');
   });
+
+  test('net worth appears in the Reports section with a per-account breakdown', async ({ page }) => {
+    await signUp(page, { name: 'Worth User', prefix: 'worth' });
+
+    // Default account starts at 0; add a Savings account with a starting balance.
+    await page.evaluate(async () => {
+      await fetch('./api/api.php?resource=accounts', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: 'Savings', type: 'savings', starting_balance: 250 }),
+      });
+    });
+    await page.reload();
+
+    await page.locator('#menu-btn').click();
+    await page.locator('.nav-item[data-section="reports"]').click();
+    await expect(page.locator('#reports-section')).toBeVisible();
+
+    // Total net worth = sum of account balances (Default 0 + Savings 250).
+    await expect(page.locator('#net-worth-total')).toContainText('250');
+
+    // The breakdown lists every account.
+    const rows = page.locator('#net-worth-accounts .net-worth-account-row');
+    await expect(rows).toHaveCount(2);
+    await expect(page.locator('#net-worth-accounts')).toContainText('Default account');
+    await expect(page.locator('#net-worth-accounts')).toContainText('Savings');
+  });
 });
