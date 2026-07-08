@@ -15,6 +15,8 @@ command that keeps every version surface in sync — do not hand-edit versions.
 
 ## [Unreleased]
 
+## [1.4.1] - 2026-07-08
+
 ### Changed
 - **Net worth moved to Reports.** It now lives in a dedicated card at the top of
   the Reports section (all-accounts total plus a per-account breakdown) instead of
